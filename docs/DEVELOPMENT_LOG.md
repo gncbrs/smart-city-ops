@@ -118,9 +118,75 @@ tersi ama Level 1'in basitlik hedefiyle bilinçli olarak tercih edildi.
 
 **Doğrulama:** `dotnet build` → 0 hata, 0 uyarı.
 
-### 2.4 Henüz yapılmayanlar (backend)
+### 2.4 Infrastructure katmanı — EF Core + Npgsql kurulumu
 
-- Infrastructure: EF Core + Npgsql paket kurulumu, `ApplicationDbContext`, ilk migration
+**Kurulan NuGet paketleri (8.0.10, EF Core 8 / net8.0 ile uyumlu sürüme sabitlendi):**
+- `SmartCityOps.Infrastructure.csproj` → `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore.Design`
+- `SmartCityOps.Api.csproj` → `Microsoft.EntityFrameworkCore.Design`
+
+Not: İlk planda `Design` paketinin sadece Infrastructure'da yeterli olacağı varsayılmıştı.
+`dotnet ef migrations add` komutu çalıştırılırken **startup project'in de (Api) bu paketi
+referanslamasının şart olduğu** ortaya çıktı — hata mesajı bunu net şekilde belirtti, paket
+Api'ye de eklendi.
+
+**`dotnet-ef` CLI aracı** global olarak kuruldu (`dotnet tool install --global dotnet-ef
+--version 8.0.10`) — bu bir proje paketi değil, sistem genelinde çalışan bir komut satırı aracı,
+migration komutlarını çalıştırmak için gerekli.
+
+**Oluşturulan/değiştirilen dosyalar:**
+
+| Dosya | İçerik |
+|---|---|
+| `Infrastructure/Persistence/ApplicationDbContext.cs` | `DbSet<Incident> Incidents`; `OnModelCreating` içinde `ApplyConfigurationsFromAssembly` çağrısı — ileride FieldUnit/Task eklenince bu dosyaya tekrar dokunmadan yeni `Configuration` sınıfları otomatik keşfedilecek |
+| `Infrastructure/Persistence/Configurations/IncidentConfiguration.cs` | `IEntityTypeConfiguration<Incident>` — Fluent API ile şema kuralları (aşağıda detay) |
+| `Infrastructure/DependencyInjection.cs` | `AddInfrastructure()` extension metodu — `Program.cs`'i ince tutmak için, DbContext DI kaydı burada |
+| `Api/appsettings.Development.json` | `ConnectionStrings:DefaultConnection` eklendi (docker-compose'daki Postgres kimlik bilgileriyle birebir) |
+| `Api/Program.cs` | `builder.Services.AddInfrastructure(builder.Configuration);` satırı eklendi |
+
+**`IncidentConfiguration.cs` içindeki kararlar (onaylandı):**
+- **Karar A — `IncidentCode` üzerinde unique index.** Aynı incident kodu iki kez kaydedilemesin
+  diye veritabanı seviyesinde garanti. Uygulama kodunun her seferinde "acaba var mı" kontrolü
+  yapmasına gerek bırakmıyor.
+- **Karar B — `Type`/`Priority`/`Status` enum'ları Postgres'te `string` olarak saklanıyor**
+  (`int` değil). Gerekçe: (1) tabloya doğrudan bakınca `"Resolved"` okunabiliyor, `2` değil —
+  debug/demo kolaylığı; (2) enum'a yeni değer eklenip sıra değişirse eski kayıtların anlamı
+  kaymıyor — `int` saklansaydı bu risk vardı; (3) bu ölçekte (staj projesi, yüksek trafik yok)
+  string'in ek yer kaplaması önemsiz.
+
+**Migration:**
+```
+dotnet ef migrations add InitialCreate \
+  --project src/SmartCityOps.Infrastructure \
+  --startup-project src/SmartCityOps.Api \
+  --output-dir Persistence/Migrations
+```
+Üretilen dosyalar: `Persistence/Migrations/20260812205108_InitialCreate.cs` (+ `.Designer.cs`,
+`ApplicationDbContextModelSnapshot.cs`).
+
+Migration'ın `Up()` metodu şu tabloyu oluşturuyor (uygulanmadan önce elle incelendi):
+
+```
+CreateTable "Incidents"
+  Id           uuid                     PK
+  IncidentCode character varying(50)    NOT NULL, UNIQUE INDEX
+  Type         character varying(50)    NOT NULL
+  Priority     character varying(20)    NOT NULL
+  Status       character varying(20)    NOT NULL
+  ReportedAt   timestamp with time zone NOT NULL
+  Latitude     double precision         NOT NULL
+  Longitude    double precision         NOT NULL
+  Description  text                     NOT NULL
+```
+
+**Durum: Migration oluşturuldu, Postgres'e HENÜZ UYGULANMADI.** `dotnet ef database update`
+komutu, kullanıcı onayı bekleniyor — veritabanına ilk kez dokunulacağı için önce migration
+dosyası birlikte incelendi.
+
+**Doğrulama:** `dotnet build` → 0 hata, 0 uyarı (paket kurulumları ve yeni dosyalardan sonra).
+
+### 2.5 Henüz yapılmayanlar (backend)
+
+- **`dotnet ef database update`** — migration'ı gerçek Postgres container'ına uygulamak (bir sonraki adım, onay bekleniyor)
 - Application: `IncidentDto`, `IIncidentService`/`IncidentService`
 - Api: `IncidentsController` (GET/POST/PATCH endpoint'leri)
 - SignalR: `OperationsHub`
@@ -251,6 +317,19 @@ smart-city-ops/
 
 ## 6. Sıradaki Adım
 
-**Infrastructure katmanı:** EF Core + Npgsql paket kurulumu → `ApplicationDbContext` →
-connection string tanımı → ilk migration (`InitialCreate`) → Postgres'e uygulama.
-Bu adım, Domain'de tanımlanan `Incident` entity'sini gerçek bir Postgres tablosuna dönüştürecek.
+**Hemen sıradaki:** `dotnet ef database update` ile `InitialCreate` migration'ını gerçek
+Postgres container'ına uygulamak — onay bekleniyor. Bu adımdan sonra `Incidents` tablosu
+pgAdmin/psql ile gözle görülebilir olacak.
+
+Ardından: Application katmanı (`IncidentDto`, `IncidentService`) → Api katmanı
+(`IncidentsController`, GET/POST/PATCH endpoint'leri) → frontend'de gerçek veri gösterimi.
+
+---
+
+## 7. Sürüm Notları / Düzeltmeler
+
+- **12 Ağustos 2026:** `Npgsql.EntityFrameworkCore.PostgreSQL`'in en güncel sürümü (10.0.3)
+  `net10.0` istiyor, `net8.0` ile uyumsuz çıktı → 8.0.10'a sabitlendi.
+- **12 Ağustos 2026:** `Microsoft.EntityFrameworkCore.Design` paketinin yalnızca Infrastructure'da
+  değil, **startup project'te (Api) de** referanslı olması gerektiği migration komutu çalıştırılırken
+  ortaya çıktı → Api projesine de eklendi.
