@@ -1,0 +1,16 @@
+.operations-center-layout {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+}
+
+.operations-center-layout__map {
+  flex: 1;
+}
+
+.operations-center-layout__side-panel {
+  width: 360px;
+  border-left: 1px solid #ddd;
+  padding: 16px;
+  overflow-y: auto;
+}
