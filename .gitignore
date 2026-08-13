@@ -1,8 +1,6 @@
 ## ===== .NET / Backend =====
-backend/**/bin/
-backend/**/obj/
-incident-generator/**/bin/
-incident-generator/**/obj/
+bin/
+obj/
 *.user
 *.suo
 .vs/
