@@ -1,5 +1,5 @@
 using System.Net.Http.Json; //apilere json formatında veri göndermeyi kolaylaştır.
-using System.Runtime.CompilerServices;
+//using System.Runtime.CompilerServices;
 using System.Text.Json; // c# nesnelerini jsona dönüştürür.
 using Microsoft.Extensions.Options; // uygulama ayarlarını okumayı sağlar.
 
@@ -33,17 +33,17 @@ public class Worker : BackgroundService
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly ILogger<Worker> _logger; // ekran/konsola bilgilendirme (loglama) yazmak için.
-    private readonly HttpClient _httpClient; //sanal tarayıcı ya da istemci.
-    private readonly IncidentGenerator  _options;
-    private readonly Random _random = new();
-    private int _sequence;
+    private readonly ILogger<Worker> logger; // ekran/konsola bilgilendirme (loglama) yazmak için.
+    private readonly HttpClient httpClient; //sanal tarayıcı ya da istemci.
+    private readonly IncidentGenerator  options;
+    private readonly Random random = new();
+    private int sequence;
 
     public Worker(ILogger<Worker> logger, HttpClient httpClient, IOptions<IncidentGenerator > options)
     {
-        _logger = logger;
-        _httpClient = httpClient;
-        _options = options.Value;
+        this.logger = logger;
+        this.httpClient = httpClient;
+        this.options = options.Value;
     }
 
     //arka plan servisinin kalbi. Otomatik olarak çalışır(uygulama başladığında.).
@@ -52,7 +52,7 @@ public class Worker : BackgroundService
         while (!stoppingToken.IsCancellationRequested) //uygulama kapatılmadığı sürece sonsuz döngü.
         {
             await GenerateAndSendIncidentAsync(stoppingToken);
-            await Task.Delay(TimeSpan.FromSeconds(_options.IntervalSeconds), stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(options.IntervalSeconds), stoppingToken);
         }
     }
 
@@ -62,38 +62,38 @@ public class Worker : BackgroundService
 
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("incidents", payload, JsonOptions, cancellationToken);
+            var response = await httpClient.PostAsJsonAsync("incidents", payload, JsonOptions, cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
-                _logger.LogInformation("Incident gönderildi: {IncidentCode}", payload.IncidentCode);
+                logger.LogInformation("Incident gönderildi: {IncidentCode}", payload.IncidentCode);
             }
 
             else
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("Incident gönderilemedi... ({StatusCode}) : {Body}", response.StatusCode, body);
+                logger.LogWarning("Incident gönderilemedi... ({StatusCode}) : {Body}", response.StatusCode, body);
             }
         }
 
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "API'ye bağlanılamadı...");
+            logger.LogError(ex, "API'ye bağlanılamadı...");
         }
     }
 
     private IncidentPayload BuildRandomIncident()
     {
-        _sequence++;
+        sequence++;
 
-        var latitude = AnkaraLatitude + ((_random.NextDouble() * 2 - 1) * CoordinateSpread);
-        var longitude = AnkaraLongitude + ((_random.NextDouble() * 2 - 1) * CoordinateSpread);
+        var latitude = AnkaraLatitude + ((random.NextDouble() * 2 - 1) * CoordinateSpread);
+        var longitude = AnkaraLongitude + ((random.NextDouble() * 2 - 1) * CoordinateSpread);
     
         return new IncidentPayload
         (
-            IncidentCode: $"INC-{DateTime.UtcNow:yyyyMMdd}-{_sequence:D4}",
-            Type: IncidentTypes[_random.Next(IncidentTypes.Length)],
-            Priority: Priorities[_random.Next(Priorities.Length)],
+            IncidentCode: $"INC-{DateTime.UtcNow:yyyyMMdd}-{sequence:D4}",
+            Type: IncidentTypes[random.Next(IncidentTypes.Length)],
+            Priority: Priorities[random.Next(Priorities.Length)],
             ReportedAt: DateTimeOffset.UtcNow,
             Latitude: latitude,
             Longitude: longitude,

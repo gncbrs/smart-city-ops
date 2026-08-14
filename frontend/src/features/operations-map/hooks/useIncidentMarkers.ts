@@ -13,7 +13,7 @@ export function useIncidentMarkers({ map, incidents, onSelectIncident }: UseInci
     if (!map) return;
 
     const markers = incidents.map((incident) => {
-      const marker = new Marker().setLngLat([incident.longitude, incident.latitude]).addTo(map);
+      const marker = new Marker({ color: "#e20b0b" }).setLngLat([incident.longitude, incident.latitude]).addTo(map);
 
       marker.getElement().addEventListener("click", () => onSelectIncident(incident));
 

@@ -6,7 +6,11 @@ interface IncidentPanelProps {
 
 export function IncidentPanel({ incident }: IncidentPanelProps) {
   if (!incident) {
-    return <div>Select an incident point to show details of it.</div>;
+    return <div>
+      Select an incident point to show details of it.
+      Color Blue for Field Units. <br />
+      Color Red for Incidents.
+    </div>;
   }
 
   return (

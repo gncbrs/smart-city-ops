@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Map as MapLibreMap, type LngLatBoundsLike } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Incident } from "../../incidents/types";
+import type { FieldUnit } from "../../field-units/types";          // YENİ
 import { useIncidentMarkers } from "../hooks/useIncidentMarkers";
+import { useFieldUnitMarkers } from "../hooks/useFieldUnitMarkers"; // YENİ
 import "../styles/OperationsMap.css";
 
 const ANKARA_CENTER: [number, number] = [32.836, 39.925];
 
-// Ankara metropolitan alanını kapsayan sınır kutusu — operatör haritayı bunun dışına kaydıramaz.
 const ANKARA_BOUNDS: LngLatBoundsLike = [
   [32.4, 39.6],
   [33.3, 40.2],
@@ -15,10 +16,11 @@ const ANKARA_BOUNDS: LngLatBoundsLike = [
 
 interface OperationsMapProps {
   incidents: Incident[];
+  fieldUnits: FieldUnit[];                                  // YENİ
   onSelectIncident: (incident: Incident) => void;
 }
 
-export function OperationsMap({ incidents, onSelectIncident }: OperationsMapProps) {
+export function OperationsMap({ incidents, fieldUnits, onSelectIncident }: OperationsMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
@@ -52,6 +54,7 @@ export function OperationsMap({ incidents, onSelectIncident }: OperationsMapProp
   }, []);
 
   useIncidentMarkers({ map, incidents, onSelectIncident });
+  useFieldUnitMarkers({ map, fieldUnits });                 // YENİ
 
   return <div ref={mapContainerRef} className="operations-map" />;
 }

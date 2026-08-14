@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartCityOps.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SmartCityOps.Infrastructure.Persistence;
 namespace SmartCityOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814083349_SeedFieldUnits")]
+    partial class SeedFieldUnits
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -149,53 +152,6 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Incidents", (string)null);
-                });
-
-            modelBuilder.Entity("SmartCityOps.Domain.Entities.OperationalTask", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("AssignedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("FieldUnitId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("IncidentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FieldUnitId");
-
-                    b.HasIndex("IncidentId");
-
-                    b.ToTable("OperationalTasks", (string)null);
-                });
-
-            modelBuilder.Entity("SmartCityOps.Domain.Entities.OperationalTask", b =>
-                {
-                    b.HasOne("SmartCityOps.Domain.Entities.FieldUnit", null)
-                        .WithMany()
-                        .HasForeignKey("FieldUnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SmartCityOps.Domain.Entities.Incident", null)
-                        .WithMany()
-                        .HasForeignKey("IncidentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

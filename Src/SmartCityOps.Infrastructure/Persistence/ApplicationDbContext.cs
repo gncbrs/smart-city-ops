@@ -12,6 +12,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Incident> Incidents => Set<Incident>();
     public DbSet<FieldUnit> FieldUnits => Set<FieldUnit>();
+    public DbSet<OperationalTask> OperationalTasks => Set<OperationalTask>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
