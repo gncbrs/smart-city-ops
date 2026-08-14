@@ -6,15 +6,15 @@ interface IncidentPanelProps {
 
 export function IncidentPanel({ incident }: IncidentPanelProps) {
   if (!incident) {
-    return <div>Haritadan bir incident seçin.</div>;
+    return <div>Select an incident point to show details of it.</div>;
   }
 
   return (
     <div>
       <h3>{incident.type}</h3>
-      <p>Öncelik: {incident.priority}</p>
-      <p>Durum: {incident.status}</p>
-      <p>{incident.description}</p>
+      <p>Priority: {incident.priority}</p>
+      <p>Status: {incident.status}</p>
+      <p>Description: {incident.description}</p>
     </div>
   );
 }

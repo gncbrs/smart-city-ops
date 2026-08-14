@@ -5,6 +5,7 @@ import { useIncidents } from "../features/incidents/hooks/useIncidents";
 import { OperationsMap } from "../features/operations-map/components/OperationsMap";
 import { useSignalRConnection } from "../shared/hooks/useSignalR";
 import type { Incident } from "../features/incidents/types";
+import { IncidentsSummary } from "../features/incidents/components/IncidentsSummary";
 
 export function App() {
   useSignalRConnection();
@@ -17,7 +18,7 @@ export function App() {
       map={<OperationsMap incidents={incidents ?? []} onSelectIncident={setSelectedIncident} />}
       sidePanel={
         <>
-          <p>Toplam incident: {incidents?.length ?? 0}</p>
+          <IncidentsSummary count={incidents?.length ?? 0} />
           <IncidentPanel incident={selectedIncident} />
         </>
       }

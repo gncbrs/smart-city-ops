@@ -4,6 +4,8 @@ import './index.css'
 import { App } from './app/App'
 import { AppProviders } from './app/providers'
 
+//Sayfa yönlendirmesi yapmıcamız için dokunulmadı. 
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppProviders>

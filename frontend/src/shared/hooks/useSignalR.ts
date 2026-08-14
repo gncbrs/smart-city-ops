@@ -4,7 +4,7 @@ import { getOperationsHubConnection } from "../lib/signalRConnection";
 // Aşama 3'te (real-time) backend'deki OperationsHub event'lerine burada abone olacağız.
 export function useSignalRConnection() {
   useEffect(() => {
-    const connection = getOperationsHubConnection();
+    const connection = getOperationsHubConnection(); //Singelton bağlantı.
 
     if (connection.state === "Disconnected") {
       connection.start().catch((error) => {
