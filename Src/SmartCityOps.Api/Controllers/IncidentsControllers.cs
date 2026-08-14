@@ -34,4 +34,22 @@ public class IncidentsController : ControllerBase
             return BadRequest("Yanlış veye eksik argüman.");
         }
     }
+
+    [HttpPost("{id:guid}/resolve")]
+    public async Task<ActionResult<IncidentDto>> Resolve(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolved = await _incidentService.ResolveAsync(id, cancellationToken);
+            return Ok(resolved);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
 }

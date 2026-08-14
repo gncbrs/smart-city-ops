@@ -59,4 +59,48 @@ public class IncidentService : IIncidentService
             incident.Longitude,
             incident.Description);
     }
+
+    public async Task<IncidentDto> ResolveAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var incident = await _dbContext.Incidents
+            .FirstOrDefaultAsync(i => i.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("Incident bulunamadı.");
+
+        if (incident.Status == IncidentStatus.Resolved)
+        {
+            throw new InvalidOperationException("Bu incident zaten resolved.");
+        }
+
+        var openTasks = await _dbContext.OperationalTasks
+            .Where(t => t.IncidentId == id && t.Status == OperationalTaskStatus.Assigned)
+            .ToListAsync(cancellationToken);
+
+        foreach (var task in openTasks)
+        {
+            task.Status = OperationalTaskStatus.Completed;
+            task.CompletedAt = DateTimeOffset.UtcNow;
+
+            var fieldUnit = await _dbContext.FieldUnits
+                .FirstOrDefaultAsync(f => f.Id == task.FieldUnitId, cancellationToken);
+
+            if (fieldUnit is not null)
+            {
+                fieldUnit.Status = FieldUnitStatus.Available;
+            }
+        }
+
+        incident.Status = IncidentStatus.Resolved;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new IncidentDto(
+            incident.Id,
+            incident.Type.ToString(),
+            incident.Priority.ToString(),
+            incident.Status.ToString(),
+            incident.ReportedAt,
+            incident.Latitude,
+            incident.Longitude,
+            incident.Description);
+    }
 }
