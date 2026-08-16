@@ -75,15 +75,18 @@ public class IncidentService : IIncidentService
             .Where(t => t.IncidentId == id && t.Status == OperationalTaskStatus.Assigned)
             .ToListAsync(cancellationToken);
 
+        var fieldUnitIds = openTasks.Select(t => t.FieldUnitId).ToList();
+
+        var fieldUnitsById = await _dbContext.FieldUnits
+            .Where(f => fieldUnitIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, cancellationToken);
+
         foreach (var task in openTasks)
         {
             task.Status = OperationalTaskStatus.Completed;
             task.CompletedAt = DateTimeOffset.UtcNow;
 
-            var fieldUnit = await _dbContext.FieldUnits
-                .FirstOrDefaultAsync(f => f.Id == task.FieldUnitId, cancellationToken);
-
-            if (fieldUnit is not null)
+            if (fieldUnitsById.TryGetValue(task.FieldUnitId, out var fieldUnit))
             {
                 fieldUnit.Status = FieldUnitStatus.Available;
             }

@@ -5,13 +5,11 @@ using Microsoft.Extensions.Options; // uygulama ayarlarını okumayı sağlar.
 
 namespace SmartCityOps.IncidentGenerator;
 
-// TODO SOLUTIONS WILL BE MERGED, WHY SHOULD THE ONE HAVE TWO SOLUTIONS WHILE THEY CAN ONLY HAVE ONE
 public class Worker : BackgroundService
 {
-    // TODO -- SHOULD BE IMPORTED FROM COMMONs 
     private static readonly string[] IncidentTypes =
     {
-        "TrafficAccident", 
+        "TrafficAccident",
         "RoadClosure",
         "FireAlert",
         "InfrastructureFailure",
@@ -24,7 +22,7 @@ public class Worker : BackgroundService
     {
       "Low",
       "Medium",
-      "High"  
+      "High"
     };
 
     private const double AnkaraLatitude = 39.925;
@@ -35,11 +33,10 @@ public class Worker : BackgroundService
 
     private readonly ILogger<Worker> logger; // ekran/konsola bilgilendirme (loglama) yazmak için.
     private readonly HttpClient httpClient; //sanal tarayıcı ya da istemci.
-    private readonly IncidentGenerator  options;
+    private readonly IncidentGeneratorOptions options;
     private readonly Random random = new();
-    private int sequence;
 
-    public Worker(ILogger<Worker> logger, HttpClient httpClient, IOptions<IncidentGenerator > options)
+    public Worker(ILogger<Worker> logger, HttpClient httpClient, IOptions<IncidentGeneratorOptions> options)
     {
         this.logger = logger;
         this.httpClient = httpClient;
@@ -84,14 +81,15 @@ public class Worker : BackgroundService
 
     private IncidentPayload BuildRandomIncident()
     {
-        sequence++;
-
         var latitude = AnkaraLatitude + ((random.NextDouble() * 2 - 1) * CoordinateSpread);
         var longitude = AnkaraLongitude + ((random.NextDouble() * 2 - 1) * CoordinateSpread);
-    
+
         return new IncidentPayload
         (
-            IncidentCode: $"INC-{DateTime.UtcNow:yyyyMMdd}-{sequence:D4}",
+            // Milisaniyeye kadar zaman damgası: process her yeniden başlatıldığında sıfırdan
+            // sayan bir "sequence" alanına göre daha güvenli -- iki farklı process çalıştırması
+            // aynı günde aynı kodu üretip IX_Incidents_IncidentCode unique index'ine çarpmıyor.
+            IncidentCode: $"INC-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
             Type: IncidentTypes[random.Next(IncidentTypes.Length)],
             Priority: Priorities[random.Next(Priorities.Length)],
             ReportedAt: DateTimeOffset.UtcNow,

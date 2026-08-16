@@ -18,9 +18,10 @@ interface OperationsMapProps {
   incidents: Incident[];
   fieldUnits: FieldUnit[];                                  // YENİ
   onSelectIncident: (incident: Incident) => void;
+  onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
 }
 
-export function OperationsMap({ incidents, fieldUnits, onSelectIncident }: OperationsMapProps) {
+export function OperationsMap({ incidents, fieldUnits, onSelectIncident, onSelectFieldUnit }: OperationsMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
@@ -54,7 +55,7 @@ export function OperationsMap({ incidents, fieldUnits, onSelectIncident }: Opera
   }, []);
 
   useIncidentMarkers({ map, incidents, onSelectIncident });
-  useFieldUnitMarkers({ map, fieldUnits });                 // YENİ
+  useFieldUnitMarkers({ map, fieldUnits, onSelectFieldUnit });
 
   return <div ref={mapContainerRef} className="operations-map" />;
 }

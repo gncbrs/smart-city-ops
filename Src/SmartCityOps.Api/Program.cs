@@ -1,32 +1,18 @@
+using SmartCityOps.Api;
+using SmartCityOps.Api.ExceptionHandling;
 using SmartCityOps.Infrastructure;
 
-
-// TODO -- her seyi program.cs'de yapmayalim
-// program.cs altinda bir tane main function
-// client.cs --> baglanti ayarlari burada yapilsin
-// program.cs'de giris noktasi olsun
 var builder = WebApplication.CreateBuilder(args);
 
-const string FrontendCorsPolicy = "FrontendCorsPolicy";
-
-builder.Services.AddCors(options =>
-{
-    // TODO -- baglanti ayarlari config dosyasindan alinacak
-    options.AddPolicy(FrontendCorsPolicy, policy =>
-    {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-    });
-});
-
-
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddApiServices(builder.Configuration);
+
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
@@ -34,9 +20,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // https profili şu an kullanılmıyor (bkz. launchSettings.json), aktif edilince buraya geri alınacak
 
-app.UseCors(FrontendCorsPolicy);
+app.UseCors(SmartCityOps.Api.DependencyInjection.FrontendCorsPolicy);
 
 app.UseAuthorization();
 

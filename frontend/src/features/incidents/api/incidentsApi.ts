@@ -6,7 +6,14 @@ export async function fetchIncidents(): Promise<Incident[]> {
   return response.data;
 }
 
-export async function fetchIncidentById(id: string): Promise<Incident> {
-  const response = await httpClient.get<Incident>(`/incidents/${id}`);
+// Backend'de GET /api/incidents/{id} henüz yok (bilinçli YAGNI, bkz. DEVELOPMENT_LOG2.md §2.7).
+// Endpoint eklenince buradaki yorum kaldırılıp doğrudan kullanılabilir, fonksiyon zaten hazır.
+// export async function fetchIncidentById(id: string): Promise<Incident> {
+//   const response = await httpClient.get<Incident>(`/incidents/${id}`);
+//   return response.data;
+// }
+
+export async function resolveIncident(id: string): Promise<Incident> {
+  const response = await httpClient.post<Incident>(`/incidents/${id}/resolve`);
   return response.data;
 }
