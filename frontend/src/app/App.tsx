@@ -44,17 +44,30 @@ export function App() {
       }
       sidePanel={
         <>
-          <IncidentsSummary count={incidents?.length ?? 0} />
+          <IncidentsSummary
+            count={incidents?.filter((incident) => incident.status !== "Resolved").length ?? 0}
+          />
           <Dashboard
             incidents={incidents ?? []}
             fieldUnits={fieldUnits ?? []}
             operationalTasks={operationalTasks ?? []}
+            onSelectIncident={setSelectedIncident}
+            onSelectFieldUnit={setSelectedFieldUnit}
           />
-          <IncidentPanel incident={selectedIncident} onResolved={clearSelection} />
+          <IncidentPanel
+            incident={selectedIncident}
+            operationalTasks={operationalTasks ?? []}
+            fieldUnits={fieldUnits ?? []}
+            onResolved={clearSelection}
+            onSelectFieldUnit={setSelectedFieldUnit}
+          />
           <FieldUnitPanel
             fieldUnit={selectedFieldUnit}
             activeTask={activeTaskForSelectedFieldUnit}
+            operationalTasks={operationalTasks ?? []}
+            incidents={incidents ?? []}
             onCompleted={clearSelection}
+            onSelectIncident={setSelectedIncident}
           />
           {selectedIncident && selectedFieldUnit && (
             <AssignTaskButton

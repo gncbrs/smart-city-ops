@@ -19,5 +19,6 @@ export interface Incident extends GeoLocation {
   priority: IncidentPriority;
   status: IncidentStatus;
   reportedAt: string;
+  resolvedAt: string | null;
   description: string;
 }

@@ -27,7 +27,8 @@ public class IncidentService : IIncidentService
                 i.ReportedAt,
                 i.Latitude,
                 i.Longitude,
-                i.Description))
+                i.Description,
+                i.ResolvedAt))
             .ToListAsync(cancellationToken);
     }
 
@@ -57,7 +58,8 @@ public class IncidentService : IIncidentService
             incident.ReportedAt,
             incident.Latitude,
             incident.Longitude,
-            incident.Description);
+            incident.Description,
+            incident.ResolvedAt);
     }
 
     public async Task<IncidentDto> ResolveAsync(Guid id, CancellationToken cancellationToken)
@@ -93,6 +95,7 @@ public class IncidentService : IIncidentService
         }
 
         incident.Status = IncidentStatus.Resolved;
+        incident.ResolvedAt = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -104,6 +107,7 @@ public class IncidentService : IIncidentService
             incident.ReportedAt,
             incident.Latitude,
             incident.Longitude,
-            incident.Description);
+            incident.Description,
+            incident.ResolvedAt);
     }
 }

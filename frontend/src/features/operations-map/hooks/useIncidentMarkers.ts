@@ -8,24 +8,29 @@ interface UseIncidentMarkersParams {
   onSelectIncident: (incident: Incident) => void;
 }
 
-// 1. Önceliklere göre renk eşleştirmelerini dışarıda tanımlıyoruz
 const priorityColors: Record<string, string> = {
-  High: "#e20b0b",   // Kırmızı
-  Medium: "#f59e0b", // Turuncu
-  Low: "#2eee41",    // Mavi
+  High: "#e20b0b",    
+  Medium: "#f59e0b",  
+  Low: "#2eee41",     
 };
+
+const DEFAULT_MARKER_COLOR = "#6b7280"; //bilinmeyen bir priority gelirse
+const HIGH_PRIORITY_SCALE = 1.4;
+const DEFAULT_SCALE = 1;
 
 export function useIncidentMarkers({ map, incidents, onSelectIncident }: UseIncidentMarkersParams) {
   useEffect(() => {
     if (!map) return;
 
-    const markers = incidents.map((incident) => {
-      // 2. Olayın önceliğine göre rengi sözlükten çekiyoruz. 
-      // (Bilinmeyen bir değer gelirse diye varsayılan renk olarak gri atadık: #6b7280)
-      const color = priorityColors[incident.priority] || "#060606";
+    const activeIncidents = incidents.filter((incident) => incident.status !== "Resolved");
 
-      // 3. Rengi doğrudan Marker'ın içine parametre olarak veriyoruz
-      const marker = new Marker({ color })
+    const markers = activeIncidents.map((incident) => {
+      const color = priorityColors[incident.priority] || DEFAULT_MARKER_COLOR;
+
+      const isActiveHighPriority = incident.priority === "High" && incident.status !== "Resolved";
+      const scale = isActiveHighPriority ? HIGH_PRIORITY_SCALE : DEFAULT_SCALE;
+
+      const marker = new Marker({ color, scale })
         .setLngLat([incident.longitude, incident.latitude])
         .addTo(map);
 

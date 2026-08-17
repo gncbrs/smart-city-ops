@@ -44,6 +44,12 @@ public class OperationalTaskService : IOperationalTaskService
             throw new InvalidOperationException("Sadece Available durumundaki field unit'ler atanabilir.");
         }
 
+        //Incident resolved kontrolü
+        if (incident.Status == IncidentStatus.Resolved)
+        {
+            throw new InvalidOperationException("Resolved durumda ki bir incident'a task atanamaz.");
+        }
+
         var task = new OperationalTask
         {
             Id = Guid.NewGuid(),

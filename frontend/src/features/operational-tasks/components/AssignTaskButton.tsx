@@ -11,7 +11,9 @@ interface AssignTaskButtonProps {
 export function AssignTaskButton({ incident, fieldUnit, onAssigned }: AssignTaskButtonProps) {
   const { mutate, isPending, isError } = useCreateTask();
 
-  const isAvailable = fieldUnit.status === "Available";
+  const isFieldUnitAvailable = fieldUnit.status === "Available";
+  const isIncidentResolved = incident.status === "Resolved";
+  const canAssign = isFieldUnitAvailable && !isIncidentResolved;
 
   const handleClick = () => {
     mutate(
@@ -22,10 +24,11 @@ export function AssignTaskButton({ incident, fieldUnit, onAssigned }: AssignTask
 
   return (
     <div>
-      <button onClick={handleClick} disabled={!isAvailable || isPending}>
+      <button onClick={handleClick} disabled={!canAssign || isPending}>
         {isPending ? "Assigning..." : "Assign Task"}
       </button>
-      {!isAvailable && <p>{fieldUnit.unitCode} is not available for assignment.</p>}
+      {!isFieldUnitAvailable && <p>{fieldUnit.unitCode} is not available for assignment.</p>}
+      {isIncidentResolved && <p>This incident is already resolved.</p>}
       {isError && <p>Failed to assign task. Please try again.</p>}
     </div>
   );

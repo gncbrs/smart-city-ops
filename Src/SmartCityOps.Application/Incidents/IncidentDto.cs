@@ -8,5 +8,6 @@ public record IncidentDto(
     DateTimeOffset ReportedAt,
     double Latitude,
     double Longitude,
-    string Description
+    string Description,
+    DateTimeOffset? ResolvedAt
 );

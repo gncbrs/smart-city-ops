@@ -10,6 +10,7 @@ public class Incident : EntityBase
     public IncidentPriority Priority { get; set; }
     public IncidentStatus Status { get; set; }
     public DateTimeOffset ReportedAt { get; set; }
+    public DateTimeOffset? ResolvedAt { get; set; }
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public string Description { get; set; } = string.Empty;
