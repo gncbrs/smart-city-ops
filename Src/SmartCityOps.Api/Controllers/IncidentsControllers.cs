@@ -31,7 +31,7 @@ public class IncidentsController : ControllerBase
         }
         catch (ArgumentException)
         {
-            return BadRequest("Yanlış veye eksik argüman.");
+            return BadRequest("Yanlış veya eksik argüman.");
         }
     }
 

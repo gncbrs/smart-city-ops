@@ -21,7 +21,7 @@ export function Dashboard({ incidents, fieldUnits, operationalTasks }: Dashboard
     const incident = incidents.find((item) => item.id === task.incidentId);
     const fieldUnit = fieldUnits.find((item) => item.id === task.fieldUnitId);
     const incidentLabel = incident ? formatEnumLabel(incident.type) : "Unknown incident";
-    return `${fieldUnit?.unitCode ?? "Unknown unit"} → ${incidentLabel}`;
+    return `${fieldUnit?.type ?? "Unknown unit"} (${fieldUnit?.unitCode ?? "Unkown code"}) → ${incidentLabel}`;
   };
 
   return (

@@ -20,7 +20,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// app.UseHttpsRedirection(); // https profili şu an kullanılmıyor (bkz. launchSettings.json), aktif edilince buraya geri alınacak
+// app.UseHttpsRedirection(); // https profili şu an kullanılmıyor, aktif edilince buraya geri alınacak
 
 app.UseCors(SmartCityOps.Api.DependencyInjection.FrontendCorsPolicy);
 

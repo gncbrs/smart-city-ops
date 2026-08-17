@@ -13,8 +13,9 @@ export function IncidentPanel({ incident, onResolved }: IncidentPanelProps) {
   if (!incident) {
     return <div>
       Select an incident point to show details of it.
+      Then select a field unit to assign it.<br/>
       Color Blue for Field Units. <br />
-      Color Red for Incidents.
+      Other colors for Incidents.
     </div>;
   }
 
