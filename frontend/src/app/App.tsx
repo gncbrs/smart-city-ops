@@ -8,10 +8,12 @@ import { FieldUnitPanel } from "../features/field-units/components/FieldUnitPane
 import { AssignTaskButton } from "../features/operational-tasks/components/AssignTaskButton";
 import { useOperationalTasks } from "../features/operational-tasks/hooks/useOperationalTasks";
 import { Dashboard } from "../features/dashboard/components/Dashboard";
+import { OperationalStatistics } from "../features/dashboard/components/OperationalStatistics";
 import { OperationsMap } from "../features/operations-map/components/OperationsMap";
+import { FilterPanel } from "../features/operations-map/components/FilterPanel";
 //import { useSignalRConnection } from "../shared/hooks/useSignalR";
-import type { Incident } from "../features/incidents/types";
-import type { FieldUnit } from "../features/field-units/types";
+import type { Incident, IncidentPriority } from "../features/incidents/types";
+import type { FieldUnit, FieldUnitStatus, FieldUnitType } from "../features/field-units/types";
 
 export function App() {
   //useSignalRConnection();
@@ -21,6 +23,28 @@ export function App() {
   const { data: operationalTasks } = useOperationalTasks();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [selectedFieldUnit, setSelectedFieldUnit] = useState<FieldUnit | null>(null);
+
+  const [priorityFilter, setPriorityFilter] = useState<IncidentPriority[]>([]);
+  const [fieldUnitStatusFilter, setFieldUnitStatusFilter] = useState<FieldUnitStatus[]>([]);
+  const [fieldUnitTypeFilter, setFieldUnitTypeFilter] = useState<FieldUnitType[]>([]);
+
+  const togglePriority = (priority: IncidentPriority) => {
+    setPriorityFilter((prev) =>
+      prev.includes(priority) ? prev.filter((item) => item !== priority) : [...prev, priority]
+    );
+  };
+
+  const toggleFieldUnitStatus = (status: FieldUnitStatus) => {
+    setFieldUnitStatusFilter((prev) =>
+      prev.includes(status) ? prev.filter((item) => item !== status) : [...prev, status]
+    );
+  };
+
+  const toggleFieldUnitType = (type: FieldUnitType) => {
+    setFieldUnitTypeFilter((prev) =>
+      prev.includes(type) ? prev.filter((item) => item !== type) : [...prev, type]
+    );
+  };
 
   const clearSelection = () => {
     setSelectedIncident(null);
@@ -32,18 +56,36 @@ export function App() {
       (task) => task.fieldUnitId === selectedFieldUnit?.id && task.status === "Assigned"
     ) ?? null;
 
+  const mapIncidents = (incidents ?? []).filter(
+    (incident) => priorityFilter.length === 0 || priorityFilter.includes(incident.priority)
+  );
+
+  const mapFieldUnits = (fieldUnits ?? []).filter((unit) => {
+    const statusMatches = fieldUnitStatusFilter.length === 0 || fieldUnitStatusFilter.includes(unit.status);
+    const typeMatches = fieldUnitTypeFilter.length === 0 || fieldUnitTypeFilter.includes(unit.type);
+    return statusMatches && typeMatches;
+  });
+
   return (
     <OperationsCenterLayout
       map={
         <OperationsMap
-          incidents={incidents ?? []}
-          fieldUnits={fieldUnits ?? []}
+          incidents={mapIncidents}
+          fieldUnits={mapFieldUnits}
           onSelectIncident={setSelectedIncident}
           onSelectFieldUnit={setSelectedFieldUnit}
         />
       }
       sidePanel={
         <>
+          <FilterPanel
+            selectedPriorities={priorityFilter}
+            onTogglePriority={togglePriority}
+            selectedFieldUnitStatuses={fieldUnitStatusFilter}
+            onToggleFieldUnitStatus={toggleFieldUnitStatus}
+            selectedFieldUnitTypes={fieldUnitTypeFilter}
+            onToggleFieldUnitType={toggleFieldUnitType}
+          />
           <IncidentsSummary
             count={incidents?.filter((incident) => incident.status !== "Resolved").length ?? 0}
           />
@@ -77,6 +119,15 @@ export function App() {
             />
           )}
         </>
+      }
+      bottomPanel={
+        <OperationalStatistics
+          incidents={incidents ?? []}
+          fieldUnits={fieldUnits ?? []}
+          operationalTasks={operationalTasks ?? []}
+          onSelectIncident={setSelectedIncident}
+          onSelectFieldUnit={setSelectedFieldUnit}
+        />
       }
     />
   );

@@ -1,0 +1,27 @@
+.filter-panel {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #ddd;
+}
+
+.filter-panel__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.filter-panel__group-label {
+  width: 100%;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.filter-panel__option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}

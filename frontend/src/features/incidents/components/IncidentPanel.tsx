@@ -3,8 +3,8 @@ import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
 import { useResolveIncident } from "../hooks/useResolveIncident";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
-import { getFieldUnitLabel, MANUAL_RESOLVE_UNIT_LABEL } from "../../operational-tasks/lib/describeTask";
-import { HistoryTable, type HistoryTableRow } from "../../../shared/components/HistoryTable";
+import { getFieldUnitLabel } from "../../operational-tasks/lib/describeTask";
+import { Timeline, type TimelineEvent } from "../../../shared/components/Timeline";
 
 interface IncidentPanelProps {
   incident: Incident | null;
@@ -36,35 +36,39 @@ export function IncidentPanel({
     mutate(incident.id, { onSuccess: onResolved });
   };
 
-  const incidentTasks = operationalTasks
-    .filter((task) => task.incidentId === incident.id)
-    .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime());
+  const incidentTasks = operationalTasks.filter((task) => task.incidentId === incident.id);
 
-  const wasResolvedWithoutTask = incident.status === "Resolved" && incidentTasks.length === 0;
+  const timelineEvents: TimelineEvent[] = [
+    { id: "reported", timestamp: incident.reportedAt, label: "Incident reported" },
+  ];
 
-  const historyRows: HistoryTableRow[] = incidentTasks.map((task) => {
+  incidentTasks.forEach((task) => {
     const fieldUnit = fieldUnits.find((unit) => unit.id === task.fieldUnitId);
+    const unitLabel = getFieldUnitLabel(fieldUnit);
+    const onClick = fieldUnit ? () => onSelectFieldUnit(fieldUnit) : undefined;
 
-    return {
-      id: task.id,
-      cells: [
-        { label: getFieldUnitLabel(fieldUnit), onClick: fieldUnit ? () => onSelectFieldUnit(fieldUnit) : undefined },
-        { label: formatEnumLabel(task.status) },
-        { label: new Date(task.assignedAt).toLocaleString() },
-        { label: task.completedAt ? new Date(task.completedAt).toLocaleString() : "—" },
-      ],
-    };
+    timelineEvents.push({
+      id: `${task.id}-assigned`,
+      timestamp: task.assignedAt,
+      label: `${unitLabel} assigned`,
+      onClick,
+    });
+
+    if (task.completedAt) {
+      timelineEvents.push({
+        id: `${task.id}-completed`,
+        timestamp: task.completedAt,
+        label: `${unitLabel} completed task`,
+        onClick,
+      });
+    }
   });
 
-  if (wasResolvedWithoutTask && incident.resolvedAt) {
-    historyRows.push({
-      id: incident.id,
-      cells: [
-        { label: MANUAL_RESOLVE_UNIT_LABEL },
-        { label: "Resolved" },
-        { label: "—" },
-        { label: new Date(incident.resolvedAt).toLocaleString() },
-      ],
+  if (incident.status === "Resolved" && incident.resolvedAt) {
+    timelineEvents.push({
+      id: "resolved",
+      timestamp: incident.resolvedAt,
+      label: "Incident resolved",
     });
   }
 
@@ -83,12 +87,8 @@ export function IncidentPanel({
         </div>
       )}
 
-      <h4>History</h4>
-      <HistoryTable
-        columns={["Unit", "Status", "Assigned At", "Completed At"]}
-        rows={historyRows}
-        emptyMessage="No tasks assigned yet."
-      />
+      <h4>Timeline</h4>
+      <Timeline events={timelineEvents} emptyMessage="No activity yet." />
     </div>
   );
 }

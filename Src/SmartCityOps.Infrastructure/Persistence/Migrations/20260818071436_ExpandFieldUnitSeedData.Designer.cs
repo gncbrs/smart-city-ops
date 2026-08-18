@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartCityOps.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SmartCityOps.Infrastructure.Persistence;
 namespace SmartCityOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260818071436_ExpandFieldUnitSeedData")]
+    partial class ExpandFieldUnitSeedData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -152,7 +155,7 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                             Id = new Guid("c05d230d-78b1-41ed-be18-c7936616b0ae"),
                             Latitude = 39.969999999999999,
                             Longitude = 32.869999999999997,
-                            Status = "OutOfService",
+                            Status = "Available",
                             Type = "UtilityCrew",
                             UnitCode = "UTL-02"
                         },
@@ -188,7 +191,7 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                             Id = new Guid("115b0f76-4adf-4c9e-9d43-432b18143449"),
                             Latitude = 39.890000000000001,
                             Longitude = 32.869999999999997,
-                            Status = "Available",
+                            Status = "OutOfService",
                             Type = "TrafficControl",
                             UnitCode = "TRF-03"
                         });

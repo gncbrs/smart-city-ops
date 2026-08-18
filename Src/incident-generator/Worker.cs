@@ -25,9 +25,20 @@ public class Worker : BackgroundService
       "High"
     };
 
-    private const double AnkaraLatitude = 39.925;
-    private const double AnkaraLongitude = 32.836;
-    private const double CoordinateSpread = 0.05;
+    private record OperationZone(string Name, double Latitude, double Longitude, double Spread, int Weight);
+
+    // Ankara'nın farklı ilçelerine yayılmış bölgeler; Weight, o bölgede ne sıklıkla incident
+    // üretileceğini belirliyor (toplamları normalize edilmiyor, sadece birbirine oranı önemli).
+    private static readonly OperationZone[] AnkaraZones =
+    {
+        new("Merkez (Çankaya)", 39.925, 32.836, 0.05, 30),
+        new("Keçiören",         39.995, 32.865, 0.03, 12),
+        new("Mamak",            39.930, 32.920, 0.03, 12),
+        new("Etimesgut",        39.950, 32.670, 0.03, 12),
+        new("Sincan",           39.970, 32.575, 0.03, 12),
+        new("Gölbaşı",          39.790, 32.810, 0.03, 10),
+        new("Pursaklar",        40.040, 32.895, 0.03, 8),
+    };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -79,10 +90,30 @@ public class Worker : BackgroundService
         }
     }
 
+    private OperationZone GetRandomZone()
+    {
+        var totalWeight = AnkaraZones.Sum(zone => zone.Weight);
+        var value = random.Next(totalWeight);
+
+        foreach (var zone in AnkaraZones)
+        {
+            if (value < zone.Weight)
+            {
+                return zone;
+            }
+
+            value -= zone.Weight;
+        }
+
+        return AnkaraZones[0];
+    }
+
     private IncidentPayload BuildRandomIncident()
     {
-        var latitude = AnkaraLatitude + ((random.NextDouble() * 2 - 1) * CoordinateSpread);
-        var longitude = AnkaraLongitude + ((random.NextDouble() * 2 - 1) * CoordinateSpread);
+        var zone = GetRandomZone();
+
+        var latitude = zone.Latitude + ((random.NextDouble() * 2 - 1) * zone.Spread);
+        var longitude = zone.Longitude + ((random.NextDouble() * 2 - 1) * zone.Spread);
 
         return new IncidentPayload
         (
