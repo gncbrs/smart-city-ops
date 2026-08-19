@@ -8,12 +8,13 @@ import { FieldUnitPanel } from "../features/field-units/components/FieldUnitPane
 import { AssignTaskButton } from "../features/operational-tasks/components/AssignTaskButton";
 import { useOperationalTasks } from "../features/operational-tasks/hooks/useOperationalTasks";
 import { Dashboard } from "../features/dashboard/components/Dashboard";
-import { OperationalStatistics } from "../features/dashboard/components/OperationalStatistics";
 import { OperationsMap } from "../features/operations-map/components/OperationsMap";
+import { Menu } from "../features/menu/components/Menu";
 import { FilterPanel } from "../features/operations-map/components/FilterPanel";
 //import { useSignalRConnection } from "../shared/hooks/useSignalR";
 import type { Incident, IncidentPriority } from "../features/incidents/types";
 import type { FieldUnit, FieldUnitStatus, FieldUnitType } from "../features/field-units/types";
+import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
 
 export function App() {
   //useSignalRConnection();
@@ -76,8 +77,20 @@ export function App() {
           onSelectFieldUnit={setSelectedFieldUnit}
         />
       }
+
+      menu={
+        <Menu
+          incidents={incidents ?? []}
+          fieldUnits={fieldUnits ?? []}
+          operationalTasks={operationalTasks ?? []}
+          onSelectIncident={setSelectedIncident}
+          onSelectFieldUnit={setSelectedFieldUnit}
+        />
+      }
+
       sidePanel={
         <>
+
           <FilterPanel
             selectedPriorities={priorityFilter}
             onTogglePriority={togglePriority}
@@ -86,30 +99,21 @@ export function App() {
             selectedFieldUnitTypes={fieldUnitTypeFilter}
             onToggleFieldUnitType={toggleFieldUnitType}
           />
+
           <IncidentsSummary
             count={incidents?.filter((incident) => incident.status !== "Resolved").length ?? 0}
           />
-          <Dashboard
-            incidents={incidents ?? []}
-            fieldUnits={fieldUnits ?? []}
-            operationalTasks={operationalTasks ?? []}
-            onSelectIncident={setSelectedIncident}
-            onSelectFieldUnit={setSelectedFieldUnit}
-          />
-          <IncidentPanel
-            incident={selectedIncident}
-            operationalTasks={operationalTasks ?? []}
-            fieldUnits={fieldUnits ?? []}
-            onResolved={clearSelection}
-            onSelectFieldUnit={setSelectedFieldUnit}
-          />
+
+          <Dashboard incidents={incidents ?? []} fieldUnits={fieldUnits ?? []} />
+        </>
+      }
+
+      fieldUnitPanel={
+        <>
           <FieldUnitPanel
             fieldUnit={selectedFieldUnit}
             activeTask={activeTaskForSelectedFieldUnit}
-            operationalTasks={operationalTasks ?? []}
-            incidents={incidents ?? []}
             onCompleted={clearSelection}
-            onSelectIncident={setSelectedIncident}
           />
           {selectedIncident && selectedFieldUnit && (
             <AssignTaskButton
@@ -120,8 +124,13 @@ export function App() {
           )}
         </>
       }
-      bottomPanel={
-        <OperationalStatistics
+
+      incidentPanel={
+        <IncidentPanel incident={selectedIncident} onResolved={clearSelection} />
+      }
+
+      tasksPanel={
+        <ActiveTasksPanel
           incidents={incidents ?? []}
           fieldUnits={fieldUnits ?? []}
           operationalTasks={operationalTasks ?? []}
@@ -129,6 +138,7 @@ export function App() {
           onSelectFieldUnit={setSelectedFieldUnit}
         />
       }
+
     />
   );
 }

@@ -33,8 +33,8 @@ export function OperationsMap({ incidents, fieldUnits, onSelectIncident, onSelec
       container: mapContainerRef.current,
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: ANKARA_CENTER,
-      zoom: 12,
-      minZoom: 10,
+      zoom: 1,
+      minZoom: 1,
       maxBounds: ANKARA_BOUNDS,
     });
 
