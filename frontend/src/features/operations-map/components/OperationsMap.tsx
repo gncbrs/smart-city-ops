@@ -16,12 +16,22 @@ const ANKARA_BOUNDS: LngLatBoundsLike = [
 
 interface OperationsMapProps {
   incidents: Incident[];
-  fieldUnits: FieldUnit[];                                  // YENİ
+  fieldUnits: FieldUnit[];
+  selectedIncidentId: string | null;
+  selectedFieldUnitId: string | null;
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
 }
 
-export function OperationsMap({ incidents, fieldUnits, onSelectIncident, onSelectFieldUnit }: OperationsMapProps) {
+export function OperationsMap({
+  incidents,
+  fieldUnits,
+  selectedIncidentId,
+  selectedFieldUnitId,
+  onSelectIncident,
+  onSelectFieldUnit,
+}: OperationsMapProps) {
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
@@ -54,8 +64,8 @@ export function OperationsMap({ incidents, fieldUnits, onSelectIncident, onSelec
     };
   }, []);
 
-  useIncidentMarkers({ map, incidents, onSelectIncident });
-  useFieldUnitMarkers({ map, fieldUnits, onSelectFieldUnit });
+  useIncidentMarkers({ map, incidents, selectedIncidentId, onSelectIncident });
+  useFieldUnitMarkers({ map, fieldUnits, selectedFieldUnitId, onSelectFieldUnit });
 
   return <div ref={mapContainerRef} className="operations-map" />;
 }

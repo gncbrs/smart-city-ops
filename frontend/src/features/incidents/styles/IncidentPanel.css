@@ -1,14 +1,33 @@
-.resolve-buton {
-    margin-top: 16px;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 15px;
-    background: #3B82F6;
-    color: #F8FAFC;
-    font-weight: 600;
-    cursor: pointer;
+.incident-panel__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
 }
 
-.resolve-buton:hover{
-    background: #2563EB;
+.view-timeline-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 15px;
+  background: #3b82f6;
+  color: #f8fafc;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-timeline-button:hover {
+  background: #2563eb;
+}
+
+.resolve-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 15px;
+  background: #3b82f6;
+  color: #f8fafc;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.resolve-button:hover {
+  background: #2563eb;
 }

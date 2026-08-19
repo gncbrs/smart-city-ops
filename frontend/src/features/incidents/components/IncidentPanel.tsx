@@ -6,9 +6,10 @@ import "../styles/IncidentPanel.css";
 interface IncidentPanelProps {
   incident: Incident | null;
   onResolved: () => void;
+  onViewTimeline: () => void;
 }
 
-export function IncidentPanel({ incident, onResolved }: IncidentPanelProps) {
+export function IncidentPanel({ incident, onResolved, onViewTimeline }: IncidentPanelProps) {
   const { mutate, isPending, isError } = useResolveIncident();
 
   if (!incident) {
@@ -25,14 +26,19 @@ export function IncidentPanel({ incident, onResolved }: IncidentPanelProps) {
       <p>Priority: {incident.priority}</p>
       <p>Status: {formatEnumLabel(incident.status)}</p>
       <p>Description: {incident.description}</p>
-      {incident.status !== "Resolved" && (
-        <div>
-          <button onClick={handleResolve} disabled={isPending} className="resolve-buton">
+
+      <div className="incident-panel__actions">
+        <button type="button" onClick={onViewTimeline} className="view-timeline-button">
+          View Timeline
+        </button>
+        {incident.status !== "Resolved" && (
+          <button onClick={handleResolve} disabled={isPending} className="resolve-button">
             {isPending ? "Resolving..." : "Resolve Incident"}
           </button>
-          {isError && <p>Failed to resolve incident. Please try again.</p>}
-        </div>
-      )}
+        )}
+      </div>
+
+      {isError && <p>Failed to resolve incident. Please try again.</p>}
     </div>
   );
 }

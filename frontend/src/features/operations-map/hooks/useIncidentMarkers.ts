@@ -5,6 +5,7 @@ import type { Incident } from "../../incidents/types";
 interface UseIncidentMarkersParams {
   map: MapLibreMap | null;
   incidents: Incident[];
+  selectedIncidentId: string | null;
   onSelectIncident: (incident: Incident) => void;
 }
 
@@ -17,8 +18,14 @@ const priorityColors: Record<string, string> = {
 const DEFAULT_MARKER_COLOR = "#6b7280"; //bilinmeyen bir priority gelirse
 const HIGH_PRIORITY_SCALE = 1.4;
 const DEFAULT_SCALE = 1;
+const SELECTED_MARKER_CLASS = "incident-marker--selected";
 
-export function useIncidentMarkers({ map, incidents, onSelectIncident }: UseIncidentMarkersParams) {
+export function useIncidentMarkers({
+  map,
+  incidents,
+  selectedIncidentId,
+  onSelectIncident,
+}: UseIncidentMarkersParams) {
   useEffect(() => {
     if (!map) return;
 
@@ -34,6 +41,10 @@ export function useIncidentMarkers({ map, incidents, onSelectIncident }: UseInci
         .setLngLat([incident.longitude, incident.latitude])
         .addTo(map);
 
+      if (incident.id === selectedIncidentId) {
+        marker.getElement().classList.add(SELECTED_MARKER_CLASS);
+      }
+
       marker.getElement().addEventListener("click", () => onSelectIncident(incident));
 
       return marker;
@@ -42,5 +53,5 @@ export function useIncidentMarkers({ map, incidents, onSelectIncident }: UseInci
     return () => {
       markers.forEach((marker) => marker.remove());
     };
-  }, [map, incidents, onSelectIncident]);
+  }, [map, incidents, selectedIncidentId, onSelectIncident]);
 }

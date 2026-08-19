@@ -9,12 +9,12 @@ import { AssignTaskButton } from "../features/operational-tasks/components/Assig
 import { useOperationalTasks } from "../features/operational-tasks/hooks/useOperationalTasks";
 import { Dashboard } from "../features/dashboard/components/Dashboard";
 import { OperationsMap } from "../features/operations-map/components/OperationsMap";
-import { Menu } from "../features/menu/components/Menu";
 import { FilterPanel } from "../features/operations-map/components/FilterPanel";
 //import { useSignalRConnection } from "../shared/hooks/useSignalR";
 import type { Incident, IncidentPriority } from "../features/incidents/types";
 import type { FieldUnit, FieldUnitStatus, FieldUnitType } from "../features/field-units/types";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
+import { Menu, type MenuView } from "../features/menu/components/Menu";
 
 export function App() {
   //useSignalRConnection();
@@ -24,6 +24,8 @@ export function App() {
   const { data: operationalTasks } = useOperationalTasks();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [selectedFieldUnit, setSelectedFieldUnit] = useState<FieldUnit | null>(null);
+
+  const [menuView, setMenuView] = useState<MenuView>("closed");
 
   const [priorityFilter, setPriorityFilter] = useState<IncidentPriority[]>([]);
   const [fieldUnitStatusFilter, setFieldUnitStatusFilter] = useState<FieldUnitStatus[]>([]);
@@ -73,6 +75,8 @@ export function App() {
         <OperationsMap
           incidents={mapIncidents}
           fieldUnits={mapFieldUnits}
+          selectedIncidentId={selectedIncident?.id ?? null}
+          selectedFieldUnitId={selectedFieldUnit?.id ?? null}
           onSelectIncident={setSelectedIncident}
           onSelectFieldUnit={setSelectedFieldUnit}
         />
@@ -80,9 +84,12 @@ export function App() {
 
       menu={
         <Menu
+          view={menuView}
+          onViewChange={setMenuView}
           incidents={incidents ?? []}
           fieldUnits={fieldUnits ?? []}
           operationalTasks={operationalTasks ?? []}
+          timelineIncident={selectedIncident}
           onSelectIncident={setSelectedIncident}
           onSelectFieldUnit={setSelectedFieldUnit}
         />
@@ -126,7 +133,11 @@ export function App() {
       }
 
       incidentPanel={
-        <IncidentPanel incident={selectedIncident} onResolved={clearSelection} />
+        <IncidentPanel
+          incident={selectedIncident}
+          onResolved={clearSelection}
+          onViewTimeline={() => setMenuView("timeline")}
+        />
       }
 
       tasksPanel={

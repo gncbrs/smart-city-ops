@@ -5,10 +5,18 @@ import type { FieldUnit } from "../../field-units/types";
 interface UseFieldUnitMarkersParams {
   map: MapLibreMap | null;
   fieldUnits: FieldUnit[];
+  selectedFieldUnitId: string | null;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
 }
 
-export function useFieldUnitMarkers({ map, fieldUnits, onSelectFieldUnit }: UseFieldUnitMarkersParams) {
+const SELECTED_MARKER_CLASS = "field-unit-marker--selected";
+
+export function useFieldUnitMarkers({
+  map,
+  fieldUnits,
+  selectedFieldUnitId,
+  onSelectFieldUnit,
+}: UseFieldUnitMarkersParams) {
   useEffect(() => {
     if (!map) return;
 
@@ -16,6 +24,10 @@ export function useFieldUnitMarkers({ map, fieldUnits, onSelectFieldUnit }: UseF
       const marker = new Marker({ color: "#2563eb" })
         .setLngLat([fieldUnit.longitude, fieldUnit.latitude])
         .addTo(map);
+
+      if (fieldUnit.id === selectedFieldUnitId) {
+        marker.getElement().classList.add(SELECTED_MARKER_CLASS);
+      }
 
       marker.getElement().addEventListener("click", () => onSelectFieldUnit(fieldUnit));
 
@@ -25,5 +37,5 @@ export function useFieldUnitMarkers({ map, fieldUnits, onSelectFieldUnit }: UseF
     return () => {
       markers.forEach((marker) => marker.remove());
     };
-  }, [map, fieldUnits, onSelectFieldUnit]);
+  }, [map, fieldUnits, selectedFieldUnitId, onSelectFieldUnit]);
 }
