@@ -15,6 +15,7 @@ import type { Incident, IncidentPriority } from "../features/incidents/types";
 import type { FieldUnit, FieldUnitStatus, FieldUnitType } from "../features/field-units/types";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
 import { Menu, type MenuView } from "../features/menu/components/Menu";
+import { useOperationalZones } from "../features/operational-zones/hooks/useOperationalZones"; //temporary will be deleted when real connection is coded.
 
 export function App() {
   //useSignalRConnection();
@@ -30,6 +31,9 @@ export function App() {
   const [priorityFilter, setPriorityFilter] = useState<IncidentPriority[]>([]);
   const [fieldUnitStatusFilter, setFieldUnitStatusFilter] = useState<FieldUnitStatus[]>([]);
   const [fieldUnitTypeFilter, setFieldUnitTypeFilter] = useState<FieldUnitType[]>([]);
+
+  const { data: zones } = useOperationalZones(); //will be deleted as real rendiring done.
+  console.log("zones", zones);                   //will be deleted as real rendiring done.
 
   const togglePriority = (priority: IncidentPriority) => {
     setPriorityFilter((prev) =>
