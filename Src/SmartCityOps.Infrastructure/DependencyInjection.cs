@@ -8,6 +8,9 @@ using SmartCityOps.Application.FieldUnits;
 using SmartCityOps.Infrastructure.FieldUnits;
 using SmartCityOps.Application.OperationalTasks;
 using SmartCityOps.Infrastructure.OperationalTasks;
+using SmartCityOps.Application.OperationalZones;
+using SmartCityOps.Infrastructure.OperationalZones;
+
 
 namespace SmartCityOps.Infrastructure;
 
@@ -25,6 +28,8 @@ public static class DependencyInjection
         services.AddScoped<IIncidentService, IncidentService>();
         services.AddScoped<IFieldUnitService, FieldUnitService>();
         services.AddScoped<IOperationalTaskService, OperationalTaskService>();
+        services.AddScoped<IOperationalTaskService, OperationalTaskService>();
+        services.AddScoped<IOperationalZoneService, OperationalZoneService>();
 
         return services;
     }
