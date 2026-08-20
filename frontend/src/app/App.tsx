@@ -15,7 +15,8 @@ import type { Incident, IncidentPriority } from "../features/incidents/types";
 import type { FieldUnit, FieldUnitStatus, FieldUnitType } from "../features/field-units/types";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
 import { Menu, type MenuView } from "../features/menu/components/Menu";
-import { useOperationalZones } from "../features/operational-zones/hooks/useOperationalZones"; //temporary will be deleted when real connection is coded.
+import { useOperationalZones } from "../features/operational-zones/hooks/useOperationalZones";
+import { useFieldUnitLocationHistories } from "../features/field-unit-location-histories/hooks/useFieldUnitLocationHistories";
 
 export function App() {
   //useSignalRConnection();
@@ -32,8 +33,9 @@ export function App() {
   const [fieldUnitStatusFilter, setFieldUnitStatusFilter] = useState<FieldUnitStatus[]>([]);
   const [fieldUnitTypeFilter, setFieldUnitTypeFilter] = useState<FieldUnitType[]>([]);
 
-  const { data: zones } = useOperationalZones(); //will be deleted as real rendiring done.
-  console.log("zones", zones);                   //will be deleted as real rendiring done.
+  const { data: zones } = useOperationalZones();
+
+  const { data: locationHistory } = useFieldUnitLocationHistories();
 
   const togglePriority = (priority: IncidentPriority) => {
     setPriorityFilter((prev) =>
@@ -79,6 +81,7 @@ export function App() {
         <OperationsMap
           incidents={mapIncidents}
           fieldUnits={mapFieldUnits}
+          zones={zones ?? []}
           selectedIncidentId={selectedIncident?.id ?? null}
           selectedFieldUnitId={selectedFieldUnit?.id ?? null}
           onSelectIncident={setSelectedIncident}
@@ -94,6 +97,8 @@ export function App() {
           fieldUnits={fieldUnits ?? []}
           operationalTasks={operationalTasks ?? []}
           timelineIncident={selectedIncident}
+          movementHistoryFieldUnit={selectedFieldUnit}
+          locationHistory={locationHistory ?? []}
           onSelectIncident={setSelectedIncident}
           onSelectFieldUnit={setSelectedFieldUnit}
         />
@@ -101,7 +106,6 @@ export function App() {
 
       sidePanel={
         <>
-
           <FilterPanel
             selectedPriorities={priorityFilter}
             onTogglePriority={togglePriority}
@@ -125,6 +129,7 @@ export function App() {
             fieldUnit={selectedFieldUnit}
             activeTask={activeTaskForSelectedFieldUnit}
             onCompleted={clearSelection}
+            onViewMovementHistory={() => setMenuView("movement-history")}
           />
           {selectedIncident && selectedFieldUnit && (
             <AssignTaskButton
@@ -153,7 +158,6 @@ export function App() {
           onSelectFieldUnit={setSelectedFieldUnit}
         />
       }
-
     />
   );
 }

@@ -5,8 +5,10 @@ import { CompletedTasksSection } from "../../dashboard/components/CompletedTasks
 import { StatisticsSection } from "../../dashboard/components/StatisticsSection";
 import { IncidentTimelineSection } from "../../incidents/components/IncidentTimelineSection";
 import "../styles/Menu.css";
+import type { FieldUnitLocationHistory } from "../../field-unit-location-histories/types";
+import { FieldUnitMovementHistorySection } from "../../field-units/components/FieldUnitMovmentHistorySection";
 
-export type MenuView = "closed" | "list" | "completed-tasks" | "statistics" | "timeline";
+export type MenuView = "closed" | "list" | "completed-tasks" | "statistics" | "timeline" | "movement-history";
 
 interface MenuProps {
   view: MenuView;
@@ -15,6 +17,8 @@ interface MenuProps {
   fieldUnits: FieldUnit[];
   operationalTasks: OperationalTask[];
   timelineIncident: Incident | null;
+  movementHistoryFieldUnit: FieldUnit | null;
+  locationHistory: FieldUnitLocationHistory[];
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
 }
@@ -31,9 +35,12 @@ export function Menu({
   fieldUnits,
   operationalTasks,
   timelineIncident,
+  movementHistoryFieldUnit,
+  locationHistory,
   onSelectIncident,
   onSelectFieldUnit,
 }: MenuProps) {
+  
   const isOpen = view !== "closed";
 
   const handleClose = () => onViewChange("closed");
@@ -111,6 +118,18 @@ export function Menu({
                     />
                   ) : (
                     <p>No incident selected.</p>
+                  ))}
+
+                {view === "movement-history" &&
+                  (movementHistoryFieldUnit ? (
+                    <FieldUnitMovementHistorySection
+                      fieldUnit={movementHistoryFieldUnit}
+                      incidents={incidents}
+                      locationHistory={locationHistory}
+                      onSelectIncident={handleSelectIncident}
+                    />
+                  ) : (
+                    <p>No field unit selected.</p>
                   ))}
               </div>
             )}

@@ -50,17 +50,31 @@ public class OperationalTaskService : IOperationalTaskService
             throw new InvalidOperationException("Resolved durumda ki bir incident'a task atanamaz.");
         }
 
+        var now = DateTimeOffset.UtcNow;
+
         var task = new OperationalTask
         {
             Id = Guid.NewGuid(),
             IncidentId = incident.Id,
             FieldUnitId = fieldUnit.Id,
             Status = OperationalTaskStatus.Assigned,
-            AssignedAt = DateTimeOffset.UtcNow,
+            AssignedAt = now,
             CompletedAt = null
         };
 
         fieldUnit.Status = FieldUnitStatus.Dispatched;
+        fieldUnit.Latitude = incident.Latitude;
+        fieldUnit.Longitude = incident.Longitude;
+
+        var locationHistoryEntry = new FieldUnitLocationHistory
+        {
+            Id = Guid.NewGuid(),
+            FieldUnitId = fieldUnit.Id,
+            IncidentId = incident.Id,
+            Latitude = incident.Latitude,
+            Longitude = incident.Longitude,
+            RecordedAt = now
+        };
 
         if (incident.Status == IncidentStatus.Open)
         {
@@ -68,6 +82,7 @@ public class OperationalTaskService : IOperationalTaskService
         }
 
         _dbContext.OperationalTasks.Add(task);
+        _dbContext.FieldUnitLocationHistories.Add(locationHistoryEntry);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new OperationalTaskDto(task.Id, task.IncidentId, task.FieldUnitId, task.Status.ToString(), task.AssignedAt, task.CompletedAt);

@@ -5,6 +5,8 @@ import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";          // YENİ
 import { useIncidentMarkers } from "../hooks/useIncidentMarkers";
 import { useFieldUnitMarkers } from "../hooks/useFieldUnitMarkers"; // YENİ
+import type { OperationalZone } from "../../operational-zones/types";
+import { useOperationalZoneLayers } from "../../operational-zones/hooks/useOperationalZoneLayers";
 import "../styles/OperationsMap.css";
 
 const ANKARA_CENTER: [number, number] = [32.836, 39.925];
@@ -17,6 +19,7 @@ const ANKARA_BOUNDS: LngLatBoundsLike = [
 interface OperationsMapProps {
   incidents: Incident[];
   fieldUnits: FieldUnit[];
+  zones: OperationalZone[];
   selectedIncidentId: string | null;
   selectedFieldUnitId: string | null;
   onSelectIncident: (incident: Incident) => void;
@@ -27,6 +30,7 @@ export function OperationsMap({
   incidents,
   fieldUnits,
   selectedIncidentId,
+  zones,
   selectedFieldUnitId,
   onSelectIncident,
   onSelectFieldUnit,
@@ -66,6 +70,7 @@ export function OperationsMap({
 
   useIncidentMarkers({ map, incidents, selectedIncidentId, onSelectIncident });
   useFieldUnitMarkers({ map, fieldUnits, selectedFieldUnitId, onSelectFieldUnit });
+  useOperationalZoneLayers({ map, zones });
 
   return <div ref={mapContainerRef} className="operations-map" />;
 }

@@ -13,7 +13,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Incident> Incidents => Set<Incident>();
     public DbSet<FieldUnit> FieldUnits => Set<FieldUnit>();
     public DbSet<OperationalTask> OperationalTasks => Set<OperationalTask>();
-
+    public DbSet<FieldUnitLocationHistory> FieldUnitLocationHistories => Set<FieldUnitLocationHistory>();
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

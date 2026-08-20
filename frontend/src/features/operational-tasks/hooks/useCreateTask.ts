@@ -10,6 +10,7 @@ export function useCreateTask() {
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
       queryClient.invalidateQueries({ queryKey: ["field-units"] });
       queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["field-unit-location-histories"] });
     },
   });
 }

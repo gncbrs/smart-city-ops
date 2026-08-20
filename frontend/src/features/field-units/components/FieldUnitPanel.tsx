@@ -8,9 +8,10 @@ interface FieldUnitPanelProps {
   fieldUnit: FieldUnit | null;
   activeTask: OperationalTask | null;
   onCompleted: () => void;
+  onViewMovementHistory: () => void;
 }
 
-export function FieldUnitPanel({ fieldUnit, activeTask, onCompleted }: FieldUnitPanelProps) {
+export function FieldUnitPanel({ fieldUnit, activeTask, onCompleted, onViewMovementHistory }: FieldUnitPanelProps) {
   const { mutate, isPending, isError } = useCompleteTask();
 
   if (!fieldUnit) {
@@ -27,14 +28,19 @@ export function FieldUnitPanel({ fieldUnit, activeTask, onCompleted }: FieldUnit
       <h3>{formatEnumLabel(fieldUnit.type)}</h3>
       <p>Unit Code: {fieldUnit.unitCode}</p>
       <p>Status: {formatEnumLabel(fieldUnit.status)}</p>
-      {fieldUnit.status === "Dispatched" && activeTask && (
-        <div>
+
+      <div className="field-unit-panel__actions">
+        <button type="button" onClick={onViewMovementHistory} className="view-movement-history-button">
+          View Movement History
+        </button>
+        {fieldUnit.status === "Dispatched" && activeTask && (
           <button onClick={handleComplete} disabled={isPending} className="complete-task-button">
             {isPending ? "Completing..." : "Complete Task"}
           </button>
-          {isError && <p>Failed to complete task. Please try again.</p>}
-        </div>
-      )}
+        )}
+      </div>
+
+      {isError && <p>Failed to complete task. Please try again.</p>}
     </div>
   );
 }

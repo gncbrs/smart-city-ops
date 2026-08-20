@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using SmartCityOps.Application.FieldUnitLocationHistories;
+using SmartCityOps.Infrastructure.FieldUnitLocationHistories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartCityOps.Application.Incidents;
@@ -30,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IOperationalTaskService, OperationalTaskService>();
         services.AddScoped<IOperationalTaskService, OperationalTaskService>();
         services.AddScoped<IOperationalZoneService, OperationalZoneService>();
+        services.AddScoped<IFieldUnitLocationHistoryService, FieldUnitLocationHistoryService>();
 
         return services;
     }
