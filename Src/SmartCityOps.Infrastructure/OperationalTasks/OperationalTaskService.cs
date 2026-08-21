@@ -3,16 +3,20 @@ using SmartCityOps.Application.OperationalTasks;
 using SmartCityOps.Domain.Entities;
 using SmartCityOps.Domain.Enums;
 using SmartCityOps.Infrastructure.Persistence;
+using Microsoft.AspNetCore.SignalR;
+using SmartCityOps.Infrastructure.Hubs;
 
 namespace SmartCityOps.Infrastructure.OperationalTasks;
 
 public class OperationalTaskService : IOperationalTaskService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IHubContext<OperationsHub> _hubContext;
 
-    public OperationalTaskService(ApplicationDbContext dbContext)
+    public OperationalTaskService(ApplicationDbContext dbContext, IHubContext<OperationsHub> hubContext)
     {
         _dbContext = dbContext;
+        _hubContext = hubContext;
     }
 
     public async Task<IReadOnlyList<OperationalTaskDto>> GetAllAsync(CancellationToken cancellationToken)
@@ -85,6 +89,8 @@ public class OperationalTaskService : IOperationalTaskService
         _dbContext.FieldUnitLocationHistories.Add(locationHistoryEntry);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
+
         return new OperationalTaskDto(task.Id, task.IncidentId, task.FieldUnitId, task.Status.ToString(), task.AssignedAt, task.CompletedAt);
     }
 
@@ -108,6 +114,8 @@ public class OperationalTaskService : IOperationalTaskService
         fieldUnit.Status = FieldUnitStatus.Available;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
 
         return new OperationalTaskDto(task.Id, task.IncidentId, task.FieldUnitId, task.Status.ToString(), task.AssignedAt, task.CompletedAt);
     }

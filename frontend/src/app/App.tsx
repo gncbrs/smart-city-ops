@@ -10,7 +10,7 @@ import { useOperationalTasks } from "../features/operational-tasks/hooks/useOper
 import { Dashboard } from "../features/dashboard/components/Dashboard";
 import { OperationsMap } from "../features/operations-map/components/OperationsMap";
 import { FilterPanel } from "../features/operations-map/components/FilterPanel";
-//import { useSignalRConnection } from "../shared/hooks/useSignalR";
+import { useSignalRConnection } from "../shared/hooks/useSignalR";
 import type { Incident, IncidentPriority } from "../features/incidents/types";
 import type { FieldUnit, FieldUnitStatus, FieldUnitType } from "../features/field-units/types";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
@@ -19,7 +19,7 @@ import { useOperationalZones } from "../features/operational-zones/hooks/useOper
 import { useFieldUnitLocationHistories } from "../features/field-unit-location-histories/hooks/useFieldUnitLocationHistories";
 
 export function App() {
-  //useSignalRConnection();
+  useSignalRConnection();
 
   const { data: incidents } = useIncidents();
   const { data: fieldUnits } = useFieldUnits();

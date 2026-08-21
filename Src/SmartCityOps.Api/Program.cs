@@ -1,11 +1,13 @@
 using SmartCityOps.Api;
 using SmartCityOps.Api.ExceptionHandling;
 using SmartCityOps.Infrastructure;
+using SmartCityOps.Infrastructure.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiServices(builder.Configuration);
+builder.Services.AddSignalR();
 
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -27,5 +29,6 @@ app.UseCors(SmartCityOps.Api.DependencyInjection.FrontendCorsPolicy);
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<OperationsHub>("/hubs/operations");
 
 app.Run();

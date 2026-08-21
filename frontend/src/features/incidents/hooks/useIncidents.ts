@@ -5,6 +5,5 @@ export function useIncidents() {
   return useQuery({
     queryKey: ["incidents"],
     queryFn: fetchIncidents,
-    refetchInterval: 15000 //Bu satır sayfa otomatik yenilenmesi için geçici çözüm signalR kodları tamamlanınca sil!!!
   });
 }

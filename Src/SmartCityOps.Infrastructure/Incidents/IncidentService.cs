@@ -3,16 +3,20 @@ using SmartCityOps.Application.Incidents;
 using SmartCityOps.Domain.Entities;
 using SmartCityOps.Domain.Enums;
 using SmartCityOps.Infrastructure.Persistence;
+using Microsoft.AspNetCore.SignalR;
+using SmartCityOps.Infrastructure.Hubs;
 
 namespace SmartCityOps.Infrastructure.Incidents;
 
 public class IncidentService : IIncidentService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IHubContext<OperationsHub> _hubContext;
 
-    public IncidentService(ApplicationDbContext dbContext)
+    public IncidentService(ApplicationDbContext dbContext, IHubContext<OperationsHub> hubContext)
     {
         _dbContext = dbContext;
+        _hubContext = hubContext;
     }
 
     public async Task<IReadOnlyList<IncidentDto>> GetAllAsync(CancellationToken cancellationToken)
@@ -49,6 +53,7 @@ public class IncidentService : IIncidentService
 
         _dbContext.Incidents.Add(incident);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
 
         return new IncidentDto(
             incident.Id,
@@ -98,6 +103,7 @@ public class IncidentService : IIncidentService
         incident.ResolvedAt = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
 
         return new IncidentDto(
             incident.Id,
