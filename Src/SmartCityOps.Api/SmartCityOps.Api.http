@@ -1,6 +1,50 @@
-@SmartCityOps.Api_HostAddress = http://localhost:5159
+@SmartCityOps.Api_HostAddress = http://localhost:5080/api
 
-GET {{SmartCityOps.Api_HostAddress}}/weatherforecast/
+### Get all incidents
+GET {{SmartCityOps.Api_HostAddress}}/incidents
 Accept: application/json
 
-###
+### Get all field units
+GET {{SmartCityOps.Api_HostAddress}}/field-units
+Accept: application/json
+
+### Get all operational tasks
+GET {{SmartCityOps.Api_HostAddress}}/operational-tasks
+Accept: application/json
+
+### Get all operational zones
+GET {{SmartCityOps.Api_HostAddress}}/operational-zones
+Accept: application/json
+
+### Get all field unit location histories
+GET {{SmartCityOps.Api_HostAddress}}/field-unit-location-histories
+Accept: application/json
+
+### Create an incident (server assigns Id, Status is always Open)
+POST {{SmartCityOps.Api_HostAddress}}/incidents
+Content-Type: application/json
+
+{
+  "incidentCode": "INC-MANUAL-TEST",
+  "type": "TrafficAccident",
+  "priority": "High",
+  "reportedAt": "2026-08-21T12:00:00Z",
+  "latitude": 39.925,
+  "longitude": 32.836,
+  "description": "Manual test incident, created via .http file"
+}
+
+### Resolve an incident (replace {id} with a real Guid from the GET above)
+# POST {{SmartCityOps.Api_HostAddress}}/incidents/{id}/resolve
+
+### Assign a task (replace both ids with real Guids from the GETs above)
+# POST {{SmartCityOps.Api_HostAddress}}/operational-tasks
+# Content-Type: application/json
+#
+# {
+#   "incidentId": "{incidentId}",
+#   "fieldUnitId": "{fieldUnitId}"
+# }
+
+### Complete a task (replace {id} with a real Guid from operational-tasks GET)
+# POST {{SmartCityOps.Api_HostAddress}}/operational-tasks/{id}/complete

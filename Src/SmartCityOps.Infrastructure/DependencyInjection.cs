@@ -30,10 +30,9 @@ public static class DependencyInjection
         services.AddScoped<IIncidentService, IncidentService>();
         services.AddScoped<IFieldUnitService, FieldUnitService>();
         services.AddScoped<IOperationalTaskService, OperationalTaskService>();
-        services.AddScoped<IOperationalTaskService, OperationalTaskService>();
         services.AddScoped<IOperationalZoneService, OperationalZoneService>();
         services.AddScoped<IFieldUnitLocationHistoryService, FieldUnitLocationHistoryService>();
-
+        
         return services;
     }
 }

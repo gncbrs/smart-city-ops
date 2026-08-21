@@ -91,7 +91,7 @@ public class OperationalTaskService : IOperationalTaskService
 
         await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
 
-        return new OperationalTaskDto(task.Id, task.IncidentId, task.FieldUnitId, task.Status.ToString(), task.AssignedAt, task.CompletedAt);
+        return ToDto(task);
     }
 
     public async Task<OperationalTaskDto> CompleteAsync(Guid id, CancellationToken cancellationToken)
@@ -117,6 +117,9 @@ public class OperationalTaskService : IOperationalTaskService
 
         await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
 
-        return new OperationalTaskDto(task.Id, task.IncidentId, task.FieldUnitId, task.Status.ToString(), task.AssignedAt, task.CompletedAt);
+        return ToDto(task);
     }
+
+    private static OperationalTaskDto ToDto(OperationalTask task) =>
+        new(task.Id, task.IncidentId, task.FieldUnitId, task.Status.ToString(), task.AssignedAt, task.CompletedAt);
 }

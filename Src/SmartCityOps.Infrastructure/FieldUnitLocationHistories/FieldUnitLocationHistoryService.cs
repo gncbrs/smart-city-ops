@@ -6,16 +6,16 @@ namespace SmartCityOps.Infrastructure.FieldUnitLocationHistories;
 
 public class FieldUnitLocationHistoryService : IFieldUnitLocationHistoryService
 {
-    private readonly ApplicationDbContext dbContext;
+    private readonly ApplicationDbContext _dbContext;
 
     public FieldUnitLocationHistoryService(ApplicationDbContext dbContext)
     {
-        this.dbContext = dbContext;
+        _dbContext = dbContext;
     }
 
     public async Task<IReadOnlyList<FieldUnitLocationHistoryDto>> GetAllAsync(CancellationToken cancellationToken)
     {
-        return await dbContext.FieldUnitLocationHistories
+        return await _dbContext.FieldUnitLocationHistories
             .AsNoTracking()
             .OrderBy(h => h.RecordedAt)
             .Select(h => new FieldUnitLocationHistoryDto(

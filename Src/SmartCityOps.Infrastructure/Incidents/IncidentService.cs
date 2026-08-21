@@ -55,16 +55,7 @@ public class IncidentService : IIncidentService
         await _dbContext.SaveChangesAsync(cancellationToken);
         await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
 
-        return new IncidentDto(
-            incident.Id,
-            incident.Type.ToString(),
-            incident.Priority.ToString(),
-            incident.Status.ToString(),
-            incident.ReportedAt,
-            incident.Latitude,
-            incident.Longitude,
-            incident.Description,
-            incident.ResolvedAt);
+        return ToDto(incident);
     }
 
     public async Task<IncidentDto> ResolveAsync(Guid id, CancellationToken cancellationToken)
@@ -105,7 +96,11 @@ public class IncidentService : IIncidentService
         await _dbContext.SaveChangesAsync(cancellationToken);
         await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
 
-        return new IncidentDto(
+        return ToDto(incident);
+    }
+
+    private static IncidentDto ToDto(Incident incident) =>
+        new(
             incident.Id,
             incident.Type.ToString(),
             incident.Priority.ToString(),
@@ -115,5 +110,4 @@ public class IncidentService : IIncidentService
             incident.Longitude,
             incident.Description,
             incident.ResolvedAt);
-    }
 }

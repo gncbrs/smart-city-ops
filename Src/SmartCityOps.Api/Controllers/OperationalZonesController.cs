@@ -7,17 +7,17 @@ namespace SmartCityOps.Api.Controllers;
 [Route("api/operational-zones")]
 public class OperationalZonesController : ControllerBase
 {
-    private readonly IOperationalZoneService operationalZoneService;
+    private readonly IOperationalZoneService _operationalZoneService;
 
     public OperationalZonesController(IOperationalZoneService operationalZoneService)
     {
-        this.operationalZoneService = operationalZoneService;
+        _operationalZoneService = operationalZoneService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<OperationalZoneDto>>> GetAll(CancellationToken cancellationToken)
     {
-        var zones = await operationalZoneService.GetAllAsync(cancellationToken);
+        var zones = await _operationalZoneService.GetAllAsync(cancellationToken);
         return Ok(zones);
     }
 }
