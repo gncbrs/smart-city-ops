@@ -1,0 +1,6 @@
+.menu-overlay__section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+}

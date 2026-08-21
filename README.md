@@ -13,11 +13,12 @@ detected by the platform itself.
 ## Status
 
 - **Level 1 — Basic Operations Center:** ✅ Complete
-- **Level 2 — Operational Awareness:** mostly complete
-  - ✅ Active/completed task views, high-priority highlighting, task history, operational
+- **Level 2 — Operational Awareness:** ✅ Complete
+  - Active/completed task views, high-priority highlighting, task history, operational
     statistics, incident/field-unit filtering, incident timeline, operational zones map
-    visualization, field unit movement history
-  - ⏳ Real-time updates via SignalR (currently a temporary polling workaround)
+    visualization, field unit movement history, and real-time updates via SignalR
+- **Frontend refactor:** a dedicated cleanup pass (dead code removal, de-duplication, component
+  decomposition) — no behavior changes, see `docs/DEVELOPMENT_LOG10.md`
 - **Level 3 — Advanced Operations:** not started
 
 Full session-by-session technical decision log — including rejected alternatives and the reasoning
@@ -35,15 +36,18 @@ Api → Infrastructure → Application → Domain
 - **Infrastructure** — EF Core (PostgreSQL) persistence, service implementations, entity
   configurations and migrations.
 - **Api** — controller-based REST endpoints, Swagger, CORS, centralized exception handling.
+
 **Incident Generator** — a standalone .NET worker service that simulates incidents arriving from
 an external monitoring system. It has no project reference to the API — it only communicates over
 HTTP — by design, to mirror a real external integration. Incidents are distributed across a
 weighted set of Ankara districts (`AnkaraZones`), which the API also exposes (as a separate,
 manually-synced copy) for the map's operational-zones layer.
+
 **Frontend** — React + TypeScript + Vite, feature-folder structure, fixed (non-scrolling) layout:
 a map with a filter/summary sidebar on top, a three-column bottom bar (field unit / incident /
 active tasks) below it, and a full-screen Menu overlay for Completed Tasks, Statistics, and
 detail-drill-down views (incident timeline, field unit movement history).
+
 | Concern | Choice |
 |---|---|
 | Map rendering | MapLibre GL JS (OpenFreeMap `liberty` style) |
@@ -51,6 +55,7 @@ detail-drill-down views (incident timeline, field unit movement history).
 | HTTP client | axios |
 | Styling | Plain CSS + BEM, one stylesheet per component |
 | Database | PostgreSQL 16 (EF Core, code-first migrations) |
+
 ## Project structure
 Src/
 SmartCityOps.Domain/ entities, enums
@@ -60,7 +65,7 @@ SmartCityOps.Api/ controllers, Program.cs, DI wiring
 incident-generator/ standalone worker service (simulated external incident source)
 frontend/
 src/
-app/ top-level composition (App.tsx, providers)
+app/ top-level composition (App.tsx, providers, app-level hooks/components)
 layouts/ the fixed operations-center layout shell
 features/ one folder per domain concept (incidents, field-units,
 operational-tasks, operational-zones, dashboard, menu, ...)

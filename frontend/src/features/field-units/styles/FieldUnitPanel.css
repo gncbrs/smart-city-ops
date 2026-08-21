@@ -1,33 +1,5 @@
 .field-unit-panel__actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 16px;
-}
-
-.view-movement-history-button {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 15px;
-    background: #3B82F6;
-    color: #F8FAFC;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.view-movement-history-button:hover {
-    background: #2563EB;
-}
-
-.complete-task-button {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 15px;
-    background: #3B82F6;
-    color: #F8FAFC;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.complete-task-button:hover{
-    background: #2563EB;
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
 }

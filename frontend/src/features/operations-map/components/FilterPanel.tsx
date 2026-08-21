@@ -1,6 +1,6 @@
 import type { IncidentPriority } from "../../incidents/types";
 import type { FieldUnitStatus, FieldUnitType } from "../../field-units/types";
-import { formatEnumLabel } from "../../../shared/lib/formatLabel";
+import { FilterCheckboxGroup } from "./FilterCheckboxGroup";
 import "../styles/FilterPanel.css";
 
 const ALL_PRIORITIES: IncidentPriority[] = ["High", "Medium", "Low"];
@@ -28,47 +28,26 @@ export function FilterPanel({
     <div className="filter-panel">
       <h3>Map Filters</h3>
 
-      <div className="filter-panel__group">
-        <span className="filter-panel__group-label">Incident Priority</span>
-        {ALL_PRIORITIES.map((priority) => (
-          <label key={priority} className="filter-panel__option">
-            <input
-              type="checkbox"
-              checked={selectedPriorities.includes(priority)}
-              onChange={() => onTogglePriority(priority)}
-            />
-            {formatEnumLabel(priority)}
-          </label>
-        ))}
-      </div>
+      <FilterCheckboxGroup
+        label="Incident Priority"
+        options={ALL_PRIORITIES}
+        selectedOptions={selectedPriorities}
+        onToggle={onTogglePriority}
+      />
 
-      <div className="filter-panel__group">
-        <span className="filter-panel__group-label">Field Unit Status</span>
-        {ALL_FIELD_UNIT_STATUSES.map((status) => (
-          <label key={status} className="filter-panel__option">
-            <input
-              type="checkbox"
-              checked={selectedFieldUnitStatuses.includes(status)}
-              onChange={() => onToggleFieldUnitStatus(status)}
-            />
-            {formatEnumLabel(status)}
-          </label>
-        ))}
-      </div>
+      <FilterCheckboxGroup
+        label="Field Unit Status"
+        options={ALL_FIELD_UNIT_STATUSES}
+        selectedOptions={selectedFieldUnitStatuses}
+        onToggle={onToggleFieldUnitStatus}
+      />
 
-      <div className="filter-panel__group">
-        <span className="filter-panel__group-label">Field Unit Type</span>
-        {ALL_FIELD_UNIT_TYPES.map((type) => (
-          <label key={type} className="filter-panel__option">
-            <input
-              type="checkbox"
-              checked={selectedFieldUnitTypes.includes(type)}
-              onChange={() => onToggleFieldUnitType(type)}
-            />
-            {formatEnumLabel(type)}
-          </label>
-        ))}
-      </div>
+      <FilterCheckboxGroup
+        label="Field Unit Type"
+        options={ALL_FIELD_UNIT_TYPES}
+        selectedOptions={selectedFieldUnitTypes}
+        onToggle={onToggleFieldUnitType}
+      />
     </div>
   );
 }

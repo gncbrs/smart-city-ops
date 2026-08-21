@@ -2,6 +2,7 @@ import type { Incident } from "../types";
 import { useResolveIncident } from "../hooks/useResolveIncident";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
 import "../styles/IncidentPanel.css";
+import "../../../shared/styles/buttons.css";
 
 interface IncidentPanelProps {
   incident: Incident | null;
@@ -28,11 +29,11 @@ export function IncidentPanel({ incident, onResolved, onViewTimeline }: Incident
       <p>Description: {incident.description}</p>
 
       <div className="incident-panel__actions">
-        <button type="button" onClick={onViewTimeline} className="view-timeline-button">
+        <button type="button" onClick={onViewTimeline} className="app-button">
           View Timeline
         </button>
         {incident.status !== "Resolved" && (
-          <button onClick={handleResolve} disabled={isPending} className="resolve-button">
+          <button onClick={handleResolve} disabled={isPending} className="app-button">
             {isPending ? "Resolving..." : "Resolve Incident"}
           </button>
         )}

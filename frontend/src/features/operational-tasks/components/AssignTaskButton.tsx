@@ -2,6 +2,7 @@ import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";
 import { useCreateTask } from "../hooks/useCreateTask";
 import "../styles/AssignTaskButton.css";
+import "../../../shared/styles/buttons.css";
 
 interface AssignTaskButtonProps {
   incident: Incident;
@@ -25,7 +26,7 @@ export function AssignTaskButton({ incident, fieldUnit, onAssigned }: AssignTask
 
   return (
     <div>
-      <button onClick={handleClick} disabled={!canAssign || isPending} className="assign-task-button">
+      <button onClick={handleClick} disabled={!canAssign || isPending} className="app-button assign-task-button">
         {isPending ? "Assigning..." : "Assign Task"}
       </button>
       {!isFieldUnitAvailable && <p>{fieldUnit.unitCode} is not available for assignment.</p>}

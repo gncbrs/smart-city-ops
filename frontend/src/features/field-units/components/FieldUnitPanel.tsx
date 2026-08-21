@@ -3,6 +3,7 @@ import type { OperationalTask } from "../../operational-tasks/types";
 import { useCompleteTask } from "../../operational-tasks/hooks/useCompleteTask";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
 import "../styles/FieldUnitPanel.css";
+import "../../../shared/styles/buttons.css";
 
 interface FieldUnitPanelProps {
   fieldUnit: FieldUnit | null;
@@ -30,11 +31,11 @@ export function FieldUnitPanel({ fieldUnit, activeTask, onCompleted, onViewMovem
       <p>Status: {formatEnumLabel(fieldUnit.status)}</p>
 
       <div className="field-unit-panel__actions">
-        <button type="button" onClick={onViewMovementHistory} className="view-movement-history-button">
+        <button type="button" onClick={onViewMovementHistory} className="app-button">
           View Movement History
         </button>
         {fieldUnit.status === "Dispatched" && activeTask && (
-          <button onClick={handleComplete} disabled={isPending} className="complete-task-button">
+          <button onClick={handleComplete} disabled={isPending} className="app-button">
             {isPending ? "Completing..." : "Complete Task"}
           </button>
         )}

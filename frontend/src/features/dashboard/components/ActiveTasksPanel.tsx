@@ -1,8 +1,9 @@
 import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
-import { getFieldUnitLabel, getIncidentLabel } from "../../operational-tasks/lib/describeTask";
-import { HistoryTable, type HistoryTableCell, type HistoryTableRow } from "../../../shared/components/HistoryTable";
+import { getIncidentLabel } from "../../operational-tasks/lib/describeTask";
+import { buildActiveTaskRows } from "../../operational-tasks/lib/buildTaskRow";
+import { HistoryTable, type HistoryTableRow } from "../../../shared/components/HistoryTable";
 
 interface ActiveTasksPanelProps {
   incidents: Incident[];
@@ -10,12 +11,6 @@ interface ActiveTasksPanelProps {
   operationalTasks: OperationalTask[];
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
-}
-
-interface HistoryRow {
-  id: string;
-  cells: HistoryTableCell[];
-  timestamp: string;
 }
 
 export function ActiveTasksPanel({
@@ -36,30 +31,13 @@ export function ActiveTasksPanel({
       cells: [{ label: getIncidentLabel(incident), onClick: () => onSelectIncident(incident) }],
     }));
 
-  const buildTaskCells = (task: OperationalTask): HistoryTableCell[] => {
-    const fieldUnit = fieldUnits.find((unit) => unit.id === task.fieldUnitId);
-    const incident = incidents.find((item) => item.id === task.incidentId);
-
-    return [
-      {
-        label: getFieldUnitLabel(fieldUnit),
-        onClick: fieldUnit ? () => onSelectFieldUnit(fieldUnit) : undefined,
-      },
-      {
-        label: getIncidentLabel(incident),
-        onClick: incident ? () => onSelectIncident(incident) : undefined,
-      },
-    ];
-  };
-
-  const activeTaskRows: HistoryRow[] = operationalTasks
-    .filter((task) => task.status === "Assigned")
-    .map((task) => ({
-      id: task.id,
-      cells: [...buildTaskCells(task), { label: new Date(task.assignedAt).toLocaleString() }],
-      timestamp: task.assignedAt,
-    }))
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const activeTaskRows = buildActiveTaskRows(
+    operationalTasks,
+    fieldUnits,
+    incidents,
+    onSelectFieldUnit,
+    onSelectIncident
+  );
 
   return (
     <div>
