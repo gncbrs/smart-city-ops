@@ -46,3 +46,152 @@
 .operations-center-layout__bottom-bar-column:last-child {
   border-right: none;
 }
+
+/* Mobile/tablet-only controls: docked panels on desktop make these redundant,
+   so they stay hidden until the max-width: 768px rules below turn the panels
+   into off-canvas drawers. */
+.operations-center-layout__panel-toggle {
+  display: none;
+  position: absolute;
+  z-index: 10;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 15px;
+  background: #3b82f6;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.operations-center-layout__panel-toggle:hover {
+  opacity: 0.9;
+  background: #2563eb;
+}
+
+.operations-center-layout__panel-toggle--filters {
+  top: 16px;
+  right: 16px;
+}
+
+.operations-center-layout__panel-toggle--units {
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.operations-center-layout__panel-close {
+  display: none;
+  margin-bottom: 12px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 15px;
+  background: #334155;
+  color: #f8fafc;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.operations-center-layout__panel-close:hover {
+  background: #475569;
+}
+
+.operations-center-layout__backdrop {
+  display: none;
+}
+
+/* Tablet: keep the desktop docked layout, just reclaim some width/height for the map. */
+@media (max-width: 1024px) {
+  .operations-center-layout__side-panel {
+    width: 280px;
+  }
+
+  .operations-center-layout__bottom-bar {
+    height: 180px;
+  }
+}
+
+/* Mobile: the map becomes the full-screen primary surface. The side panel and
+   bottom bar detach from the flex flow and become off-canvas drawers that
+   slide in over the map on demand, instead of permanently competing with it
+   for space. */
+@media (max-width: 768px) {
+  .operations-center-layout__panel-toggle,
+  .operations-center-layout__panel-close {
+    display: block;
+  }
+
+  .operations-center-layout__top {
+    position: relative;
+  }
+
+  .operations-center-layout__side-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(85vw, 360px);
+    z-index: 40;
+    border-left: 1px solid #334155;
+    box-shadow: -8px 0 16px rgba(0, 0, 0, 0.3);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+  }
+
+  .operations-center-layout__side-panel--open {
+    transform: translateX(0);
+  }
+
+  .operations-center-layout__bottom-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    height: auto;
+    max-height: 75vh;
+    flex-direction: column;
+    overflow-y: auto;
+    border-top: 1px solid #334155;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.3);
+    transform: translateY(100%);
+    transition: transform 0.25s ease;
+  }
+
+  .operations-center-layout__bottom-bar--open {
+    transform: translateY(0);
+  }
+
+  .operations-center-layout__bottom-bar-column {
+    border-right: none;
+    border-bottom: 1px solid #334155;
+  }
+
+  .operations-center-layout__bottom-bar-column:last-child {
+    border-bottom: none;
+  }
+
+  .operations-center-layout__backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
+@media (min-width: 769px) {
+  /* Safety net: if a drawer was opened on mobile and the viewport is then
+     resized past the breakpoint, don't leave a dangling backdrop over the
+     now-docked panels. */
+  .operations-center-layout__backdrop {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .operations-center-layout__side-panel {
+    width: 100vw;
+  }
+}

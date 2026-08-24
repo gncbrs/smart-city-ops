@@ -18,3 +18,12 @@
   overflow-y: auto;
   color: #F8FAFC;
 }
+
+@media (max-width: 480px) {
+  .menu-overlay__content {
+    min-width: 0;
+    width: 92vw;
+    max-width: 92vw;
+    padding: 16px;
+  }
+}
