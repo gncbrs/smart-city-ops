@@ -1,6 +1,7 @@
 import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";
 import { useCreateTask } from "../hooks/useCreateTask";
+import { getErrorMessage } from "../../../shared/lib/getErrorMessage";
 import "../styles/AssignTaskButton.css";
 import "../../../shared/styles/buttons.css";
 
@@ -11,7 +12,7 @@ interface AssignTaskButtonProps {
 }
 
 export function AssignTaskButton({ incident, fieldUnit, onAssigned }: AssignTaskButtonProps) {
-  const { mutate, isPending, isError } = useCreateTask();
+  const { mutate, isPending, isError, error } = useCreateTask();
 
   const isFieldUnitAvailable = fieldUnit.status === "Available";
   const isIncidentResolved = incident.status === "Resolved";
@@ -31,7 +32,7 @@ export function AssignTaskButton({ incident, fieldUnit, onAssigned }: AssignTask
       </button>
       {!isFieldUnitAvailable && <p>{fieldUnit.unitCode} is not available for assignment.</p>}
       {isIncidentResolved && <p>This incident is already resolved.</p>}
-      {isError && <p>Failed to assign task. Please try again.</p>}
+      {isError && <p>{getErrorMessage(error, "Failed to assign task. Please try again.")}</p>}
     </div>
   );
 }

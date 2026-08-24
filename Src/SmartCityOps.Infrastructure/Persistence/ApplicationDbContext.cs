@@ -14,7 +14,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<FieldUnit> FieldUnits => Set<FieldUnit>();
     public DbSet<OperationalTask> OperationalTasks => Set<OperationalTask>();
     public DbSet<FieldUnitLocationHistory> FieldUnitLocationHistories => Set<FieldUnitLocationHistory>();
-    
+    public DbSet<RestrictedZone> RestrictedZones => Set<RestrictedZone>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

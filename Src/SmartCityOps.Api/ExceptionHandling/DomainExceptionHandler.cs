@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics;
+using SmartCityOps.Domain.Exceptions;
 
 namespace SmartCityOps.Api.ExceptionHandling;
 
@@ -12,6 +13,8 @@ public class DomainExceptionHandler : IExceptionHandler
         var statusCode = exception switch
         {
             KeyNotFoundException => StatusCodes.Status404NotFound,
+            ValidationException => StatusCodes.Status400BadRequest,
+            ResourceConflictException => StatusCodes.Status409Conflict,
             InvalidOperationException => StatusCodes.Status409Conflict,
             _ => 0
         };

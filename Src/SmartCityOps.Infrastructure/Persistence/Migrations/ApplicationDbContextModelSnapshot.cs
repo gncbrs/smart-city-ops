@@ -286,11 +286,20 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("EstimatedEtaSeconds")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("FieldUnitId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("IncidentId")
                         .HasColumnType("uuid");
+
+                    b.Property<double?>("OriginLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("OriginLongitude")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -299,11 +308,56 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FieldUnitId");
+                    b.HasIndex("FieldUnitId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OperationalTasks_FieldUnitId_ActiveAssignment")
+                        .HasFilter("\"Status\" = 'Assigned'");
 
                     b.HasIndex("IncidentId");
 
                     b.ToTable("OperationalTasks", (string)null);
+                });
+
+            modelBuilder.Entity("SmartCityOps.Domain.Entities.RestrictedZone", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("RadiusMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ZoneType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("RestrictedZones", (string)null);
                 });
 
             modelBuilder.Entity("SmartCityOps.Domain.Entities.FieldUnitLocationHistory", b =>

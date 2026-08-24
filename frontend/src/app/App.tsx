@@ -7,6 +7,9 @@ import { filterIncidentsForMap, filterFieldUnitsForMap } from "../features/opera
 import { useSignalRConnection } from "../shared/hooks/useSignalR";
 import { useSelection } from "./hooks/useSelection";
 import { useOperationsData } from "./hooks/useOperationsData";
+import { useReplayController } from "./hooks/useReplayController";
+import { useOperationsSnapshot } from "../features/operations-replay/hooks/useOperationsSnapshot";
+import { ReplayControlBar } from "../features/operations-replay/components/ReplayControlBar";
 import { OperationsSidebar } from "./components/OperationsSidebar";
 import { FieldUnitColumn } from "./components/FieldUnitColumn";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
@@ -15,10 +18,31 @@ import { Menu, type MenuView } from "../features/menu/components/Menu";
 export function App() {
   useSignalRConnection();
 
-  const { incidents, fieldUnits, operationalTasks, zones, locationHistory } = useOperationsData();
+  const liveData = useOperationsData();
+  const { zones, locationHistory, restrictedZones } = liveData;
 
   const { selectedIncident, setSelectedIncident, selectedFieldUnit, setSelectedFieldUnit, clearSelection } =
     useSelection();
+
+  const replay = useReplayController();
+  const { data: snapshot, isFetching: isSnapshotLoading } = useOperationsSnapshot(
+    replay.timestamp,
+    replay.isReplayMode
+  );
+
+  const handleEnterReplay = () => {
+    clearSelection();
+    replay.enterReplayMode();
+  };
+
+  const handleExitReplay = () => {
+    clearSelection();
+    replay.exitReplayMode();
+  };
+
+  const incidents = replay.isReplayMode && snapshot ? snapshot.incidents : liveData.incidents;
+  const fieldUnits = replay.isReplayMode && snapshot ? snapshot.fieldUnits : liveData.fieldUnits;
+  const operationalTasks = replay.isReplayMode && snapshot ? snapshot.activeTasks : liveData.operationalTasks;
 
   const [menuView, setMenuView] = useState<MenuView>("closed");
 
@@ -36,33 +60,56 @@ export function App() {
       (task) => task.fieldUnitId === selectedFieldUnit?.id && task.status === "Assigned"
     ) ?? null;
 
+  const availableFieldUnitsForReassignment = fieldUnits.filter(
+    (fieldUnit) => fieldUnit.status === "Available"
+  );
+
   const mapIncidents = filterIncidentsForMap(incidents, priorityFilter);
   const mapFieldUnits = filterFieldUnitsForMap(fieldUnits, fieldUnitStatusFilter, fieldUnitTypeFilter);
 
   return (
     <OperationsCenterLayout
       map={
-        <OperationsMap
-          incidents={mapIncidents}
-          fieldUnits={mapFieldUnits}
-          zones={zones}
-          selectedIncidentId={selectedIncident?.id ?? null}
-          selectedFieldUnitId={selectedFieldUnit?.id ?? null}
-          onSelectIncident={setSelectedIncident}
-          onSelectFieldUnit={setSelectedFieldUnit}
-        />
+        <>
+          <OperationsMap
+            incidents={mapIncidents}
+            fieldUnits={mapFieldUnits}
+            zones={zones}
+            restrictedZones={restrictedZones}
+            operationalTasks={operationalTasks}
+            selectedIncidentId={selectedIncident?.id ?? null}
+            selectedFieldUnitId={selectedFieldUnit?.id ?? null}
+            onSelectIncident={setSelectedIncident}
+            onSelectFieldUnit={setSelectedFieldUnit}
+          />
+          <ReplayControlBar
+            mode={replay.mode}
+            onEnterReplay={handleEnterReplay}
+            onExitReplay={handleExitReplay}
+            minTimestamp={replay.minTimestamp}
+            maxTimestamp={replay.maxTimestamp}
+            timestamp={replay.timestamp}
+            onScrub={replay.scrubTo}
+            isPlaying={replay.isPlaying}
+            onTogglePlayback={replay.togglePlayback}
+            speed={replay.speed}
+            onSpeedChange={replay.setSpeed}
+            isLoading={isSnapshotLoading}
+          />
+        </>
       }
 
       menu={
         <Menu
           view={menuView}
           onViewChange={setMenuView}
-          incidents={incidents}
-          fieldUnits={fieldUnits}
-          operationalTasks={operationalTasks}
+          incidents={liveData.incidents}
+          fieldUnits={liveData.fieldUnits}
+          operationalTasks={liveData.operationalTasks}
           timelineIncident={selectedIncident}
           movementHistoryFieldUnit={selectedFieldUnit}
           locationHistory={locationHistory}
+          restrictedZones={restrictedZones}
           onSelectIncident={setSelectedIncident}
           onSelectFieldUnit={setSelectedFieldUnit}
         />
@@ -86,17 +133,24 @@ export function App() {
           selectedIncident={selectedIncident}
           selectedFieldUnit={selectedFieldUnit}
           activeTask={activeTaskForSelectedFieldUnit}
+          availableFieldUnitsForReassignment={availableFieldUnitsForReassignment}
           onCompleted={clearSelection}
           onAssigned={clearSelection}
+          onReassigned={clearSelection}
           onViewMovementHistory={() => setMenuView("movement-history")}
+          readOnly={replay.isReplayMode}
         />
       }
 
       incidentPanel={
         <IncidentPanel
           incident={selectedIncident}
+          fieldUnits={fieldUnits}
+          selectedFieldUnitId={selectedFieldUnit?.id ?? null}
           onResolved={clearSelection}
           onViewTimeline={() => setMenuView("timeline")}
+          onSelectFieldUnit={setSelectedFieldUnit}
+          readOnly={replay.isReplayMode}
         />
       }
 

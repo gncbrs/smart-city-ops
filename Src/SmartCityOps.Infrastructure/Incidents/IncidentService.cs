@@ -1,22 +1,22 @@
 using Microsoft.EntityFrameworkCore;
+using SmartCityOps.Application.Common.DomainEvents;
 using SmartCityOps.Application.Incidents;
+using SmartCityOps.Application.Incidents.Events;
 using SmartCityOps.Domain.Entities;
 using SmartCityOps.Domain.Enums;
 using SmartCityOps.Infrastructure.Persistence;
-using Microsoft.AspNetCore.SignalR;
-using SmartCityOps.Infrastructure.Hubs;
 
 namespace SmartCityOps.Infrastructure.Incidents;
 
 public class IncidentService : IIncidentService
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly IHubContext<OperationsHub> _hubContext;
+    private readonly IDomainEventDispatcher _domainEventDispatcher;
 
-    public IncidentService(ApplicationDbContext dbContext, IHubContext<OperationsHub> hubContext)
+    public IncidentService(ApplicationDbContext dbContext, IDomainEventDispatcher domainEventDispatcher)
     {
         _dbContext = dbContext;
-        _hubContext = hubContext;
+        _domainEventDispatcher = domainEventDispatcher;
     }
 
     public async Task<IReadOnlyList<IncidentDto>> GetAllAsync(CancellationToken cancellationToken)
@@ -53,7 +53,7 @@ public class IncidentService : IIncidentService
 
         _dbContext.Incidents.Add(incident);
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
+        await _domainEventDispatcher.DispatchAsync(new IncidentCreatedEvent(incident.Id), cancellationToken);
 
         return ToDto(incident);
     }
@@ -94,7 +94,7 @@ public class IncidentService : IIncidentService
         incident.ResolvedAt = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _hubContext.Clients.All.SendAsync("OperationsUpdated", cancellationToken);
+        await _domainEventDispatcher.DispatchAsync(new IncidentResolvedEvent(incident.Id), cancellationToken);
 
         return ToDto(incident);
     }

@@ -18,3 +18,7 @@ export async function createOperationalTask(payload: CreateOperationalTaskPayloa
 export async function completeOperationalTask(taskId: string): Promise<void> {
   await httpClient.post(`/operational-tasks/${taskId}/complete`);
 }
+
+export async function reassignTask(taskId: string, newFieldUnitId: string): Promise<void> {
+  await httpClient.post(`/operational-tasks/${taskId}/reassign`, { newFieldUnitId });
+}

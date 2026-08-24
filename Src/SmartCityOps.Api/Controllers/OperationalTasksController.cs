@@ -34,4 +34,11 @@ public class OperationalTasksController : ControllerBase
         var completed = await _operationalTaskService.CompleteAsync(id, cancellationToken);
         return Ok(completed);
     }
+
+    [HttpPost("{id:guid}/reassign")]
+    public async Task<ActionResult<OperationalTaskDto>> Reassign(Guid id, ReassignOperationalTaskDto dto, CancellationToken cancellationToken)
+    {
+        var reassigned = await _operationalTaskService.ReassignAsync(id, dto, cancellationToken);
+        return Ok(reassigned);
+    }
 }

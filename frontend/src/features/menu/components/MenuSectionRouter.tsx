@@ -2,10 +2,12 @@ import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
 import type { FieldUnitLocationHistory } from "../../field-unit-location-histories/types";
+import type { RestrictedZone } from "../../restricted-zones/types";
 import { CompletedTasksSection } from "../../dashboard/components/CompletedTasksSection";
 import { StatisticsSection } from "../../dashboard/components/StatisticsSection";
 import { IncidentTimelineSection } from "../../incidents/components/IncidentTimelineSection";
 import { FieldUnitMovementHistorySection } from "../../field-units/components/FieldUnitMovementHistorySection";
+import { RestrictedZonesSection } from "../../restricted-zones/components/RestrictedZonesSection";
 import type { MenuView } from "./Menu";
 import "../styles/MenuSectionRouter.css";
 import "../../../shared/styles/buttons.css";
@@ -13,6 +15,7 @@ import "../../../shared/styles/buttons.css";
 const SECTIONS: { id: MenuView; label: string }[] = [
   { id: "completed-tasks", label: "Completed Tasks" },
   { id: "statistics", label: "Statistics" },
+  { id: "restricted-zones", label: "Restricted Zones" },
 ];
 
 interface MenuSectionRouterProps {
@@ -24,6 +27,7 @@ interface MenuSectionRouterProps {
   timelineIncident: Incident | null;
   movementHistoryFieldUnit: FieldUnit | null;
   locationHistory: FieldUnitLocationHistory[];
+  restrictedZones: RestrictedZone[];
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
 }
@@ -37,6 +41,7 @@ export function MenuSectionRouter({
   timelineIncident,
   movementHistoryFieldUnit,
   locationHistory,
+  restrictedZones,
   onSelectIncident,
   onSelectFieldUnit,
 }: MenuSectionRouterProps) {
@@ -99,6 +104,8 @@ export function MenuSectionRouter({
         ) : (
           <p>No field unit selected.</p>
         ))}
+
+      {view === "restricted-zones" && <RestrictedZonesSection zones={restrictedZones} />}
     </>
   );
 }

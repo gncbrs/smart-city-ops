@@ -14,6 +14,8 @@ export function useSignalRConnection() {
       queryClient.invalidateQueries({ queryKey: ["field-units"] });
       queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["field-unit-location-histories"] });
+      queryClient.invalidateQueries({ queryKey: ["field-unit-recommendations"] });
+      queryClient.invalidateQueries({ queryKey: ["restricted-zones"] });
     };
 
     // 1. Dinleyiciyi kaydet

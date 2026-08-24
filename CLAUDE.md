@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Smart City Operations Center — a web dashboard for coordinating field units and incidents in a
 simulated smart city. Built incrementally against a case-study brief across three levels: Basic
-Operations Center (done), Operational Awareness (done), Advanced Operations (not started — see
+Operations Center (done), Operational Awareness (done), Advanced Operations (in progress — see
 "Current status" below).
 
 Full session-by-session technical decision log (including rejected alternatives) is in
-`docs/DEVELOPMENT_LOG.md` and its numbered continuations `DEVELOPMENT_LOG2.md`...`DEVELOPMENT_LOG11.md`
+`docs/DEVELOPMENT_LOG.md` and its numbered continuations `DEVELOPMENT_LOG2.md`...`DEVELOPMENT_LOG12.md`
 (read in order). Check the latest one before starting new work — it usually ends with a "next step"
 note.
 
@@ -117,18 +117,22 @@ React Query (server state) + component/hook-local state.
 
 Level 1 and Level 2 are complete; a dedicated frontend refactor (`DEVELOPMENT_LOG10.md`) and
 backend refactor (`DEVELOPMENT_LOG11.md`) cleanup pass followed, with no behavior changes. Level 3
-("Advanced Operations": field unit suggestion, resource-conflict detection, ETA, restricted-zone
-definition, replay of past operations) has not been started.
+("Advanced Operations") is in progress — see `docs/DEVELOPMENT_LOG12.md` for the work done so far:
+a composable task-assignment rule pipeline, typed domain exceptions + a DB-level concurrency guard
+for field-unit assignment, an in-memory domain event dispatcher decoupling services from SignalR,
+and task reassignment (backend + frontend). Still open from Level 3's case-study scope: field unit
+suggestion, ETA, restricted-zone definition, replay of past operations.
 
-Two design risks were identified during the refactor passes and deliberately deferred (they need
-behavior changes, which the refactor passes avoided) — worth considering before/while touching
-this code:
-- **`OperationalTaskService.CreateAsync`** (`Src/SmartCityOps.Infrastructure/OperationalTasks/OperationalTaskService.cs`)
-  has a check-then-act race: nothing stops two operators from assigning the same field unit
-  concurrently. This overlaps directly with Level 3's resource-conflict-detection requirement.
-- Frontend selection state (`frontend/src/app/hooks/useSelection.ts`) can go stale after a SignalR
-  `OperationsUpdated` invalidation — one operator's screen can still show a record another operator
-  just changed.
+One of the two design risks flagged after the refactor passes has been resolved; the other is
+still open:
+- ~~`OperationalTaskService.CreateAsync` check-then-act race~~ — closed in `DEVELOPMENT_LOG12.md`
+  Phase 0.2 via a partial unique index (`FieldUnitId` unique where `Status = 'Assigned'`) plus a
+  `ResourceConflictException` thrown on the resulting `DbUpdateException`. The same guard covers
+  reassignment (Phase 1.1).
+- Frontend selection state (`frontend/src/app/hooks/useSelection.ts`) can still go stale after a
+  SignalR `OperationsUpdated` invalidation — one operator's screen can still show a record another
+  operator just changed. The assign/complete/reassign flows sidestep this locally by calling
+  `clearSelection()` on success, but there's no general fix.
 
 ## Stray directory
 

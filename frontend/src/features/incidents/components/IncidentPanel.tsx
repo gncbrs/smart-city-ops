@@ -1,16 +1,30 @@
 import type { Incident } from "../types";
+import type { FieldUnit } from "../../field-units/types";
 import { useResolveIncident } from "../hooks/useResolveIncident";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
+import { RecommendedUnitsSection } from "../../field-unit-recommendations/components/RecommendedUnitsSection";
 import "../styles/IncidentPanel.css";
 import "../../../shared/styles/buttons.css";
 
 interface IncidentPanelProps {
   incident: Incident | null;
+  fieldUnits: FieldUnit[];
+  selectedFieldUnitId: string | null;
   onResolved: () => void;
   onViewTimeline: () => void;
+  onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
+  readOnly?: boolean;
 }
 
-export function IncidentPanel({ incident, onResolved, onViewTimeline }: IncidentPanelProps) {
+export function IncidentPanel({
+  incident,
+  fieldUnits,
+  selectedFieldUnitId,
+  onResolved,
+  onViewTimeline,
+  onSelectFieldUnit,
+  readOnly = false,
+}: IncidentPanelProps) {
   const { mutate, isPending, isError } = useResolveIncident();
 
   if (!incident) {
@@ -32,14 +46,25 @@ export function IncidentPanel({ incident, onResolved, onViewTimeline }: Incident
         <button type="button" onClick={onViewTimeline} className="app-button">
           View Timeline
         </button>
-        {incident.status !== "Resolved" && (
+        {!readOnly && incident.status !== "Resolved" && (
           <button onClick={handleResolve} disabled={isPending} className="app-button">
             {isPending ? "Resolving..." : "Resolve Incident"}
           </button>
         )}
       </div>
 
-      {isError && <p>Failed to resolve incident. Please try again.</p>}
+      {!readOnly && isError && <p>Failed to resolve incident. Please try again.</p>}
+
+      {readOnly && <p>Historical snapshot — actions disabled.</p>}
+
+      {!readOnly && incident.status !== "Resolved" && (
+        <RecommendedUnitsSection
+          incidentId={incident.id}
+          fieldUnits={fieldUnits}
+          selectedFieldUnitId={selectedFieldUnitId}
+          onSelectFieldUnit={onSelectFieldUnit}
+        />
+      )}
     </div>
   );
 }

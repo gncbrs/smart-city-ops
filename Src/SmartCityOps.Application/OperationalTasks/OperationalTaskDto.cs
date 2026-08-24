@@ -6,5 +6,8 @@ public record OperationalTaskDto(
     Guid FieldUnitId,
     string Status,
     DateTimeOffset AssignedAt,
-    DateTimeOffset? CompletedAt
+    DateTimeOffset? CompletedAt,
+    double? OriginLatitude,
+    double? OriginLongitude,
+    int? EstimatedEtaSeconds
 );

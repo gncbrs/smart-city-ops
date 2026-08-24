@@ -3,6 +3,7 @@ import { useFieldUnits } from "../../features/field-units/hooks/useFieldUnits";
 import { useOperationalTasks } from "../../features/operational-tasks/hooks/useOperationalTasks";
 import { useOperationalZones } from "../../features/operational-zones/hooks/useOperationalZones";
 import { useFieldUnitLocationHistories } from "../../features/field-unit-location-histories/hooks/useFieldUnitLocationHistories";
+import { useRestrictedZones } from "../../features/restricted-zones/hooks/useRestrictedZones";
 
 export function useOperationsData() {
   const { data: incidents } = useIncidents();
@@ -10,6 +11,7 @@ export function useOperationsData() {
   const { data: operationalTasks } = useOperationalTasks();
   const { data: zones } = useOperationalZones();
   const { data: locationHistory } = useFieldUnitLocationHistories();
+  const { data: restrictedZones } = useRestrictedZones();
 
   return {
     incidents: incidents ?? [],
@@ -17,5 +19,6 @@ export function useOperationsData() {
     operationalTasks: operationalTasks ?? [],
     zones: zones ?? [],
     locationHistory: locationHistory ?? [],
+    restrictedZones: restrictedZones ?? [],
   };
 }

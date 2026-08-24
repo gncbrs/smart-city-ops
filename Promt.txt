@@ -1,0 +1,44 @@
+Let's implement the frontend-driven Field Unit Travel Animation & Route Line feature based on the architectural plan we discussed.
+
+The goal is to show a straight line (as the crow flies) between a dispatched field unit's origin and destination incident, smoothly animating the marker along that line based on the calculated ETA without introducing heavy backend background workers or high-frequency SignalR ticks.
+
+Please implement this step-by-step:
+
+---
+
+### STEP 1: Backend DTO & Origin/ETA Capture
+1. **Model / DTO Update:**
+   - Update `OperationalTaskDto` (and underlying `OperationalTask` entity or service mapping if needed) to include:
+     - `OriginLatitude`, `OriginLongitude` (the unit's coordinates prior to assignment).
+     - `EstimatedEtaSeconds` (calculated via `IEtaEstimator` at the time of assignment).
+2. **Service Logic (`OperationalTaskService`):**
+   - In `CreateAsync` and `ReassignAsync`, capture the field unit's current latitude/longitude before updating its location to the incident destination, and compute `EstimatedEtaSeconds`.
+   - Persist or return these values so the frontend receives `originLatitude`, `originLongitude`, `assignedAt`, and `estimatedEtaSeconds`.
+
+---
+
+### STEP 2: Frontend Route Line & Interpolation Logic
+1. **Pure Interpolation Math:**
+   - Create a utility function `interpolatePosition(origin, destination, assignedAt, etaSeconds, now)` in `frontend/src/features/operational-tasks/lib/geoInterpolation.ts`:
+     - Calculates the elapsed time fraction $t = \frac{\text{now} - \text{assignedAt}}{\text{etaSeconds} \times 1000}$ clamped between $0.0$ and $1.0$.
+     - Returns linearly interpolated coordinates: $\text{lat} = \text{origin.lat} + t \times (\text{dest.lat} - \text{origin.lat})$.
+2. **Route Line GeoJSON Layer:**
+   - Add a MapLibre layer hook (e.g. `useDispatchedRouteLayers.ts`) in `frontend/src/features/operations-map/hooks/`:
+     - Renders a dashed/semi-transparent line (`LineString`) connecting each active/dispatched task's origin and destination.
+     - Removes the line once the task is completed or elapsed time exceeds ETA.
+
+---
+
+### STEP 3: MapLibre Marker Animation
+1. **Marker Lifecycle Refactor:**
+   - In `useFieldUnitMarkers.ts`, avoid destroying and recreating all marker instances on every render.
+   - Maintain a stable Map of marker instances keyed by `fieldUnit.id`.
+   - For dispatched units with active tasks, run a `requestAnimationFrame` loop that updates the marker position via `marker.setLngLat(interpolatedCoords)` smoothly until $t \ge 1.0$.
+
+---
+
+Please verify that:
+- Backend builds cleanly (`dotnet build`).
+- Frontend compiles and lints with 0 errors (`npm run build` / `npm run lint`).
+
+Please proceed with the implementation now.

@@ -25,6 +25,7 @@ export function MenuOverlay({ isOpen, showBackButton, onBack, onClose, children 
         )}
 
         {children}
+        <br/>
 
         <button type="button" className="app-button" onClick={onClose}>
           Close

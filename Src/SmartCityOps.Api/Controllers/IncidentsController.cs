@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SmartCityOps.Application.FieldUnitRecommendations;
 using SmartCityOps.Application.Incidents;
 
 namespace SmartCityOps.Api.Controllers;
@@ -8,10 +9,14 @@ namespace SmartCityOps.Api.Controllers;
 public class IncidentsController : ControllerBase
 {
     private readonly IIncidentService _incidentService;
+    private readonly IFieldUnitRecommendationService _fieldUnitRecommendationService;
 
-    public IncidentsController(IIncidentService incidentService)
+    public IncidentsController(
+        IIncidentService incidentService,
+        IFieldUnitRecommendationService fieldUnitRecommendationService)
     {
         _incidentService = incidentService;
+        _fieldUnitRecommendationService = fieldUnitRecommendationService;
     }
 
     [HttpGet]
@@ -40,5 +45,12 @@ public class IncidentsController : ControllerBase
     {
         var resolved = await _incidentService.ResolveAsync(id, cancellationToken);
         return Ok(resolved);
+    }
+
+    [HttpGet("{id:guid}/recommendations")]
+    public async Task<ActionResult<IReadOnlyList<FieldUnitRecommendationDto>>> GetRecommendations(Guid id, CancellationToken cancellationToken)
+    {
+        var recommendations = await _fieldUnitRecommendationService.GetRecommendationsAsync(id, cancellationToken);
+        return Ok(recommendations);
     }
 }

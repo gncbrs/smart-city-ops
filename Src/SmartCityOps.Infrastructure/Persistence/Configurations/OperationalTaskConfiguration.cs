@@ -17,7 +17,13 @@ public class OperationalTaskConfiguration : IEntityTypeConfiguration<Operational
             .HasMaxLength(20);
 
         builder.HasIndex(t => t.IncidentId);
-        builder.HasIndex(t => t.FieldUnitId);
+
+        // Bir field unit'in aynı anda birden fazla Assigned task'ta bulunmasını DB seviyesinde engeller
+        // (iki operatörün aynı unit'i eş zamanlı ataması durumundaki race condition'a karşı).
+        builder.HasIndex(t => t.FieldUnitId)
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Assigned'")
+            .HasDatabaseName("IX_OperationalTasks_FieldUnitId_ActiveAssignment");
 
         builder.HasOne<Incident>()
             .WithMany()
