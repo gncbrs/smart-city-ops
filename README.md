@@ -19,7 +19,16 @@ detected by the platform itself.
     visualization, field unit movement history, and real-time updates via SignalR
 - **Frontend refactor:** a dedicated cleanup pass (dead code removal, de-duplication, component
   decomposition) — no behavior changes, see `docs/DEVELOPMENT_LOG.md`, Part 10
-- **Level 3 — Advanced Operations:** not started
+- **Backend refactor:** an equivalent cleanup pass on the API/Application/Infrastructure layers —
+  no behavior changes, see `docs/DEVELOPMENT_LOG.md`, Part 11
+- **Level 3 — Advanced Operations:** ✅ Complete
+  - A composable task-assignment rule pipeline with a DB-level concurrency guard and task
+    reassignment, field-unit recommendation scoring with ETA display, restricted-zone definition
+    and enforcement, and replay of past operations via a snapshot/event-history API with a
+    frontend scrubber. Also includes a field-unit travel animation (origin → destination over ETA,
+    added beyond the case-study brief) and a matching "arrived at scene" step on the Incident
+    Timeline. See `docs/DEVELOPMENT_LOG.md`, Part 12 for the full phase-by-phase breakdown and
+    known open items.
 
 Full session-by-session technical decision log — including rejected alternatives and the reasoning
 behind them — lives in [`docs/DEVELOPMENT_LOG.md`](docs/DEVELOPMENT_LOG.md), a single consolidated
@@ -68,7 +77,9 @@ src/
 app/ top-level composition (App.tsx, providers, app-level hooks/components)
 layouts/ the fixed operations-center layout shell
 features/ one folder per domain concept (incidents, field-units,
-operational-tasks, operational-zones, dashboard, menu, ...)
+operational-tasks, operational-zones, operations-map, dashboard, menu,
+field-unit-location-histories, field-unit-recommendations, restricted-zones,
+operations-replay)
 shared/ reusable components/hooks/lib used across features
 docs/
 DEVELOPMENT_LOG*.md full technical decision history, session by session
