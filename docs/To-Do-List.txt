@@ -55,3 +55,119 @@ Projedeki açıkta kalan tüm teknik borçlar, eksik özellikler ve geliştirme 
 
 
 * [ ] **Kod içi `// TODO` notlarını kapat:** `Program.cs` ve `Worker.cs` dosyalarındaki bekleyen TODO yorumlarını ele al.
+
+******************************************************************************
+Claude'un son denetim raporu ve mevcut projedeki tüm açık gereksinimler birleştirilerek hazırlanan, hiçbir detayın atlanmadığı **Kapsamlı Yapılacaklar Listesi (Master To-Do List)**:
+
+---
+
+### 1. Öncelik — Mimari Hatalar & Kritik State Düzeltmeleri
+
+* [ ] **`useSelection.ts` hook'unu ID tabanlı reaktif yapıya dönüştür (En Yüksek Öncelik):**
+* Hook içinde tam nesne snapshot'ı (`Incident | null`, `FieldUnit | null`) saklamak yerine sadece `selectedIncidentId: string | null` ve `selectedFieldUnitId: string | null` sakla.
+
+
+* Canlı nesneleri `App.tsx` içinde React Query önbellek dizileri üzerinden (`incidents.find(...)`, `fieldUnits.find(...)`) dinamik olarak türet.
+
+
+* Böylece başka operatör SignalR üzerinden veri güncellediğinde veya öneri kartından seçim yapıldığında bayat state kalma sorununu kökten çöz.
+
+
+
+
+* [ ] **`useFieldUnitMarkers.ts` animasyon döngüsünü sürekli çalışır hale getir (Performans):**
+* `requestAnimationFrame` döngüsünün `[map, fieldUnits, operationalTasks]` bağımlılık dizisini temizle.
+
+
+* Veri referanslarını `useRef`'e bağlayarak döngünün her SignalR tetiklemesinde (refetch) yıkılıp yeniden başlatılmasını (teardown/restart) engelle; döngüyü harita mount olduğunda yalnızca 1 kez başlat.
+
+
+
+
+
+---
+
+### 2. Öncelik — Dosya Parçalama & Modülerleştirme (Decomposition)
+
+* [ ] **`RestrictedZonesSection.tsx` bileşenini parçala (324 satır):**
+* Form state'i, satır içi düzenleme ve tablo çizimini tek dosyadan çıkararak alt parçalara böl:
+* `RestrictedZoneTable.tsx` (Tablo iskeleti)
+* `RestrictedZoneRow.tsx` / `RestrictedZoneEditRow.tsx` (Satır ve düzenleme bileşenleri)
+* `RestrictedZoneForm.tsx` (Yeni bölge ekleme formu)
+* `useRestrictedZoneForm.ts` ve `useRestrictedZoneEdit.ts` (Hook'lar)
+
+
+
+
+* [ ] **`OperationalTaskService.cs` içindeki kod tekrarını birleştir (Backend):**
+* `CreateAsync` ve `ReassignAsync` metotlarında tekrarlanan ~35 satırlık görev oluşturma, saha birimi durum mutasyonu, konum geçmişi kaydı ve Postgres unique exception catch mantığını tek bir `private AssignFieldUnitAsync(incident, fieldUnit, ct)` yardımcı metoduna topla.
+
+
+
+
+* [ ] **`App.tsx` orkestrasyonunu sadeleştir:**
+* Replay modu veri geçişini `useReplayAwareData(liveData, replay, snapshot)` hook'una taşı.
+* `App.tsx:74-81` satırları arasındaki türetilmiş seçici (derived selector) mantıklarını `lib/` klasörü altına çıkar.
+
+
+* [ ] *(Opsiyonel / İleride)* `ReplayControlBar.tsx` (119 satır) ve `MenuSectionRouter.tsx` (110 satır) bileşenlerini gözden geçir.
+* [ ] *(Opsiyonel / İleride)* `incident-generator/Worker.cs` içindeki rastgele olay üretim ve ağırlık matematiğini ayrı bir `IncidentFactory` sınıfına taşı.
+
+
+
+---
+
+### 3. Öncelik — Eksik İşlevler & Fonksiyonel Geliştirmeler
+
+* [ ] **Restricted Zone için haritadan nokta seçimi ekle:**
+* `RestrictedZonesSection.tsx` formundaki metin kutularına ek olarak, haritaya tıklandığında koordinatları (`lat`, `lng`) forma otomatik dolduran harita seçim modu ekle.
+
+
+
+
+* [ ] **Restricted Zone başlangıç verisi (Seed Data) ekle:**
+* `RestrictedZoneAssignmentRule` kuralının varsayılan olarak test edilebilmesi için `RestrictedZoneConfiguration.cs` içine EF Core `HasData` ile örnek 1-2 yasaklı bölge ekle ve migration üret.
+
+
+
+
+* [ ] **Operational Zones kapsama alanını genişlet:**
+* Ankara'nın boşta kalan dış ilçelerini (Yenimahalle, Altındağ, Polatlı vb.) kapsayacak şekilde `Spread` değerlerini veya bölge poligonlarını güncelle.
+
+
+
+
+* [ ] **Ankara bölge verisini tekilleştir (`AnkaraZones`):**
+* `incident-generator/Worker.cs` ve `OperationalZoneService.cs` içinde ayrı ayrı tutulan statik listeyi tek bir ortak yapıya/veritabanına bağla.
+
+
+
+
+* [ ] **Operations Replay simülasyonunu kesinleştir:**
+* Görev devri (`Reassign`) anında eski görevin devir anı için `OperationalTask` tablosuna kesin timestamp/bitiş kaydı ekle.
+
+
+* `OutOfService` araç geçişlerini geriye dönük takip edebilmek için araç durum tarihçesi oluştur.
+
+
+
+
+
+---
+
+### 4. Öncelik — Test Altyapısı
+
+* [ ] **Backend için otomatik test projesi kur (xUnit):**
+* `SmartCityOps.Tests` projesi açarak `ITaskAssignmentRule` kuralları, Haversine ETA hesabı ve 3 faktörlü öneri puanlama motoru için birim/entegrasyon testleri yaz.
+
+
+
+
+* [ ] **Frontend test altyapısını kur (Vitest):**
+* `geoInterpolation.ts`, `applyMapFilters.ts` ve `describeTask.ts` saf fonksiyonları için test paketi oluştur.
+
+
+
+
+
+---

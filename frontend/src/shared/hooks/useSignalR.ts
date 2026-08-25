@@ -6,10 +6,10 @@ export function useSignalRConnection() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const connection = getOperationsHubConnection(); // Singleton bağlantı
+    const connection = getOperationsHubConnection(); // Singleton connection
 
     const handleOperationsUpdated = () => {
-      // Sinyal geldiğinde bu 4 önbelleği geçersiz kılıp taze veriyi çek:
+      // On signal, invalidate these caches so fresh data is fetched:
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
       queryClient.invalidateQueries({ queryKey: ["field-units"] });
       queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
@@ -18,19 +18,18 @@ export function useSignalRConnection() {
       queryClient.invalidateQueries({ queryKey: ["restricted-zones"] });
     };
 
-    // 1. Dinleyiciyi kaydet
+    // 1. Register the listener
     connection.on("OperationsUpdated", handleOperationsUpdated);
 
-    // 2. Bağlantı kapalıysa başlat
+    // 2. Start the connection if it's closed
     if (connection.state === "Disconnected") {
       connection.start()
-        .then(() => console.log("SignalR connected, state:", connection.state))
         .catch((error) => {
           console.error("SignalR connection failed", error);
         });
     }
 
-    // 3. Temizleme (Cleanup): Hafıza sızıntısı ve çift tetiklenmeyi engellemek için dinleyiciyi kaldır
+    // 3. Cleanup: remove the listener to prevent memory leaks and double-firing
     return () => {
       connection.off("OperationsUpdated", handleOperationsUpdated);
     };

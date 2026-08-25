@@ -89,23 +89,55 @@ public class OperationsReplayService : IOperationsReplayService
 
     public async Task<ReplayTimeRangeDto> GetReplayTimeRangeAsync(CancellationToken cancellationToken)
     {
-        var candidateMins = new List<DateTimeOffset?>
-        {
-            await _dbContext.Incidents.Select(i => (DateTimeOffset?)i.ReportedAt).MinAsync(cancellationToken),
-            await _dbContext.FieldUnitLocationHistories.Select(h => (DateTimeOffset?)h.RecordedAt).MinAsync(cancellationToken),
-            await _dbContext.OperationalTasks.Select(t => (DateTimeOffset?)t.AssignedAt).MinAsync(cancellationToken)
-        };
+        // One round trip per table instead of one per column: each query aggregates every
+        // min/max it needs from that table in a single SQL statement (GROUP BY on a constant key
+        // computes a single-row aggregate, no per-row data is fetched).
+        var incidentRange = await _dbContext.Incidents
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                MinReportedAt = g.Min(i => (DateTimeOffset?)i.ReportedAt),
+                MaxReportedAt = g.Max(i => (DateTimeOffset?)i.ReportedAt),
+                MaxResolvedAt = g.Max(i => i.ResolvedAt)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
 
-        var candidateMaxes = new List<DateTimeOffset?>
-        {
-            await _dbContext.Incidents.Select(i => (DateTimeOffset?)i.ReportedAt).MaxAsync(cancellationToken),
-            await _dbContext.Incidents.Select(i => i.ResolvedAt).MaxAsync(cancellationToken),
-            await _dbContext.FieldUnitLocationHistories.Select(h => (DateTimeOffset?)h.RecordedAt).MaxAsync(cancellationToken),
-            await _dbContext.OperationalTasks.Select(t => (DateTimeOffset?)t.AssignedAt).MaxAsync(cancellationToken),
-            await _dbContext.OperationalTasks.Select(t => t.CompletedAt).MaxAsync(cancellationToken)
-        };
+        var locationRange = await _dbContext.FieldUnitLocationHistories
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                MinRecordedAt = g.Min(h => (DateTimeOffset?)h.RecordedAt),
+                MaxRecordedAt = g.Max(h => (DateTimeOffset?)h.RecordedAt)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
 
-        return new ReplayTimeRangeDto(candidateMins.Min(), candidateMaxes.Max());
+        var taskRange = await _dbContext.OperationalTasks
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                MinAssignedAt = g.Min(t => (DateTimeOffset?)t.AssignedAt),
+                MaxAssignedAt = g.Max(t => (DateTimeOffset?)t.AssignedAt),
+                MaxCompletedAt = g.Max(t => t.CompletedAt)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        var minTimestamp = new[]
+        {
+            incidentRange?.MinReportedAt,
+            locationRange?.MinRecordedAt,
+            taskRange?.MinAssignedAt
+        }.Min();
+
+        var maxTimestamp = new[]
+        {
+            incidentRange?.MaxReportedAt,
+            incidentRange?.MaxResolvedAt,
+            locationRange?.MaxRecordedAt,
+            taskRange?.MaxAssignedAt,
+            taskRange?.MaxCompletedAt
+        }.Max();
+
+        return new ReplayTimeRangeDto(minTimestamp, maxTimestamp);
     }
 
     private static string ResolveIncidentStatusAt(Incident incident, int tasksAssignedByThenCount, DateTimeOffset timestamp)

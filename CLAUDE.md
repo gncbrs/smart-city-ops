@@ -142,9 +142,31 @@ references. Phase 5.4 (`docs/DEVELOPMENT_LOG.md`, Part 12 §18) resolved the bun
 `OperationsMap` is now lazy-loaded via `React.lazy`/`Suspense` in `frontend/src/app/App.tsx`, and
 `frontend/vite.config.ts` routes `maplibre-gl` into its own `maplibre-vendor` chunk via
 `manualChunks`. The main initial JS bundle dropped from 1,314 kB to 365 kB (gzip 357 kB → 110 kB);
-MapLibre itself now only downloads when the map mounts.
+MapLibre itself now only downloads when the map mounts. Phase 5.5
+(`docs/DEVELOPMENT_LOG.md`, Part 12 §19) cleaned up `frontend/src/shared/hooks/useSignalR.ts`:
+removed a stray debug `console.log` left in the SignalR connection-start handler and translated
+its Turkish inline comments to English, matching the rest of the codebase. No behavior change.
+Phase 5.6 (`docs/DEVELOPMENT_LOG.md`, Part 12 §20) removed the unused `https` profile from
+`Src/SmartCityOps.Api/Properties/launchSettings.json` — the project only ever runs over HTTP on
+port 5080 (see Commands section above); the `http` and `IIS Express` profiles are unchanged.
+Phase 5.7 (`docs/DEVELOPMENT_LOG.md`, Part 12 §21) removed a stray extra blank line in
+`Src/SmartCityOps.Infrastructure/DependencyInjection.cs` and reworked the commented-out
+`Resolve Incident`/`Assign Task`/`Complete Task` requests in `Src/SmartCityOps.Api/SmartCityOps.Api.http`
+(plus a newly added `Reassign Task` request) into live, sequentially runnable REST Client requests
+that chain `@name`-tagged GET/POST responses (e.g. `{{getIncidents.response.body.$[0].id}}`)
+instead of requiring manually pasted GUIDs. Phase 5.8 (`docs/DEVELOPMENT_LOG.md`, Part 12 §22)
+deduplicated the field-unit travel progress/interpolation math: `useFieldUnitMarkers.ts` and
+`useDispatchedRouteLayers.ts` both used to repeat the same "is this task in flight" null-check
+inline; `frontend/src/features/operational-tasks/lib/geoInterpolation.ts` now exports a shared
+`isInFlightTask` type guard and a `getCurrentPosition` helper that both hooks consume instead of
+duplicating the progress/clamp logic. No behavior change. Phase 5.9
+(`docs/DEVELOPMENT_LOG.md`, Part 12 §23) consolidated `OperationsReplayService.GetReplayTimeRangeAsync`
+(`Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs`) from 8 sequential
+scalar `MinAsync`/`MaxAsync` round trips down to 3 — one aggregate query per table (`Incidents`,
+`FieldUnitLocationHistories`, `OperationalTasks`) using `GroupBy(_ => 1)` to compute all of that
+table's min/max columns in a single SQL statement. No behavior change.
 
-Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §19:
+Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §24:
 - **Phase 5 unverified in-browser**: its migration (`20260824125110_AddOperationalTaskOriginAndEta`)
   was generated but not yet applied to a local DB, and the feature has never been run/observed in
   the browser. Before further work, run `docker compose up -d` → `dotnet ef database update` →

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Marker, type Map as MapLibreMap } from "maplibre-gl";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
-import { getTravelProgress, interpolatePosition } from "../../operational-tasks/lib/geoInterpolation";
+import { getCurrentPosition, isInFlightTask, type InFlightOperationalTask } from "../../operational-tasks/lib/geoInterpolation";
 
 interface UseFieldUnitMarkersParams {
   map: MapLibreMap | null;
@@ -14,17 +14,9 @@ interface UseFieldUnitMarkersParams {
 
 const SELECTED_MARKER_CLASS = "field-unit-marker--selected";
 
-function findInFlightTask(fieldUnitId: string, operationalTasks: OperationalTask[]): OperationalTask | null {
-  return (
-    operationalTasks.find(
-      (task) =>
-        task.fieldUnitId === fieldUnitId &&
-        task.status === "Assigned" &&
-        task.originLatitude !== null &&
-        task.originLongitude !== null &&
-        task.estimatedEtaSeconds !== null,
-    ) ?? null
-  );
+function findInFlightTask(fieldUnitId: string, operationalTasks: OperationalTask[]): InFlightOperationalTask | null {
+  const task = operationalTasks.find((candidate) => candidate.fieldUnitId === fieldUnitId);
+  return task && isInFlightTask(task) ? task : null;
 }
 
 export function useFieldUnitMarkers({
@@ -113,14 +105,7 @@ export function useFieldUnitMarkers({
           continue;
         }
 
-        const origin = { latitude: task.originLatitude!, longitude: task.originLongitude! };
-        const assignedAtMs = new Date(task.assignedAt).getTime();
-        const progress = getTravelProgress(assignedAtMs, task.estimatedEtaSeconds!, now);
-
-        const position =
-          progress >= 1
-            ? destination
-            : interpolatePosition(origin, destination, assignedAtMs, task.estimatedEtaSeconds!, now);
+        const position = getCurrentPosition(task, destination, now);
 
         marker.setLngLat([position.longitude, position.latitude]);
       }

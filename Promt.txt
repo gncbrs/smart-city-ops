@@ -1,28 +1,17 @@
-Please implement code-splitting / lazy loading for the map components to resolve the >500 kB bundle size warning:
+Please refactor `OperationsReplayService.GetReplayTimeRangeAsync` in `Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs` to optimize the time range calculation:
 
-### Goal:
-Currently, MapLibre GL JS is bundled into the main index chunk, triggering a Vite build warning (>500 kB). We want to isolate the heavy map dependencies into a separate lazy-loaded chunk.
-
----
-
-### Implementation Steps:
-1. **Lazy Load Map Components in `App.tsx` (or parent container):**
-   - Use `React.lazy` and `Suspense` to load `OperationsMap` (and any related heavy map overlays if applicable) dynamically.
-   - Provide a clean fallback (e.g. `<div className="map-loading-placeholder">Loading Map...</div>`) matching our dark theme palette (`#0F172A`).
-2. **Vite Manual Chunks Configuration (if needed):**
-   - In `frontend/vite.config.ts`, configure `build.rollupOptions.output.manualChunks` (e.g. separating `maplibre-gl` into a vendor chunk like `maplibre-vendor`) to ensure smooth vendor chunk splitting if dynamic import alone doesn't cleanly separate the chunks.
-3. **Verification:**
-   - Run `npm run lint` (`oxlint`).
-   - Run `npm run build` (`tsc -b && vite build`) and verify that no chunk exceeds the 500 kB threshold (or that the main initial bundle is significantly reduced and the map is isolated into its own chunk).
+### Tasks:
+1. Review lines 92-106 in `OperationsReplayService.cs`. Currently, it executes 8 sequential scalar queries (`MinAsync`/`MaxAsync` on `Incidents.ReportedAt`/`ResolvedAt`, `FieldUnitLocationHistories.RecordedAt`, `OperationalTasks.AssignedAt`/`CompletedAt`).
+2. Streamline / consolidate these queries into optimized database round-trips (or a single consolidated aggregate query if feasible with EF Core Npgsql provider) to compute the global `MinTimestamp` and `MaxTimestamp`.
+3. Verify that `dotnet build` from `Src/` passes cleanly with 0 errors.
 
 ---
 
-### Documentation Update (Mandatory):
+### Mandatory Documentation Update:
 - Update `docs/DEVELOPMENT_LOG.md` (Part 12):
-  - Add a new section `## 18. Phase 5.4 — MapLibre Code-Splitting & Bundle Size Optimization`.
-  - Document the lazy-loading strategy, Vite configuration adjustments, before/after chunk size measurements, and verification results.
-  - Update the Table of Contents at the beginning and the summary table at the end (renumbering the conclusion to `## 19. Sonuç ve sıradaki adım`).
-- Update `CLAUDE.md`:
-  - Update the "Current status & known open issues" section to remove the open item regarding the `>500 kB bundle size warning` and record it as resolved in Phase 5.4. Update section cross-references.
+  - Add a new section `## 23. Phase 5.9 — OperationsReplay Time Range Query Optimization`.
+  - Document the consolidation of the sequential scalar Min/Max queries in `OperationsReplayService`.
+  - Update the Table of Contents and the summary table (renumbering conclusion to `## 24. Sonuç ve sıradaki adım`).
+- Update `CLAUDE.md` if any references need sync.
 
-Please proceed with the implementation.
+Please proceed with this refactoring step.

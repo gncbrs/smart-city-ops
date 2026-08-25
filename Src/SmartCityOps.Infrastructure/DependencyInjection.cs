@@ -28,7 +28,6 @@ using SmartCityOps.Application.RestrictedZones.Events;
 using SmartCityOps.Application.OperationsReplay;
 using SmartCityOps.Infrastructure.OperationsReplay;
 
-
 namespace SmartCityOps.Infrastructure;
 
 public static class DependencyInjection

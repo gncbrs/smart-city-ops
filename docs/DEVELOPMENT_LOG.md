@@ -207,7 +207,12 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [16. Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix](#16-phase-52--selection-toggle-empty-map-deselect--event-bubbling-fix)
   - [17. Phase 5.3 — Dependency Cleanup (`zustand`, `react-router-dom`) & Dead Component Check](#17-phase-53--dependency-cleanup-zustand-react-router-dom--dead-component-check)
   - [18. Phase 5.4 — MapLibre Code-Splitting & Bundle Size Optimization](#18-phase-54--maplibre-code-splitting--bundle-size-optimization)
-  - [19. Sonuç ve sıradaki adım](#19-sonuç-ve-sıradaki-adım)
+  - [19. Phase 5.5 — `useSignalR.ts` Cleanup (Stray Log Removal & Comment Normalization)](#19-phase-55--usesignalrts-cleanup-stray-log-removal--comment-normalization)
+  - [20. Phase 5.6 — Backend launchSettings.json Cleanup](#20-phase-56--backend-launchsettingsjson-cleanup)
+  - [21. Phase 5.7 — Backend DI & HTTP File Polish](#21-phase-57--backend-di--http-file-polish)
+  - [22. Phase 5.8 — Map Interpolation Math Deduplication](#22-phase-58--map-interpolation-math-deduplication)
+  - [23. Phase 5.9 — OperationsReplay Time Range Query Optimization](#23-phase-59--operationsreplay-time-range-query-optimization)
+  - [24. Sonuç ve sıradaki adım](#24-sonuç-ve-sıradaki-adım)
 
 
 
@@ -4121,7 +4126,150 @@ not edilmiş olan genel "tarayıcıda duman testi" açık maddesiyle örtüşüy
 
 ---
 
-## 19. Sonuç ve sıradaki adım
+## 19. Phase 5.5 — `useSignalR.ts` Cleanup (Stray Log Removal & Comment Normalization)
+
+**Kapsam:** `frontend/src/shared/hooks/useSignalR.ts` içinde biriken iki küçük kalite sorunu
+giderildi: bağlantı kurulduğunda çalışan bir debug `console.log("SignalR connected, state:", ...)`
+ve dosyanın geri kalanı İngilizce olmasına rağmen Türkçe kalmış satır içi yorumlar.
+
+**Değişiklik:** `connection.start().then(...)` içindeki `console.log` satırı kaldırıldı (hata
+durumundaki `console.error` korundu). Beş satır içi yorum ("Singleton bağlantı", "Sinyal geldiğinde
+bu 4 önbelleği geçersiz kılıp taze veriyi çek", "Dinleyiciyi kaydet", "Bağlantı kapalıysa başlat",
+"Temizleme (Cleanup): Hafıza sızıntısı ve çift tetiklenmeyi engellemek için dinleyiciyi kaldır")
+projedeki diğer dosyalarla tutarlı İngilizceye çevrildi. Davranış değişikliği yok — sadece log
+temizliği ve yorum normalizasyonu.
+
+**Doğrulama:** `npm run lint` (oxlint) — 0 hata. `npm run build` (`tsc -b` + `vite build`) — 0
+hata; bundle boyutları Phase 5.4'teki ile aynı (bu değişiklik chunk yapısını etkilemiyor).
+
+---
+
+## 20. Phase 5.6 — Backend launchSettings.json Cleanup
+
+**Kapsam:** `Src/SmartCityOps.Api/Properties/launchSettings.json` içindeki kullanılmayan `https`
+profili kaldırıldı. Proje sadece HTTP üzerinden `http://localhost:5080` adresinde çalışıyor
+(bkz. CLAUDE.md "Commands" bölümü) — `https` profili (`https://localhost:7190;http://localhost:5159`)
+hiçbir zaman kullanılmıyordu ve `dotnet run --project SmartCityOps.Api` her zaman `http` profiliyle
+başlatılıyordu.
+
+**Değişiklik:** `profiles.https` bloğu tamamen silindi. `profiles.http` (port 5080, `ASPNETCORE_ENVIRONMENT=Development`,
+`launchUrl: swagger`) ve `profiles."IIS Express"` blokları değişmeden korundu; `iisSettings` de
+etkilenmedi. Davranış değişikliği yok — sadece kullanılmayan bir profil kaldırıldı.
+
+**Doğrulama:** `dotnet build` (`Src/` içinden, `SmartCityOps.sln`) — 0 hata.
+
+---
+
+## 21. Phase 5.7 — Backend DI & HTTP File Polish
+
+**Kapsam:** İki küçük backend temizliği: `DependencyInjection.cs`'teki kozmetik biçimlendirme
+sorunu ve `SmartCityOps.Api.http` dosyasındaki devre dışı, elle GUID yapıştırma gerektiren örnek
+istekler.
+
+**1) `Src/SmartCityOps.Infrastructure/DependencyInjection.cs`:** `using` bloğu ile
+`namespace SmartCityOps.Infrastructure;` satırı arasında fazladan bir boş satır vardı (30-31.
+satırlar) — kaldırıldı, tek boş satıra normalize edildi. Davranış değişikliği yok.
+
+**2) `Src/SmartCityOps.Api/SmartCityOps.Api.http`:** Daha önce `Resolve Incident`, `Assign Task`
+ve `Complete Task` istekleri tamamen yorum satırı (`#`) olarak duruyordu ve kullanıcının GET
+yanıtlarından gerçek GUID'leri elle kopyalayıp `{id}`/`{incidentId}`/`{fieldUnitId}`
+placeholder'larının yerine yapıştırmasını gerektiriyordu; ayrıca bir `Reassign Task` isteği hiç
+yoktu. Bu dört istek artık gerçek (yorum olmayan), sırayla çalıştırılabilir isteklere dönüştürüldü:
+- `Get all incidents`, `Get all field units`, `Get all operational tasks` istekleri
+  `# @name getIncidents` / `getFieldUnits` / `getOperationalTasks` ile adlandırıldı (REST Client
+  `@name` sözdizimi).
+- `Resolve an incident`, adlandırılmış GET yanıtından `@incidentId = {{getIncidents.response.body.$[0].id}}`
+  değişkenini türetip URL'de kullanıyor.
+- `Assign a task`, `# @name assignTask` ile adlandırıldı ve gövdesinde doğrudan
+  `{{getIncidents.response.body.$[0].id}}` / `{{getFieldUnits.response.body.$[0].id}}` referanslarını
+  kullanıyor.
+- `Complete a task` ve yeni eklenen `Reassign a task`, `assignTask` isteğinin yanıtındaki
+  `{{assignTask.response.body.id}}` id'sini kullanıyor; `Reassign a task` ayrıca ikinci field
+  unit'i (`{{getFieldUnits.response.body.$[1].id}}`) `newFieldUnitId` olarak gönderiyor
+  (`ReassignOperationalTaskDto(Guid NewFieldUnitId)` ile eşleşen camelCase gövde).
+
+Artık dosyadaki GET istekleri önce, ardından `Resolve`/`Assign`/`Complete`/`Reassign` istekleri
+sırasıyla (VS Code REST Client'ta "Send Request" ile tek tek) manuel GUID yapıştırmaya gerek
+kalmadan çalıştırılabiliyor.
+
+**Doğrulama:** `dotnet build` (`Src/` içinden, `SmartCityOps.sln`) — 0 hata. `.http` dosyası
+derleme sürecine dahil olmadığından ayrıca bir derleme adımı gerekmiyor; REST Client sözdizimi
+projede zaten kullanılan `@name`/`{{request.response.body.$...}}` kalıplarıyla tutarlı.
+
+---
+
+## 22. Phase 5.8 — Map Interpolation Math Deduplication
+
+**Kapsam:** `frontend/src/features/operations-map/hooks/useFieldUnitMarkers.ts` ve
+`useDispatchedRouteLayers.ts`, ortak `frontend/src/features/operational-tasks/lib/geoInterpolation.ts`
+helper'larını (`getTravelProgress`, `interpolatePosition`) zaten import ediyordu, ama her iki hook
+da bir task'ın "hareket hâlinde" (in-flight) olup olmadığını belirleyen aynı null-check bloğunu
+(`status === "Assigned"` + `originLatitude`/`originLongitude`/`estimatedEtaSeconds` null değil)
+kendi içinde ayrı ayrı tekrarlıyordu; `useFieldUnitMarkers` ayrıca progress hesaplayıp
+`interpolatePosition`'ı çağırıp `progress >= 1` durumunda hedefe clamp'leme mantığını da inline
+tutuyordu.
+
+**Değişiklik — `geoInterpolation.ts`:** İki yeni paylaşılan yardımcı eklendi:
+- `isInFlightTask(task): task is InFlightOperationalTask` — daha önce iki hook'ta ayrı ayrı yazılan
+  null-check'i tek bir type guard'a taşıdı; `InFlightOperationalTask`, `originLatitude`/
+  `originLongitude`/`estimatedEtaSeconds` alanları `number` olarak daraltılmış bir `OperationalTask`
+  türü.
+- `getCurrentPosition(task: InFlightOperationalTask, destination, nowMs)` — origin/assignedAt
+  çıkarma, `getTravelProgress` çağrısı ve `progress >= 1 ? destination : interpolatePosition(...)`
+  clamp mantığını tek yerde topladı.
+
+**Değişiklik — `useFieldUnitMarkers.ts`:** `findInFlightTask` artık `isInFlightTask` type guard'ını
+kullanıyor ve `InFlightOperationalTask | null` döndürüyor; animasyon döngüsündeki inline
+`origin`/`assignedAtMs`/`progress`/`interpolatePosition` bloğu tek bir `getCurrentPosition(task,
+destination, now)` çağrısıyla değiştirildi (`task.originLatitude!` gibi non-null assertion'lara
+artık gerek yok, tip zaten daraltılmış).
+
+**Değişiklik — `useDispatchedRouteLayers.ts`:** `buildFeatureCollection` içindeki dört satırlık
+null-check bloğu `if (!isInFlightTask(task)) return [];` ile değiştirildi; `getTravelProgress`
+çağrısı (route çizgisinin `progress >= 1` olduğunda kaybolması için) olduğu gibi kaldı — bu hook
+konum interpolasyonuna değil sadece ilerleme yüzdesine ihtiyaç duyduğundan `getCurrentPosition`
+kullanmıyor.
+
+**Doğrulama:** `npm run lint` (oxlint) — 0 hata. `npm run build` (`tsc -b` + `vite build`) — 0
+hata; bundle boyutları Phase 5.4'teki ile aynı (bu değişiklik sadece paylaşılan modül içi
+refactoring, chunk yapısını etkilemiyor). Davranış değişikliği yok — hem marker animasyonu hem
+dispatched route çizgisi aynı progress/interpolasyon matematiğini, artık tek bir yerden, kullanıyor.
+
+---
+
+## 23. Phase 5.9 — OperationsReplay Time Range Query Optimization
+
+**Kapsam:** `Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs` içindeki
+`GetReplayTimeRangeAsync`, global replay zaman aralığını (`MinTimestamp`/`MaxTimestamp`) hesaplamak
+için 8 ayrı sıralı `MinAsync`/`MaxAsync` skaler sorgusu çalıştırıyordu — her biri kendi DB round
+trip'i: `Incidents.ReportedAt` (min+max), `Incidents.ResolvedAt` (max), `FieldUnitLocationHistories.RecordedAt`
+(min+max), `OperationalTasks.AssignedAt` (min+max), `OperationalTasks.CompletedAt` (max).
+
+**Değişiklik:** Sorgular tablo başına tek bir aggregate sorguya konsolide edildi — 8 round trip'ten
+3'e indi (`Incidents`, `FieldUnitLocationHistories`, `OperationalTasks` için birer sorgu).
+Her sorgu, sabit bir anahtarla (`GroupBy(_ => 1)`) tek satırlık bir aggregate projeksiyonu
+(`Select(g => new { g.Min(...), g.Max(...), ... })`) üretiyor; bu, EF Core + Npgsql tarafından tek
+bir SQL ifadesine (satır verisi çekmeden, sadece `MIN`/`MAX` aggregate'leri) çevriliyor. Üç
+sorgunun sonuçları (anonim tipler, tablo boşsa `null` olabilir) C# tarafında `.Min()`/`.Max()` ile
+birleştirilip nihai `MinTimestamp`/`MaxTimestamp` elde ediliyor — .NET'in generic
+`Enumerable.Min<T>`/`Max<T>` implementasyonu `null` değerleri zaten atlıyor, bu yüzden eski
+`candidateMins.Min()`/`candidateMaxes.Max()` davranışıyla birebir aynı sonuç (boş tablo → `null`,
+karışık `null`/değer → en küçük/büyük non-null değer).
+
+Üç farklı, birbiriyle ilişkisiz tablo (Incidents, FieldUnitLocationHistories, OperationalTasks)
+arasında ortak bir foreign key olmadığından, LINQ ile tek bir SQL sorgusuna daha fazla indirmek
+(örn. `UNION ALL` alt sorgusu) EF Core'un LINQ çevirisiyle doğrudan ifade edilemiyor — bunun için
+ham SQL (`FromSqlInterpolated`) gerekirdi, bu görevin kapsamı dışında bırakıldı (görev tanımı zaten
+"if feasible with EF Core Npgsql provider" ile buna esneklik tanıyordu). 8→3 round trip'e indirme,
+LINQ tabanlı, okunabilir ve mevcut kod stiliyle tutarlı bir çözüm sağladı.
+
+**Doğrulama:** `dotnet build` (`Src/` içinden, `SmartCityOps.sln`) — 0 hata. Davranış değişikliği
+yok — dönen `ReplayTimeRangeDto` aynı `MinTimestamp`/`MaxTimestamp` değerlerini üretiyor, sadece
+daha az DB round trip'iyle.
+
+---
+
+## 24. Sonuç ve sıradaki adım
 
 | Faz | Durum |
 |---|---|
@@ -4141,6 +4289,11 @@ not edilmiş olan genel "tarayıcıda duman testi" açık maddesiyle örtüşüy
 | Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix | Tamamlandı (tarayıcıda doğrulandı) |
 | Phase 5.3 — Dependency Cleanup (`zustand`, `react-router-dom`) & Dead Component Check | Tamamlandı |
 | Phase 5.4 — MapLibre Code-Splitting & Bundle Size Optimization | Tamamlandı (tarayıcıda görsel duman testi hâlâ yapılmadı) |
+| Phase 5.5 — `useSignalR.ts` Cleanup (Stray Log Removal & Comment Normalization) | Tamamlandı |
+| Phase 5.6 — Backend launchSettings.json Cleanup | Tamamlandı |
+| Phase 5.7 — Backend DI & HTTP File Polish | Tamamlandı |
+| Phase 5.8 — Map Interpolation Math Deduplication | Tamamlandı |
+| Phase 5.9 — OperationsReplay Time Range Query Optimization | Tamamlandı |
 
 `DEVELOPMENT_LOG11.md` §9'da flag'lenen iki riskten biri — `OperationalTaskService.CreateAsync`
 check-then-act yarış durumu — Phase 0.2 ile kapatıldı. İkincisi — seçim state'inin SignalR

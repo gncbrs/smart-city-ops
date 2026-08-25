@@ -3,7 +3,7 @@ import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { FeatureCollection, LineString } from "geojson";
 import type { OperationalTask } from "../../operational-tasks/types";
 import type { Incident } from "../../incidents/types";
-import { getTravelProgress } from "../../operational-tasks/lib/geoInterpolation";
+import { getTravelProgress, isInFlightTask } from "../../operational-tasks/lib/geoInterpolation";
 
 interface UseDispatchedRouteLayersParams {
   map: MapLibreMap | null;
@@ -25,14 +25,7 @@ function buildFeatureCollection(
   const incidentById = new Map(incidents.map((incident) => [incident.id, incident]));
 
   const features = operationalTasks.flatMap((task) => {
-    if (
-      task.status !== "Assigned" ||
-      task.originLatitude === null ||
-      task.originLongitude === null ||
-      task.estimatedEtaSeconds === null
-    ) {
-      return [];
-    }
+    if (!isInFlightTask(task)) return [];
 
     const incident = incidentById.get(task.incidentId);
     if (!incident) return [];

@@ -1,14 +1,17 @@
 @SmartCityOps.Api_HostAddress = http://localhost:5080/api
 
 ### Get all incidents
+# @name getIncidents
 GET {{SmartCityOps.Api_HostAddress}}/incidents
 Accept: application/json
 
 ### Get all field units
+# @name getFieldUnits
 GET {{SmartCityOps.Api_HostAddress}}/field-units
 Accept: application/json
 
 ### Get all operational tasks
+# @name getOperationalTasks
 GET {{SmartCityOps.Api_HostAddress}}/operational-tasks
 Accept: application/json
 
@@ -34,20 +37,30 @@ Content-Type: application/json
   "description": "Manual test incident, created via .http file"
 }
 
-### Resolve an incident (replace {id} with a real Guid from the GET above)
-# POST {{SmartCityOps.Api_HostAddress}}/incidents/{id}/resolve
+### Resolve an incident (run "Get all incidents" above first; uses its first result's id)
+@incidentId = {{getIncidents.response.body.$[0].id}}
+POST {{SmartCityOps.Api_HostAddress}}/incidents/{{incidentId}}/resolve
 
-### Assign a task (replace both ids with real Guids from the GETs above)
-# POST {{SmartCityOps.Api_HostAddress}}/operational-tasks
-# Content-Type: application/json
-#
-# {
-#   "incidentId": "{incidentId}",
-#   "fieldUnitId": "{fieldUnitId}"
-# }
+### Assign a task (run "Get all incidents" and "Get all field units" above first)
+# @name assignTask
+POST {{SmartCityOps.Api_HostAddress}}/operational-tasks
+Content-Type: application/json
 
-### Complete a task (replace {id} with a real Guid from operational-tasks GET)
-# POST {{SmartCityOps.Api_HostAddress}}/operational-tasks/{id}/complete
+{
+  "incidentId": "{{getIncidents.response.body.$[0].id}}",
+  "fieldUnitId": "{{getFieldUnits.response.body.$[0].id}}"
+}
+
+### Complete a task (run "Assign a task" above first; uses its response id)
+POST {{SmartCityOps.Api_HostAddress}}/operational-tasks/{{assignTask.response.body.id}}/complete
+
+### Reassign a task (run "Assign a task" and "Get all field units" above first)
+POST {{SmartCityOps.Api_HostAddress}}/operational-tasks/{{assignTask.response.body.id}}/reassign
+Content-Type: application/json
+
+{
+  "newFieldUnitId": "{{getFieldUnits.response.body.$[1].id}}"
+}
 
 ### Get all restricted zones
 GET {{SmartCityOps.Api_HostAddress}}/restricted-zones
