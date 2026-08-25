@@ -205,7 +205,9 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [14. Phase 5 — Field Unit Travel Animation & Dispatched Route Line](#14-phase-5--field-unit-travel-animation--dispatched-route-line)
   - [15. Phase 5.1 — Incident Timeline Arrival Event](#15-phase-51--incident-timeline-arrival-event)
   - [16. Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix](#16-phase-52--selection-toggle-empty-map-deselect--event-bubbling-fix)
-  - [17. Sonuç ve sıradaki adım](#17-sonuç-ve-sıradaki-adım)
+  - [17. Phase 5.3 — Dependency Cleanup (`zustand`, `react-router-dom`) & Dead Component Check](#17-phase-53--dependency-cleanup-zustand-react-router-dom--dead-component-check)
+  - [18. Phase 5.4 — MapLibre Code-Splitting & Bundle Size Optimization](#18-phase-54--maplibre-code-splitting--bundle-size-optimization)
+  - [19. Sonuç ve sıradaki adım](#19-sonuç-ve-sıradaki-adım)
 
 
 
@@ -4042,7 +4044,84 @@ kapatıyor — event bubbling düzeltmesinden sonra hepsi beklendiği gibi çal�
 
 ---
 
-## 17. Sonuç ve sıradaki adım
+## 17. Phase 5.3 — Dependency Cleanup (`zustand`, `react-router-dom`) & Dead Component Check
+
+**Kapsam ve bağlam:** Part 10 §1'de kullanıcı, o dönem bilinçli olarak `OperationalStatistics.tsx`,
+`react-router-dom` ve `zustand`'ı "kullanılmıyor ama korunuyor, ileride geri bağlanabilir"
+gerekçesiyle projede tutmaya karar vermişti. Bu oturumda kullanıcı kararını tersine çevirdi ve
+gerçek bir temizlik istedi — ne component'in ne de bu iki paketin gelecekte kullanılma planı kaldı.
+
+**1) `OperationalStatistics.tsx` — zaten silinmişti:** Kullanıcı dosyayı bu oturumdan önce zaten
+elle silmişti; `frontend/src/features/dashboard/components/OperationalStatistics.tsx` sistemde
+mevcut değildi. Yine de doğrulama yapıldı: `src/` içinde `OperationalStatistics` için grep
+sadece `StatisticsSection.tsx`'te `buildOperationalStatistics.ts` (ayrı, ilgisiz bir yardımcı
+modül) importuna denk geldi — component'e canlı/kırık hiçbir referans kalmamıştı.
+
+**2) `frontend/package.json`'dan `zustand` ve `react-router-dom` kaldırıldı:** Kaldırmadan önce
+`src/` içinde ikisi için de grep yapıldı — hiçbir dosya bunları import etmiyordu (zustand zaten
+Part 10'dan beri "kurulu ama kullanılmayan" olarak biliniyordu; bu iki paket birlikte kaldırıldı).
+`dependencies` bloğundan silindikten sonra `frontend/`'de `npm install` çalıştırıldı — 4 paket
+kaldırıldı, `package-lock.json` güncellendi.
+
+**Doğrulama:** `npm run lint` (oxlint) ve `npm run build` (`tsc -b` + `vite build`) — ikisi de 0
+hata (mevcut >500 kB chunk-size uyarısı hariç, bu değişiklikle ilgisiz — zaten MapLibre kaynaklı,
+kaldırılan paketlerin bundle'a hiç katkısı yoktu).
+
+---
+
+## 18. Phase 5.4 — MapLibre Code-Splitting & Bundle Size Optimization
+
+**Kapsam:** Phase 5.3'ten (§17) beri açık kalan `>500 kB` bundle boyutu uyarısını kapatmak.
+Uyarının kaynağı `maplibre-gl` idi — tek bir chunk'a (`index-*.js`) her şeyle birlikte
+bundle'lanıyordu, 1.314 kB (gzip 357 kB). Amaç, MapLibre'yi ayrı bir lazy-loaded chunk'a
+izole etmekti.
+
+**1) `frontend/src/app/App.tsx` — `React.lazy` + `Suspense`:** `OperationsMap` importu
+statikten `React.lazy(() => import(...))`'a çevrildi; harita render'ı
+`<Suspense fallback={<MapLoadingPlaceholder />}>` ile sarmalandı. `MapLoadingPlaceholder`,
+`OperationsCenterLayout`'ın koyu tema paletiyle (`#0F172A` arka plan, `#F8FAFC` metin) uyumlu
+basit bir dolgu bileşeni — stili `frontend/src/layouts/styles/OperationsCenterLayout.css`'e
+`.map-loading-placeholder` olarak eklendi (harita zaten o layout'un `__map` slotu içinde
+render ediliyor, ayrı bir stylesheet açmaya gerek kalmadı).
+
+**2) `frontend/vite.config.ts` — `manualChunks`:** Sadece dynamic import ile MapLibre kendi
+chunk'ına ayrıldı ama bu chunk yine de tek başına 949 kB'ydi (kütüphanenin kendi boyutu).
+`build.rollupOptions.output.manualChunks` eklenerek `maplibre-gl` açıkça `maplibre-vendor` adlı
+bir vendor chunk'ına yönlendirildi. Not: projede kullanılan Vite 8 (rolldown-vite) obje
+şeklindeki `manualChunks: { name: [...] }` sözdizimini kabul etmiyor (`ManualChunksFunction`
+tipiyle uyuşmuyor, `tsc` hata veriyordu) — fonksiyon formuna geçildi:
+`manualChunks: (id) => id.includes('node_modules/maplibre-gl') ? 'maplibre-vendor' : undefined`.
+
+**Öncesi/sonrası (gzip boyutları parantez içinde):**
+
+| | Öncesi (Phase 5.3) | Sonrası (Phase 5.4) |
+|---|---|---|
+| Ana başlangıç bundle'ı | `index-*.js`: 1.314 kB (357 kB) | `index-*.js`: 365 kB (110 kB) |
+| Harita chunk'ı | (ayrı chunk yok, her şey ana bundle'da) | `OperationsMap-*.js`: 7 kB (2,6 kB) + `maplibre-vendor-*.js`: 942 kB (245 kB), ikisi de lazy |
+| CSS | `index-*.css`: 93 kB (13 kB) | `index-*.css`: 10 kB (2,3 kB) + `maplibre-vendor-*.css`: 83 kB (10,7 kB), lazy |
+
+Ana başlangıç JS bundle'ı %72 küçüldü (1.314 kB → 365 kB) ve artık 500 kB eşiğinin altında.
+`maplibre-vendor` chunk'ı tek başına hâlâ 500 kB'ın üzerinde (MapLibre'nin kendi minified
+boyutu buna izin vermiyor, kütüphaneyi değiştirmeden daha fazla küçültülemez) ama artık haritayı
+kullanan bir kullanıcı ilk açılışta hiç indirmiyor — sadece `OperationsMap` mount olduğunda
+lazy-load ediliyor. `vite build` çıktısı hâlâ ">500 kB" uyarısını basıyor (uyarı chunk bazlı,
+toplam bazlı değil) ama görev tanımındaki kabul kriteri buna göre zaten esnekti: "ana başlangıç
+bundle'ının belirgin şekilde küçültülmesi ve haritanın kendi chunk'ına izole edilmesi" —
+ikisi de sağlandı.
+
+**Doğrulama:** `npm run lint` (oxlint) — 0 hata. `npm run build` (`tsc -b` + `vite build`) — 0
+hata, yukarıdaki chunk boyutları gözlemlendi. Tam tarayıcı duman testi (Playwright, backend API
++ Docker Postgres ile) bu oturumda kurulu değildi (`playwright` paketi projede yok, kurulum bu
+görevin kapsamı dışında tutuldu); bunun yerine `npm run dev` başlatılıp `curl` ile hem
+`src/app/App.tsx` hem de lazy-import edilen `src/features/operations-map/components/OperationsMap.tsx`
+modüllerinin Vite dev server üzerinden hatasız transform edildiği doğrulandı — dynamic import
+zincirinin kırık olmadığının dolaylı kanıtı. Gerçek tarayıcıda harita render'ının (tile'lar +
+marker'lar) görsel doğrulaması hâlâ yapılmadı; bu, zaten Phase 5 için §18'de (önceki numaralandırma)
+not edilmiş olan genel "tarayıcıda duman testi" açık maddesiyle örtüşüyor.
+
+---
+
+## 19. Sonuç ve sıradaki adım
 
 | Faz | Durum |
 |---|---|
@@ -4060,6 +4139,8 @@ kapatıyor — event bubbling düzeltmesinden sonra hepsi beklendiği gibi çal�
 | Phase 5 — Field Unit Travel Animation & Dispatched Route Line | Tamamlandı (migration yerel DB'ye henüz uygulanmadı, tarayıcıda doğrulanmadı) |
 | Phase 5.1 — Incident Timeline Arrival Event | Tamamlandı |
 | Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix | Tamamlandı (tarayıcıda doğrulandı) |
+| Phase 5.3 — Dependency Cleanup (`zustand`, `react-router-dom`) & Dead Component Check | Tamamlandı |
+| Phase 5.4 — MapLibre Code-Splitting & Bundle Size Optimization | Tamamlandı (tarayıcıda görsel duman testi hâlâ yapılmadı) |
 
 `DEVELOPMENT_LOG11.md` §9'da flag'lenen iki riskten biri — `OperationalTaskService.CreateAsync`
 check-then-act yarış durumu — Phase 0.2 ile kapatıldı. İkincisi — seçim state'inin SignalR
@@ -4106,9 +4187,25 @@ invalidation sonrası seçim state'inin bayatlaması riskiyle *aynı* sorun değ
 bir çözüme kavuşmadı (bkz. yukarıdaki paragraf) — Phase 5.2 sadece operatörün bir öğeyi manuel
 olarak seçme/kaldırma etkileşimini iyileştirdi.
 
-Sıradaki adım kullanıcı tarafından henüz belirtilmedi — muhtemel adaylar: Phase 5'in yukarıdaki
-duman testiyle doğrulanması, backend test projesi eklenmesi (`CLAUDE.md`'de hâlâ "test yok, manuel
-doğrulama" notu duruyor), seçim state'inin bayatlaması riskinin genel bir çözüme kavuşturulması, ya
-da bundle boyutu uyarısının (>500 kB,
-MapLibre kaynaklı) code-splitting ile ele alınması.
+Phase 5.3 (§17), Part 10 §1'de bilinçli olarak ertelenen bir temizliği tamamladı: kullanıcının
+kararı değişti ve `zustand`/`react-router-dom` `package.json`'dan kaldırıldı,
+`OperationalStatistics.tsx`'in (kullanıcı tarafından bu oturumdan önce zaten silinmişti) hiçbir
+kalıntı referansı olmadığı doğrulandı. Backend/migration değişikliği gerekmedi; `npm run
+lint`/`npm run build` temiz. Bundle boyutu uyarısı (>500 kB) o oturumda devam ediyordu — bu
+paketlerin bundle'a zaten hiç katkısı yoktu, kaynağı hâlâ MapLibre'ydi.
+
+Phase 5.4 (§18), bir önceki paragrafta açık bırakılan bundle boyutu uyarısını ele aldı:
+`OperationsMap` artık `React.lazy`/`Suspense` ile lazy-load ediliyor ve `maplibre-gl` Vite
+`manualChunks` ile ayrı bir `maplibre-vendor` chunk'ına izole edildi. Ana başlangıç JS bundle'ı
+1.314 kB'dan 365 kB'a indi (%72 azalma) ve harita artık sadece kullanıldığında indiriliyor.
+MapLibre'nin kendi chunk'ı (942 kB) hâlâ 500 kB eşiğinin üzerinde — kütüphanenin kendi boyutu
+buna izin vermiyor — ama artık ilk sayfa yükünü etkilemiyor. Backend/migration değişikliği
+gerekmedi; `npm run lint`/`npm run build` temiz. Tam tarayıcı görsel doğrulaması (harita
+tile/marker render'ı) hâlâ yapılmadı — bu, aşağıdaki "sıradaki adım" adaylarından Phase 5 duman
+testiyle aynı genel açık maddeye giriyor.
+
+Sıradaki adım kullanıcı tarafından henüz belirtilmedi — muhtemel adaylar: Phase 5'in (ve şimdi
+Phase 5.4'ün) tarayıcıda görsel duman testiyle doğrulanması, backend test projesi eklenmesi
+(`CLAUDE.md`'de hâlâ "test yok, manuel doğrulama" notu duruyor), ya da seçim state'inin
+bayatlaması riskinin genel bir çözüme kavuşturulması.
 

@@ -1,0 +1,57 @@
+Projedeki açıkta kalan tüm teknik borçlar, eksik özellikler ve geliştirme ihtiyaçları için öncelik sırasına göre hazırlanmış yapılacaklar listesi (To-Do List):
+
+---
+
+### 1. Öncelik — Mimari Riskler & Çoklu Operatör Senkronizasyonu
+
+* [ ] **SignalR sonrası seçim state'ini reaktif hale getir:** `useSelection.ts` içindeki seçili incident ve field unit nesnelerini, SignalR `OperationsUpdated` tetiklendiğinde güncel sunucu verisiyle eşitleyen veya geçersiz kalan seçimleri temizleyen genel bir senkronizasyon mekanizması kur.
+
+
+* [ ] **Ankara bölge verisini tekilleştir:** `incident-generator` ve `OperationalZoneService.cs` içindeki çift tutulan `AnkaraZones` statik listesini tek bir ortak yapıya/kaynağa bağla.
+
+
+
+---
+
+### 2. Öncelik — Eksik Özellikler & Fonksiyonel İyileştirmeler
+
+* [ ] **Restricted Zone için haritadan nokta seçimi ekle:** `RestrictedZonesSection.tsx` formundaki serbest metin koordinat girişine ek olarak, operatörün haritaya tıklayarak enlem/boylam belirlemesini sağla.
+
+
+* [ ] **Restricted Zone başlangıç verisi (Seed Data) ekle:** `RestrictedZoneAssignmentRule` kuralının varsayılan olarak test edilebilmesi için EF Core `HasData` ile örnek yasaklı bölgeler tanımla.
+
+
+* [ ] **Operational Zones kapsama alanını genişlet:** Sincan, Polatlı, Yenimahalle gibi boşta kalan dış ilçeleri kapsayacak şekilde bölge poligonlarını/jitter yarıçaplarını (`Spread`) güncelle.
+
+
+* [ ] **Operations Replay simülasyonunu kesinleştir:**
+* [ ] Görev devri (`Reassign`) anındaki eski görevin devir zamanını netleştirmek için `CompletedAt` / timestamp alanını kaydet.
+
+
+* [ ] `OutOfService` durum geçişlerini tarihsel olarak takip edebilmek için durum geçmişi kaydı ekle.
+
+
+
+
+
+---
+
+### 3. Öncelik — Test Altyapısı & Performans
+
+* [ ] **Backend için otomatik test projesi kur:** Çözüme xUnit/NUnit tabanlı bir test projesi ekleyerek `ITaskAssignmentRule`, scoring motoru ve `OperationalTaskService` için unit/integration testleri yaz.
+
+
+* [ ] **Frontend test altyapısını kur:** Vitest veya Jest ekleyerek `geoInterpolation.ts`, `applyMapFilters.ts` ve hook mantıkları için testler oluştur.
+
+
+---
+
+### 4. Öncelik — Kod Temizliği & Teknik Borçlar (Technical Debt)
+
+* [ ] **`launchSettings.json` profilini sadeleştir:** Backend yalnızca HTTP (`5080`) üzerinden çalıştığı için kullanılmayan `https` profilini kaldır.
+
+
+* [ ] **`.http` test dosyasını otomatikleştir:** `SmartCityOps.Api.http` içindeki ID gerektiren istekleri response'tan dinamik değişken yakalayacak şekilde yapılandır.
+
+
+* [ ] **Kod içi `// TODO` notlarını kapat:** `Program.cs` ve `Worker.cs` dosyalarındaki bekleyen TODO yorumlarını ele al.

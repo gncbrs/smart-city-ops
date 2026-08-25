@@ -117,14 +117,15 @@ Map: MapLibre GL JS against the OpenFreeMap `liberty` style, encapsulated in
 `useFieldUnitMarkers` / `useOperationalZoneLayers` layer data onto it; `applyMapFilters` handles
 the filter-panel logic).
 
-`zustand` is a declared dependency but not currently used anywhere in `src/` — state is otherwise
-React Query (server state) + component/hook-local state.
+State is React Query (server state) + component/hook-local state; no client-side state library is
+used (`zustand` and `react-router-dom` were removed from `package.json` as unused dependencies, see
+`docs/DEVELOPMENT_LOG.md` Part 12 §17).
 
 ## Current status & known open issues
 
 Level 1 and Level 2 are complete; a dedicated frontend refactor (`docs/DEVELOPMENT_LOG.md` Part 10)
 and backend refactor (Part 11) cleanup pass followed, with no behavior changes. Level 3
-("Advanced Operations") is now also complete — see `docs/DEVELOPMENT_LOG.md`, Part 12 §17 for the full
+("Advanced Operations") is now also complete — see `docs/DEVELOPMENT_LOG.md`, Part 12 §19 for the full
 phase-by-phase status table. All four case-study items are done: a composable task-assignment rule
 pipeline with a DB-level concurrency guard and task reassignment (Phase 0–1), field-unit
 recommendation scoring + ETA display (Phase 2), restricted-zone definition and enforcement (Phase
@@ -134,9 +135,16 @@ an origin→destination line over their ETA instead of teleporting to the incide
 Phase 5.1 reuses that same origin/ETA data to add an "arrived at scene" step to the Incident
 Timeline. Phase 5.2 (`docs/DEVELOPMENT_LOG.md`, Part 12 §16) polished map selection UX: clicking an
 already-selected marker now deselects it, clicking empty map space calls `clearSelection()`, and
-`IncidentPanel`/`FieldUnitPanel` each got a `✕` close button — see "Selection UX" below.
+`IncidentPanel`/`FieldUnitPanel` each got a `✕` close button — see "Selection UX" below. Phase 5.3
+(`docs/DEVELOPMENT_LOG.md`, Part 12 §17) removed the unused `zustand`/`react-router-dom`
+dependencies and confirmed the already-deleted `OperationalStatistics.tsx` has no remaining
+references. Phase 5.4 (`docs/DEVELOPMENT_LOG.md`, Part 12 §18) resolved the bundle-size warning:
+`OperationsMap` is now lazy-loaded via `React.lazy`/`Suspense` in `frontend/src/app/App.tsx`, and
+`frontend/vite.config.ts` routes `maplibre-gl` into its own `maplibre-vendor` chunk via
+`manualChunks`. The main initial JS bundle dropped from 1,314 kB to 365 kB (gzip 357 kB → 110 kB);
+MapLibre itself now only downloads when the map mounts.
 
-Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §17:
+Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §19:
 - **Phase 5 unverified in-browser**: its migration (`20260824125110_AddOperationalTaskOriginAndEta`)
   was generated but not yet applied to a local DB, and the feature has never been run/observed in
   the browser. Before further work, run `docker compose up -d` → `dotnet ef database update` →
@@ -157,7 +165,6 @@ Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §17:
   since they aren't timestamped in the DB; a real event-sourcing/audit-log table would be needed to
   fix this precisely. Restricted zones and operational zones are treated as time-invariant in
   replay (always shown as their current state).
-- Bundle size warning (>500 kB, from MapLibre) — not yet addressed with code-splitting.
 
 **Selection UX (Phase 5.2, resolved):** manual selection toggle/deselect now works fully.
 Re-clicking an already-selected incident/field-unit marker deselects it
@@ -172,5 +179,5 @@ marker-like clickable overlay to the map, apply the same `stopPropagation()` pat
 silently fight with `onClearSelection`.
 
 The next step was not yet specified by the user as of `docs/DEVELOPMENT_LOG.md` Part 12; candidates noted
-there: the Phase 5 smoke test above, adding a backend test project, a general fix for the stale
-selection-state risk, or code-splitting for bundle size.
+there: the Phase 5 (and now Phase 5.4) smoke test above, adding a backend test project, or a
+general fix for the stale selection-state risk.

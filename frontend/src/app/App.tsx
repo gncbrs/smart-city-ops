@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { OperationsCenterLayout } from "../layouts/OperationsCenterLayout";
 import { IncidentPanel } from "../features/incidents/components/IncidentPanel";
-import { OperationsMap } from "../features/operations-map/components/OperationsMap";
 import { useMapFilters } from "../features/operations-map/hooks/useMapFilters";
 import { filterIncidentsForMap, filterFieldUnitsForMap } from "../features/operations-map/lib/applyMapFilters";
 import { useSignalRConnection } from "../shared/hooks/useSignalR";
@@ -14,6 +13,16 @@ import { OperationsSidebar } from "./components/OperationsSidebar";
 import { FieldUnitColumn } from "./components/FieldUnitColumn";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
 import { Menu, type MenuView } from "../features/menu/components/Menu";
+
+const OperationsMap = lazy(() =>
+  import("../features/operations-map/components/OperationsMap").then((module) => ({
+    default: module.OperationsMap,
+  }))
+);
+
+function MapLoadingPlaceholder() {
+  return <div className="map-loading-placeholder">Loading Map...</div>;
+}
 
 export function App() {
   useSignalRConnection();
@@ -78,18 +87,20 @@ export function App() {
     <OperationsCenterLayout
       map={
         <>
-          <OperationsMap
-            incidents={mapIncidents}
-            fieldUnits={mapFieldUnits}
-            zones={zones}
-            restrictedZones={restrictedZones}
-            operationalTasks={operationalTasks}
-            selectedIncidentId={selectedIncident?.id ?? null}
-            selectedFieldUnitId={selectedFieldUnit?.id ?? null}
-            onSelectIncident={setSelectedIncident}
-            onSelectFieldUnit={setSelectedFieldUnit}
-            onClearSelection={clearSelection}
-          />
+          <Suspense fallback={<MapLoadingPlaceholder />}>
+            <OperationsMap
+              incidents={mapIncidents}
+              fieldUnits={mapFieldUnits}
+              zones={zones}
+              restrictedZones={restrictedZones}
+              operationalTasks={operationalTasks}
+              selectedIncidentId={selectedIncident?.id ?? null}
+              selectedFieldUnitId={selectedFieldUnit?.id ?? null}
+              onSelectIncident={setSelectedIncident}
+              onSelectFieldUnit={setSelectedFieldUnit}
+              onClearSelection={clearSelection}
+            />
+          </Suspense>
           <ReplayControlBar
             mode={replay.mode}
             onEnterReplay={handleEnterReplay}
