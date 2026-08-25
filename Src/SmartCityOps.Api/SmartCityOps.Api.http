@@ -48,3 +48,37 @@ Content-Type: application/json
 
 ### Complete a task (replace {id} with a real Guid from operational-tasks GET)
 # POST {{SmartCityOps.Api_HostAddress}}/operational-tasks/{id}/complete
+
+### Get all restricted zones
+GET {{SmartCityOps.Api_HostAddress}}/restricted-zones
+Accept: application/json
+
+### Create a restricted zone
+POST {{SmartCityOps.Api_HostAddress}}/restricted-zones
+Content-Type: application/json
+
+{
+  "name": "Kızılay Merkez Yasak Bölge",
+  "description": "Manual test restricted zone, created via .http file",
+  "latitude": 39.919,
+  "longitude": 32.854,
+  "radiusMeters": 500,
+  "zoneType": "NoEntry"
+}
+
+### Update a restricted zone (replace {id} with a real Guid from the GET above)
+# PUT {{SmartCityOps.Api_HostAddress}}/restricted-zones/{id}
+# Content-Type: application/json
+#
+# {
+#   "name": "Kızılay Merkez Yasak Bölge",
+#   "description": "Updated description via .http file",
+#   "latitude": 39.919,
+#   "longitude": 32.854,
+#   "radiusMeters": 750,
+#   "zoneType": "NoEntry",
+#   "isActive": true
+# }
+
+### Delete a restricted zone (replace {id} with a real Guid from the GET above)
+# DELETE {{SmartCityOps.Api_HostAddress}}/restricted-zones/{id}

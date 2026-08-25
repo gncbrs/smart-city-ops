@@ -12,7 +12,9 @@ public class SignalROperationsNotificationHandler :
     IDomainEventHandler<TaskReassignedEvent>,
     IDomainEventHandler<IncidentCreatedEvent>,
     IDomainEventHandler<IncidentResolvedEvent>,
-    IDomainEventHandler<RestrictedZoneCreatedEvent>
+    IDomainEventHandler<RestrictedZoneCreatedEvent>,
+    IDomainEventHandler<RestrictedZoneUpdatedEvent>,
+    IDomainEventHandler<RestrictedZoneDeletedEvent>
 {
     private readonly IHubContext<OperationsHub> _hubContext;
 
@@ -37,6 +39,12 @@ public class SignalROperationsNotificationHandler :
         NotifyAsync(cancellationToken);
 
     public Task HandleAsync(RestrictedZoneCreatedEvent domainEvent, CancellationToken cancellationToken) =>
+        NotifyAsync(cancellationToken);
+
+    public Task HandleAsync(RestrictedZoneUpdatedEvent domainEvent, CancellationToken cancellationToken) =>
+        NotifyAsync(cancellationToken);
+
+    public Task HandleAsync(RestrictedZoneDeletedEvent domainEvent, CancellationToken cancellationToken) =>
         NotifyAsync(cancellationToken);
 
     private Task NotifyAsync(CancellationToken cancellationToken) =>

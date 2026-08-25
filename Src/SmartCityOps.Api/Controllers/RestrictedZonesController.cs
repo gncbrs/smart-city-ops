@@ -34,4 +34,25 @@ public class RestrictedZonesController : ControllerBase
             return BadRequest("Yanlış veya eksik argüman.");
         }
     }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<RestrictedZoneDto>> Update(Guid id, UpdateRestrictedZoneDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await _restrictedZoneService.UpdateAsync(id, dto, cancellationToken);
+            return Ok(updated);
+        }
+        catch (ArgumentException)
+        {
+            return BadRequest("Yanlış veya eksik argüman.");
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _restrictedZoneService.DeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
 }

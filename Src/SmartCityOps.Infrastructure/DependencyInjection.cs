@@ -67,6 +67,8 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventHandler<IncidentCreatedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<IncidentResolvedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<RestrictedZoneCreatedEvent>, SignalROperationsNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<RestrictedZoneUpdatedEvent>, SignalROperationsNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<RestrictedZoneDeletedEvent>, SignalROperationsNotificationHandler>();
 
         return services;
     }

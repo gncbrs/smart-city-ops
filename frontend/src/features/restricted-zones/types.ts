@@ -20,3 +20,13 @@ export interface CreateRestrictedZoneDto {
   radiusMeters: number;
   zoneType: RestrictedZoneType;
 }
+
+export interface UpdateRestrictedZoneDto {
+  name: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  zoneType: RestrictedZoneType;
+  isActive: boolean;
+}

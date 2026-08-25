@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import type { Map as MapLibreMap } from "maplibre-gl";
+import { useEffect, useRef } from "react";
+import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { RestrictedZone } from "../types";
 import { buildRestrictedZoneFeatureCollection } from "../lib/buildRestrictedZoneGeoJson";
 
@@ -14,18 +14,21 @@ const ZONE_OUTLINE_LAYER_ID = "restricted-zones-outline";
 const ZONE_LABEL_LAYER_ID = "restricted-zones-label";
 
 export function useRestrictedZoneLayers({ map, zones }: UseRestrictedZoneLayersParams) {
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
+
+  // Create the source and layers once per map instance; torn down only when the map itself goes away.
   useEffect(() => {
-    if (!map || zones.length === 0) return;
+    if (!map) return;
 
     const currentMap = map;
-    const featureCollection = buildRestrictedZoneFeatureCollection(zones);
 
     function addZoneLayers() {
       if (currentMap.getSource(ZONE_SOURCE_ID)) return;
 
       currentMap.addSource(ZONE_SOURCE_ID, {
         type: "geojson",
-        data: featureCollection,
+        data: buildRestrictedZoneFeatureCollection(zonesRef.current),
       });
 
       currentMap.addLayer({
@@ -79,5 +82,15 @@ export function useRestrictedZoneLayers({ map, zones }: UseRestrictedZoneLayersP
       if (currentMap.getLayer(ZONE_FILL_LAYER_ID)) currentMap.removeLayer(ZONE_FILL_LAYER_ID);
       if (currentMap.getSource(ZONE_SOURCE_ID)) currentMap.removeSource(ZONE_SOURCE_ID);
     };
+  }, [map]);
+
+  // Push fresh data into the existing source whenever the zones data changes.
+  useEffect(() => {
+    if (!map) return;
+
+    const source = map.getSource(ZONE_SOURCE_ID) as GeoJSONSource | undefined;
+    if (!source) return;
+
+    source.setData(buildRestrictedZoneFeatureCollection(zones));
   }, [map, zones]);
 }

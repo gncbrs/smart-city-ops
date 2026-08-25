@@ -17,3 +17,62 @@
 .restricted-zones-section__form input {
   width: 140px;
 }
+
+.restricted-zones-section__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.restricted-zones-section__action-button {
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  background: #3b82f6;
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.restricted-zones-section__action-button:hover {
+  background: #2563eb;
+}
+
+.restricted-zones-section__action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.restricted-zones-section__action-button--secondary {
+  background: transparent;
+  color: #f8fafc;
+}
+
+.restricted-zones-section__action-button--secondary:hover {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.restricted-zones-section__action-button--danger {
+  background: #dc2626;
+}
+
+.restricted-zones-section__action-button--danger:hover {
+  background: #b91c1c;
+}
+
+.restricted-zones-section__edit-row input,
+.restricted-zones-section__edit-row select {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  background: #0F172A;
+  color: #F8FAFC;
+  font-size: 0.8rem;
+  width: 90px;
+}
+
+.restricted-zones-section__edit-coords {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

@@ -18,12 +18,12 @@ detected by the platform itself.
     statistics, incident/field-unit filtering, incident timeline, operational zones map
     visualization, field unit movement history, and real-time updates via SignalR
 - **Frontend refactor:** a dedicated cleanup pass (dead code removal, de-duplication, component
-  decomposition) — no behavior changes, see `docs/DEVELOPMENT_LOG10.md`
+  decomposition) — no behavior changes, see `docs/DEVELOPMENT_LOG.md`, Part 10
 - **Level 3 — Advanced Operations:** not started
 
 Full session-by-session technical decision log — including rejected alternatives and the reasoning
-behind them — lives in [`docs/DEVELOPMENT_LOG.md`](docs/DEVELOPMENT_LOG.md) and its numbered
-continuations (`DEVELOPMENT_LOG2.md` through the latest).
+behind them — lives in [`docs/DEVELOPMENT_LOG.md`](docs/DEVELOPMENT_LOG.md), a single consolidated
+file with a Table of Contents linking to each session (`Part 1` through `Part 12`, chronological).
 
 ## Architecture
 

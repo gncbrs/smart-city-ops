@@ -58,6 +58,37 @@ public class RestrictedZoneService : IRestrictedZoneService
         return ToDto(zone);
     }
 
+    public async Task<RestrictedZoneDto> UpdateAsync(Guid id, UpdateRestrictedZoneDto dto, CancellationToken cancellationToken = default)
+    {
+        var zone = await _dbContext.RestrictedZones
+            .FirstOrDefaultAsync(z => z.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("Kısıtlı bölge bulunamadı.");
+
+        zone.Name = dto.Name;
+        zone.Description = dto.Description;
+        zone.Latitude = dto.Latitude;
+        zone.Longitude = dto.Longitude;
+        zone.RadiusMeters = dto.RadiusMeters;
+        zone.ZoneType = Enum.Parse<RestrictedZoneType>(dto.ZoneType);
+        zone.IsActive = dto.IsActive;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _domainEventDispatcher.DispatchAsync(new RestrictedZoneUpdatedEvent(zone.Id), cancellationToken);
+
+        return ToDto(zone);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var zone = await _dbContext.RestrictedZones
+            .FirstOrDefaultAsync(z => z.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("Kısıtlı bölge bulunamadı.");
+
+        _dbContext.RestrictedZones.Remove(zone);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _domainEventDispatcher.DispatchAsync(new RestrictedZoneDeletedEvent(id), cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RestrictedZone>> GetActiveZonesAsync(CancellationToken cancellationToken)
     {
         return await _dbContext.RestrictedZones

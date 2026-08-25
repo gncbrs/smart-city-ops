@@ -1,44 +1,16 @@
-Let's implement the frontend-driven Field Unit Travel Animation & Route Line feature based on the architectural plan we discussed.
+please consolidate all existing development logs into a single master document:
 
-The goal is to show a straight line (as the crow flies) between a dispatched field unit's origin and destination incident, smoothly animating the marker along that line based on the calculated ETA without introducing heavy backend background workers or high-frequency SignalR ticks.
+### Goal:
+Merge all separate development logs (`docs/DEVELOPMENT_LOG.md`, `DEVELOPMENT_LOG2.md`, ..., `DEVELOPMENT_LOG12.md` or any existing log files under `docs/`) into a single file named `docs/DEVELOPMENT_LOG.md`.
 
-Please implement this step-by-step:
+### Strict Requirements:
+1. **Zero Information Loss:** Do NOT summarize, compress, truncate, or omit any content, technical details, code snippets, architectural trade-offs, or tables. It must be a complete, verbatim concatenation of all logs in chronological order (from Log 1 / initial setup up to Log 12 / Phase 5.1).
+2. **Clear Formatting & Table of Contents:**
+   - Add a top-level Table of Contents / Index at the very beginning of the merged `DEVELOPMENT_LOG.md` linking to each log / level / phase for easy navigation and reading readability.
+   - Use clear dividers (e.g. `---`) and section headers indicating each original log session (e.g., `# Part 1 — Initial Setup & Level 1`, `# Part 12 — Level 3 Advanced Operations`, etc.).
+3. **Clean Up Redundant Files:**
+   - Once the unified `docs/DEVELOPMENT_LOG.md` is fully created and verified, remove the fragmented files (`DEVELOPMENT_LOG2.md` through `DEVELOPMENT_LOG12.md`).
+4. **Update References:**
+   - Update any references in `CLAUDE.md` or other docs that pointed to `DEVELOPMENT_LOG12.md` or other numbered logs so they now point to the unified `DEVELOPMENT_LOG.md`.
 
----
-
-### STEP 1: Backend DTO & Origin/ETA Capture
-1. **Model / DTO Update:**
-   - Update `OperationalTaskDto` (and underlying `OperationalTask` entity or service mapping if needed) to include:
-     - `OriginLatitude`, `OriginLongitude` (the unit's coordinates prior to assignment).
-     - `EstimatedEtaSeconds` (calculated via `IEtaEstimator` at the time of assignment).
-2. **Service Logic (`OperationalTaskService`):**
-   - In `CreateAsync` and `ReassignAsync`, capture the field unit's current latitude/longitude before updating its location to the incident destination, and compute `EstimatedEtaSeconds`.
-   - Persist or return these values so the frontend receives `originLatitude`, `originLongitude`, `assignedAt`, and `estimatedEtaSeconds`.
-
----
-
-### STEP 2: Frontend Route Line & Interpolation Logic
-1. **Pure Interpolation Math:**
-   - Create a utility function `interpolatePosition(origin, destination, assignedAt, etaSeconds, now)` in `frontend/src/features/operational-tasks/lib/geoInterpolation.ts`:
-     - Calculates the elapsed time fraction $t = \frac{\text{now} - \text{assignedAt}}{\text{etaSeconds} \times 1000}$ clamped between $0.0$ and $1.0$.
-     - Returns linearly interpolated coordinates: $\text{lat} = \text{origin.lat} + t \times (\text{dest.lat} - \text{origin.lat})$.
-2. **Route Line GeoJSON Layer:**
-   - Add a MapLibre layer hook (e.g. `useDispatchedRouteLayers.ts`) in `frontend/src/features/operations-map/hooks/`:
-     - Renders a dashed/semi-transparent line (`LineString`) connecting each active/dispatched task's origin and destination.
-     - Removes the line once the task is completed or elapsed time exceeds ETA.
-
----
-
-### STEP 3: MapLibre Marker Animation
-1. **Marker Lifecycle Refactor:**
-   - In `useFieldUnitMarkers.ts`, avoid destroying and recreating all marker instances on every render.
-   - Maintain a stable Map of marker instances keyed by `fieldUnit.id`.
-   - For dispatched units with active tasks, run a `requestAnimationFrame` loop that updates the marker position via `marker.setLngLat(interpolatedCoords)` smoothly until $t \ge 1.0$.
-
----
-
-Please verify that:
-- Backend builds cleanly (`dotnet build`).
-- Frontend compiles and lints with 0 errors (`npm run build` / `npm run lint`).
-
-Please proceed with the implementation now.
+Please proceed with the consolidation now.

@@ -36,6 +36,30 @@ export function IncidentTimelineSection({
       onClick,
     });
 
+    if (task.estimatedEtaSeconds != null) {
+      const calculatedArrivalAt = new Date(
+        new Date(task.assignedAt).getTime() + task.estimatedEtaSeconds * 1000
+      );
+      const hasArrived =
+        Date.now() >= calculatedArrivalAt.getTime() ||
+        task.status === "Completed" ||
+        incident.status === "Resolved";
+
+      if (hasArrived) {
+        const arrivalAt =
+          task.completedAt && new Date(task.completedAt).getTime() < calculatedArrivalAt.getTime()
+            ? task.completedAt
+            : calculatedArrivalAt.toISOString();
+
+        timelineEvents.push({
+          id: `${task.id}-arrived`,
+          timestamp: arrivalAt,
+          label: `${unitLabel} arrived at scene`,
+          onClick,
+        });
+      }
+    }
+
     if (task.completedAt) {
       timelineEvents.push({
         id: `${task.id}-completed`,
