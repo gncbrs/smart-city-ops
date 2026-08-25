@@ -1,16 +1,15 @@
-please consolidate all existing development logs into a single master document:
+Please update the documentation files (`docs/DEVELOPMENT_LOG.md` and `CLAUDE.md`) to reflect the selection toggle and deselect fixes we just completed:
 
-### Goal:
-Merge all separate development logs (`docs/DEVELOPMENT_LOG.md`, `DEVELOPMENT_LOG2.md`, ..., `DEVELOPMENT_LOG12.md` or any existing log files under `docs/`) into a single file named `docs/DEVELOPMENT_LOG.md`.
+### Updates to perform:
+1. **`docs/DEVELOPMENT_LOG.md` (Part 12):**
+   - Add a new sub-section (e.g. `## 16. Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix` or similar).
+   - Document:
+     - Toggle on re-clicking already selected markers (`useSelection.ts`).
+     - Click on empty map canvas space to trigger `clearSelection` (`useMapInstance.ts`).
+     - The event bubbling issue (`event.stopPropagation()`) where marker clicks bubbled to map canvas causing instant deselection.
+     - The panel close (`✕`) buttons in `IncidentPanel` and `FieldUnitPanel`.
+   - Update the Table of Contents at the top and the summary table at the end of the log.
+2. **`CLAUDE.md`:**
+   - Update the "Current status & known open issues" section to note that selection deselect/toggle behavior is now fully resolved and event propagation is handled.
 
-### Strict Requirements:
-1. **Zero Information Loss:** Do NOT summarize, compress, truncate, or omit any content, technical details, code snippets, architectural trade-offs, or tables. It must be a complete, verbatim concatenation of all logs in chronological order (from Log 1 / initial setup up to Log 12 / Phase 5.1).
-2. **Clear Formatting & Table of Contents:**
-   - Add a top-level Table of Contents / Index at the very beginning of the merged `DEVELOPMENT_LOG.md` linking to each log / level / phase for easy navigation and reading readability.
-   - Use clear dividers (e.g. `---`) and section headers indicating each original log session (e.g., `# Part 1 — Initial Setup & Level 1`, `# Part 12 — Level 3 Advanced Operations`, etc.).
-3. **Clean Up Redundant Files:**
-   - Once the unified `docs/DEVELOPMENT_LOG.md` is fully created and verified, remove the fragmented files (`DEVELOPMENT_LOG2.md` through `DEVELOPMENT_LOG12.md`).
-4. **Update References:**
-   - Update any references in `CLAUDE.md` or other docs that pointed to `DEVELOPMENT_LOG12.md` or other numbered logs so they now point to the unified `DEVELOPMENT_LOG.md`.
-
-Please proceed with the consolidation now.
+Please apply these updates now.

@@ -22,6 +22,7 @@ interface OperationsMapProps {
   selectedFieldUnitId: string | null;
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
+  onClearSelection: () => void;
 }
 
 export function OperationsMap({
@@ -34,8 +35,9 @@ export function OperationsMap({
   selectedFieldUnitId,
   onSelectIncident,
   onSelectFieldUnit,
+  onClearSelection,
 }: OperationsMapProps) {
-  const { mapContainerRef, map } = useMapInstance();
+  const { mapContainerRef, map } = useMapInstance(onClearSelection);
 
   useIncidentMarkers({ map, incidents, selectedIncidentId, onSelectIncident });
   useDispatchedRouteLayers({ map, operationalTasks, incidents });

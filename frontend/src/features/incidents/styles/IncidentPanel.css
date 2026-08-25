@@ -1,6 +1,30 @@
+.incident-panel {
+  position: relative;
+}
+
 .incident-panel__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
+}
+
+.incident-panel__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(128, 128, 128, 0.15);
+  color: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.incident-panel__close:hover {
+  background: rgba(128, 128, 128, 0.3);
 }

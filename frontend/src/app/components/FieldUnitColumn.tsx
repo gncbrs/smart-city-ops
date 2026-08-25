@@ -13,6 +13,7 @@ interface FieldUnitColumnProps {
   onAssigned: () => void;
   onReassigned: () => void;
   onViewMovementHistory: () => void;
+  onClose: () => void;
   readOnly?: boolean;
 }
 
@@ -25,6 +26,7 @@ export function FieldUnitColumn({
   onAssigned,
   onReassigned,
   onViewMovementHistory,
+  onClose,
   readOnly = false,
 }: FieldUnitColumnProps) {
   return (
@@ -36,6 +38,7 @@ export function FieldUnitColumn({
         onCompleted={onCompleted}
         onReassigned={onReassigned}
         onViewMovementHistory={onViewMovementHistory}
+        onClose={onClose}
         readOnly={readOnly}
       />
       {!readOnly && selectedIncident && selectedFieldUnit && (

@@ -13,6 +13,7 @@ interface IncidentPanelProps {
   onResolved: () => void;
   onViewTimeline: () => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
+  onClose: () => void;
   readOnly?: boolean;
 }
 
@@ -23,6 +24,7 @@ export function IncidentPanel({
   onResolved,
   onViewTimeline,
   onSelectFieldUnit,
+  onClose,
   readOnly = false,
 }: IncidentPanelProps) {
   const { mutate, isPending, isError } = useResolveIncident();
@@ -36,7 +38,16 @@ export function IncidentPanel({
   };
 
   return (
-    <div>
+    <div className="incident-panel">
+      <button
+        type="button"
+        className="incident-panel__close"
+        onClick={onClose}
+        aria-label="Deselect incident"
+        title="Deselect incident"
+      >
+        ✕
+      </button>
       <h3>{formatEnumLabel(incident.type)}</h3>
       <p>Priority: {incident.priority}</p>
       <p>Status: {formatEnumLabel(incident.status)}</p>

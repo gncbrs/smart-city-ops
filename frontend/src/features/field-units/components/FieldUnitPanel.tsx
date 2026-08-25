@@ -13,6 +13,7 @@ interface FieldUnitPanelProps {
   onCompleted: () => void;
   onReassigned: () => void;
   onViewMovementHistory: () => void;
+  onClose: () => void;
   readOnly?: boolean;
 }
 
@@ -23,6 +24,7 @@ export function FieldUnitPanel({
   onCompleted,
   onReassigned,
   onViewMovementHistory,
+  onClose,
   readOnly = false,
 }: FieldUnitPanelProps) {
   const { mutate, isPending, isError } = useCompleteTask();
@@ -37,7 +39,16 @@ export function FieldUnitPanel({
   };
 
   return (
-    <div>
+    <div className="field-unit-panel">
+      <button
+        type="button"
+        className="field-unit-panel__close"
+        onClick={onClose}
+        aria-label="Deselect field unit"
+        title="Deselect field unit"
+      >
+        ✕
+      </button>
       <h3>{formatEnumLabel(fieldUnit.type)}</h3>
       <p>Unit Code: {fieldUnit.unitCode}</p>
       <p>Status: {formatEnumLabel(fieldUnit.status)}</p>

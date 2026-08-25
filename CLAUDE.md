@@ -124,7 +124,7 @@ React Query (server state) + component/hook-local state.
 
 Level 1 and Level 2 are complete; a dedicated frontend refactor (`docs/DEVELOPMENT_LOG.md` Part 10)
 and backend refactor (Part 11) cleanup pass followed, with no behavior changes. Level 3
-("Advanced Operations") is now also complete — see `docs/DEVELOPMENT_LOG.md`, Part 12 §16 for the full
+("Advanced Operations") is now also complete — see `docs/DEVELOPMENT_LOG.md`, Part 12 §17 for the full
 phase-by-phase status table. All four case-study items are done: a composable task-assignment rule
 pipeline with a DB-level concurrency guard and task reassignment (Phase 0–1), field-unit
 recommendation scoring + ETA display (Phase 2), restricted-zone definition and enforcement (Phase
@@ -132,9 +132,11 @@ recommendation scoring + ETA display (Phase 2), restricted-zone definition and e
 4). Phase 5, added beyond the case-study brief on user request, animates field units moving along
 an origin→destination line over their ETA instead of teleporting to the incident on assignment.
 Phase 5.1 reuses that same origin/ETA data to add an "arrived at scene" step to the Incident
-Timeline.
+Timeline. Phase 5.2 (`docs/DEVELOPMENT_LOG.md`, Part 12 §16) polished map selection UX: clicking an
+already-selected marker now deselects it, clicking empty map space calls `clearSelection()`, and
+`IncidentPanel`/`FieldUnitPanel` each got a `✕` close button — see "Selection UX" below.
 
-Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §16:
+Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §17:
 - **Phase 5 unverified in-browser**: its migration (`20260824125110_AddOperationalTaskOriginAndEta`)
   was generated but not yet applied to a local DB, and the feature has never been run/observed in
   the browser. Before further work, run `docker compose up -d` → `dotnet ef database update` →
@@ -145,6 +147,8 @@ Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §16:
   operator just changed. The assign/complete/reassign flows sidestep this locally by calling
   `clearSelection()` on success, but there's no general fix; clicking a recommendation card also
   changes selection without calling `clearSelection()` (out of scope of the existing workaround).
+  This is a separate, still-open issue from the manual toggle/deselect interactions fixed in Phase
+  5.2 below.
 - Restricted-zone creation takes lat/lng/radius as free-text/number inputs — no click-on-map center
   picker yet (consistent with every other coordinate input in the project). No restricted zones
   exist by default (no seed data), so the assignment rule always returns `Success()` until an
@@ -154,6 +158,18 @@ Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §16:
   fix this precisely. Restricted zones and operational zones are treated as time-invariant in
   replay (always shown as their current state).
 - Bundle size warning (>500 kB, from MapLibre) — not yet addressed with code-splitting.
+
+**Selection UX (Phase 5.2, resolved):** manual selection toggle/deselect now works fully.
+Re-clicking an already-selected incident/field-unit marker deselects it
+(`frontend/src/app/hooks/useSelection.ts`); clicking empty map space calls `clearSelection()` via a
+`click` listener wired up in `useMapInstance.ts`/`OperationsMap.tsx`; and both `IncidentPanel` and
+`FieldUnitPanel` have a `✕` close button. Getting this right required
+`event.stopPropagation()` in the marker click handlers (`useIncidentMarkers.ts`,
+`useFieldUnitMarkers.ts`) — MapLibre appends marker elements inside the same canvas container the
+map's own `click` listener is bound to, so without stopping propagation every marker click also
+fired the empty-space deselect handler, instantly undoing the selection. If you add another
+marker-like clickable overlay to the map, apply the same `stopPropagation()` pattern or it will
+silently fight with `onClearSelection`.
 
 The next step was not yet specified by the user as of `docs/DEVELOPMENT_LOG.md` Part 12; candidates noted
 there: the Phase 5 smoke test above, adding a backend test project, a general fix for the stale

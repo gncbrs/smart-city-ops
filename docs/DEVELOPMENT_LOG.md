@@ -204,7 +204,8 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [13. Bu chat oturumunun kapsamı dışında yapılan iş — responsive tasarım](#13-bu-chat-oturumunun-kapsamı-dışında-yapılan-iş--responsive-tasarım)
   - [14. Phase 5 — Field Unit Travel Animation & Dispatched Route Line](#14-phase-5--field-unit-travel-animation--dispatched-route-line)
   - [15. Phase 5.1 — Incident Timeline Arrival Event](#15-phase-51--incident-timeline-arrival-event)
-  - [16. Sonuç ve sıradaki adım](#16-sonuç-ve-sıradaki-adım)
+  - [16. Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix](#16-phase-52--selection-toggle-empty-map-deselect--event-bubbling-fix)
+  - [17. Sonuç ve sıradaki adım](#17-sonuç-ve-sıradaki-adım)
 
 
 
@@ -3993,7 +3994,55 @@ hata (mevcut >500 kB chunk-size uyarısı hariç, bu değişiklikle ilgisiz).
 
 ---
 
-## 16. Sonuç ve sıradaki adım
+## 16. Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix
+
+**Kapsam ve bağlam:** Kullanıcı isteğiyle, harita seçim UX'ine üç küçük iyileştirme eklendi:
+zaten seçili bir marker'a tekrar tıklamak artık seçimi kaldırıyor, haritanın boş bir noktasına
+tıklamak seçimi temizliyor, ve `IncidentPanel`/`FieldUnitPanel`'in sağ üst köşesine bir `✕`
+kapatma butonu eklendi. Case study brief'inin resmî kapsamı dışında, tamamen kullanıcı talebiyle
+yapılan bir UX cilası.
+
+**1) Toggle-on-reclick (`frontend/src/app/hooks/useSelection.ts`):** `setSelectedIncident` ve
+`setSelectedFieldUnit`, artık doğrudan state set etmek yerine bir functional updater kullanıyor:
+tıklanan öğenin `id`'si mevcut seçiliyle aynıysa state `null`'a düşüyor, değilse yeni öğe seçiliyor.
+Panel kapatma butonu için ayrıca `deselectIncident`/`deselectFieldUnit` adında, koşulsuz `null`'a
+düşüren iki fonksiyon daha eklendi — bunlar toggle mantığını atlıyor çünkü kapatma butonunun amacı
+her zaman "seçili olanı kapat", "tıklanan öğeye göre karar ver" değil.
+
+**2) Boş harita alanına tıklayınca `clearSelection` (`useMapInstance.ts` + `OperationsMap.tsx`):**
+`useMapInstance`, artık opsiyonel bir `onMapClick` callback'i parametre olarak alıyor ve map
+instance'ı oluşturulurken `instance.on("click", ...)` ile bağlıyor (callback bir ref'te tutuluyor ki
+her render'da yeniden bağlanmasın). `OperationsMap`'e yeni bir `onClearSelection` prop'u eklendi,
+`App.tsx` bunu `clearSelection`'a bağlıyor.
+
+**3) Event bubbling bug'ı — marker tıklamaları haritayı da "boş alan tıklaması" sanıyordu:**
+İlk implementasyonda hiçbir seçim kalıcı olmuyordu — her marker tıklaması, seçimi set ettiği anda
+hemen ardından `null`'a dönüyordu. Kök neden: MapLibre GL, marker DOM elemanlarını haritanın
+`click` olayının dinlendiği canvas container'ının *içine* ekliyor (ayrı bir katman değil), bu
+yüzden bir marker'a tıklamak, olay canvas container'a köpürdüğü (bubble) için haritanın kendi
+`click` handler'ını da tetikliyordu — yani her marker tıklaması aynı anda hem
+"marker'ı seç" hem de "boş alana tıklandı, seçimi temizle" olarak yorumlanıyordu. Düzeltme:
+`useIncidentMarkers.ts` ve `useFieldUnitMarkers.ts`'teki marker `click` listener'larına
+`event.stopPropagation()` eklendi, böylece bir marker tıklaması artık haritanın `click`
+event'ine hiç ulaşmıyor — `onClearSelection` sadece gerçekten boş bir noktaya tıklandığında
+tetikleniyor.
+
+**4) Panel kapatma butonları (`IncidentPanel.tsx`, `FieldUnitPanel.tsx`):** Her iki panelin kök
+`div`'i `position: relative` alacak şekilde bir sınıf adı kazandı (`incident-panel`,
+`field-unit-panel`), sağ üst köşeye mutlak konumlandırılmış, yuvarlak, kompakt bir `✕` butonu
+eklendi (`incident-panel__close`, `field-unit-panel__close`). Buton yeni bir `onClose` prop'unu
+çağırıyor; `App.tsx` bunu sırasıyla `deselectIncident`/`deselectFieldUnit`'e bağlıyor
+(`FieldUnitColumn.tsx` prop'u `FieldUnitPanel`'e iletmek için güncellendi).
+
+**Doğrulama:** `npm run lint` (oxlint) ve `npm run build` (`tsc -b` + `vite build`) — ikisi de 0
+hata (mevcut >500 kB chunk-size uyarısı hariç, bu değişiklikle ilgisiz). Özellik tarayıcıda
+manuel olarak test edildi: marker'a tıklayınca seçiliyor, aynı marker'a tekrar tıklayınca
+seçim kalkıyor, boş haritaya tıklayınca seçim temizleniyor, panel `✕` butonu ilgili seçimi
+kapatıyor — event bubbling düzeltmesinden sonra hepsi beklendiği gibi çalışıyor.
+
+---
+
+## 17. Sonuç ve sıradaki adım
 
 | Faz | Durum |
 |---|---|
@@ -4010,6 +4059,7 @@ hata (mevcut >500 kB chunk-size uyarısı hariç, bu değişiklikle ilgisiz).
 | Phase 4.2 — Frontend Operations Replay Scrubber & Snapshot Visualization | Tamamlandı |
 | Phase 5 — Field Unit Travel Animation & Dispatched Route Line | Tamamlandı (migration yerel DB'ye henüz uygulanmadı, tarayıcıda doğrulanmadı) |
 | Phase 5.1 — Incident Timeline Arrival Event | Tamamlandı |
+| Phase 5.2 — Selection Toggle, Empty Map Deselect & Event Bubbling Fix | Tamamlandı (tarayıcıda doğrulandı) |
 
 `DEVELOPMENT_LOG11.md` §9'da flag'lenen iki riskten biri — `OperationalTaskService.CreateAsync`
 check-then-act yarış durumu — Phase 0.2 ile kapatıldı. İkincisi — seçim state'inin SignalR
@@ -4048,6 +4098,13 @@ Timeline artık `[UnitType] (UnitCode) arrived at scene` adımını, ETA dolduğ
 zaten tamamlanmışsa, gerekirse `completedAt`'e clamp'lenerek) "assigned" ile "completed task"
 arasında gösteriyor. Tamamen frontend'de, backend/migration değişikliği gerekmedi;
 `npm run lint`/`npm run build` temiz.
+
+Phase 5.2 (§16), seçim UX'indeki ayrı bir sorunu kapattı: aynı marker'a tekrar tıklayınca seçimi
+kaldırma, boş haritaya tıklayınca seçimi temizleme ve panel `✕` butonları artık çalışıyor —
+event bubbling bug'ı düzeltildi ve tarayıcıda doğrulandı. Bu, §11'de bahsedilen SignalR
+invalidation sonrası seçim state'inin bayatlaması riskiyle *aynı* sorun değil: o risk hâlâ genel
+bir çözüme kavuşmadı (bkz. yukarıdaki paragraf) — Phase 5.2 sadece operatörün bir öğeyi manuel
+olarak seçme/kaldırma etkileşimini iyileştirdi.
 
 Sıradaki adım kullanıcı tarafından henüz belirtilmedi — muhtemel adaylar: Phase 5'in yukarıdaki
 duman testiyle doğrulanması, backend test projesi eklenmesi (`CLAUDE.md`'de hâlâ "test yok, manuel

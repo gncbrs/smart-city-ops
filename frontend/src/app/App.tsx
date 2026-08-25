@@ -21,8 +21,15 @@ export function App() {
   const liveData = useOperationsData();
   const { zones, locationHistory, restrictedZones } = liveData;
 
-  const { selectedIncident, setSelectedIncident, selectedFieldUnit, setSelectedFieldUnit, clearSelection } =
-    useSelection();
+  const {
+    selectedIncident,
+    setSelectedIncident,
+    deselectIncident,
+    selectedFieldUnit,
+    setSelectedFieldUnit,
+    deselectFieldUnit,
+    clearSelection,
+  } = useSelection();
 
   const replay = useReplayController();
   const { data: snapshot, isFetching: isSnapshotLoading } = useOperationsSnapshot(
@@ -81,6 +88,7 @@ export function App() {
             selectedFieldUnitId={selectedFieldUnit?.id ?? null}
             onSelectIncident={setSelectedIncident}
             onSelectFieldUnit={setSelectedFieldUnit}
+            onClearSelection={clearSelection}
           />
           <ReplayControlBar
             mode={replay.mode}
@@ -138,6 +146,7 @@ export function App() {
           onAssigned={clearSelection}
           onReassigned={clearSelection}
           onViewMovementHistory={() => setMenuView("movement-history")}
+          onClose={deselectFieldUnit}
           readOnly={replay.isReplayMode}
         />
       }
@@ -150,6 +159,7 @@ export function App() {
           onResolved={clearSelection}
           onViewTimeline={() => setMenuView("timeline")}
           onSelectFieldUnit={setSelectedFieldUnit}
+          onClose={deselectIncident}
           readOnly={replay.isReplayMode}
         />
       }

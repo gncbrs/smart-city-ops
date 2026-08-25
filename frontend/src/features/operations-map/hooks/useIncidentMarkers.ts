@@ -45,7 +45,10 @@ export function useIncidentMarkers({
         marker.getElement().classList.add(SELECTED_MARKER_CLASS);
       }
 
-      marker.getElement().addEventListener("click", () => onSelectIncident(incident));
+      marker.getElement().addEventListener("click", (event) => {
+        event.stopPropagation();
+        onSelectIncident(incident);
+      });
 
       return marker;
     });

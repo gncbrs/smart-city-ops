@@ -78,7 +78,8 @@ export function useFieldUnitMarkers({
 
       if (!marker) {
         marker = new Marker({ color: "#2563eb" }).setLngLat([fieldUnit.longitude, fieldUnit.latitude]).addTo(map);
-        marker.getElement().addEventListener("click", () => {
+        marker.getElement().addEventListener("click", (event) => {
+          event.stopPropagation();
           const latest = fieldUnitsByIdRef.current.get(fieldUnit.id) ?? fieldUnit;
           onSelectFieldUnitRef.current(latest);
         });
