@@ -1,19 +1,21 @@
-Task: Decompose RestrictedZonesSection.tsx - Step 3/3 (Final Composition & Cleanup)
+Task: Stabilize Field Unit Markers Animation Loop (Performance Refactor)
 
 ### Objective
-Finalize the decomposition of `frontend/src/features/restricted-zones/components/RestrictedZonesSection.tsx` by replacing the internal inline state and rendering logic with the hooks and subcomponents created in Steps 1 & 2.
+Ensure the continuous animation loop in `frontend/src/features/operations-map/hooks/useFieldUnitMarkers.ts` runs seamlessly without getting torn down and restarted on every SignalR update or data refetch.
 
 ### Requirements
-1. Refactor `frontend/src/features/restricted-zones/components/RestrictedZonesSection.tsx`:
-   - Consume `useRestrictedZoneForm(pickedCoordinates, onCoordinatesApplied)`.
-   - Consume `useRestrictedZoneEdit()`.
-   - Render `RestrictedZoneTable` and `RestrictedZoneForm` with their respective props and handlers.
-   - Maintain the existing component signature, props interface (`RestrictedZonesSectionProps`), and styling wrappers (`.restricted-zones-section`).
-   - Reduce the component size down to a clean composition container (~40-60 lines).
+1. In `frontend/src/features/operations-map/hooks/useFieldUnitMarkers.ts`:
+   - Keep `operationalTasks` and `fieldUnits` updated in refs:
+     - Ensure `fieldUnitsByIdRef.current` (or an `operationalTasksRef`) always contains the latest references on every render.
+   - Refactor the continuous animation `useEffect`:
+     - Change its dependency array from `[map, fieldUnits, operationalTasks]` to `[map]`.
+     - The inner `tick` function should read `operationalTasksRef.current` and `fieldUnitsByIdRef.current` (or iterate over `markersRef.current` and look up units/tasks from refs) instead of closing over reactive array props.
+     - Ensure the loop starts when `map` is ready and only stops (cancels `animationFrameId`) when `map` unmounts.
+   - Ensure the separate marker diffing / creation / removal `useEffect` continues to update marker DOM instances when `fieldUnits` change.
 
 2. Verification:
-   - Run `npm run lint` and `npm run build` in `frontend/` to confirm that the entire feature builds cleanly with zero errors.
+   - Run `npm run lint` and `npm run build` in `frontend/` to confirm zero lint and zero TypeScript errors.
 
 3. Documentation:
-   - Update `docs/DEVELOPMENT_LOG.md` under Part 12 (as section 35) and update `CLAUDE.md`.
-   - In `docs/To-Do-List.txt`, mark the item `RestrictedZonesSection.tsx bileşenini parçala` as completed `[x]`.
+   - Update `docs/DEVELOPMENT_LOG.md` under Part 12 (as section 39).
+   - In `docs/To-Do-List.txt`, mark the item `useFieldUnitMarkers.ts animasyon döngüsünü sürekli çalışır hale getir` as completed `[x]`.

@@ -1,33 +1,53 @@
 import { useCallback, useState } from "react";
-import type { Incident } from "../../features/incidents/types";
-import type { FieldUnit } from "../../features/field-units/types";
+
+type IdSetter = (id: string | null | ((prev: string | null) => string | null)) => void;
 
 export function useSelection() {
-  const [selectedIncident, setSelectedIncidentState] = useState<Incident | null>(null);
-  const [selectedFieldUnit, setSelectedFieldUnitState] = useState<FieldUnit | null>(null);
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+  const [selectedFieldUnitId, setSelectedFieldUnitId] = useState<string | null>(null);
 
-  const setSelectedIncident = useCallback((incident: Incident) => {
-    setSelectedIncidentState((current) => (current?.id === incident.id ? null : incident));
+  const setSelectedIncidentIdCallback: IdSetter = useCallback((id) => {
+    setSelectedIncidentId(id);
   }, []);
 
-  const setSelectedFieldUnit = useCallback((fieldUnit: FieldUnit) => {
-    setSelectedFieldUnitState((current) => (current?.id === fieldUnit.id ? null : fieldUnit));
+  const setSelectedFieldUnitIdCallback: IdSetter = useCallback((id) => {
+    setSelectedFieldUnitId(id);
   }, []);
 
-  const deselectIncident = useCallback(() => setSelectedIncidentState(null), []);
-  const deselectFieldUnit = useCallback(() => setSelectedFieldUnitState(null), []);
+  const toggleIncidentSelection = useCallback((id: string) => {
+    setSelectedIncidentId((current) => (current === id ? null : id));
+  }, []);
 
-  const clearSelection = () => {
-    setSelectedIncidentState(null);
-    setSelectedFieldUnitState(null);
-  };
+  const toggleFieldUnitSelection = useCallback((id: string) => {
+    setSelectedFieldUnitId((current) => (current === id ? null : id));
+  }, []);
+
+  const selectIncident = useCallback((id: string) => {
+    setSelectedIncidentId(id);
+  }, []);
+
+  const selectFieldUnit = useCallback((id: string) => {
+    setSelectedFieldUnitId(id);
+  }, []);
+
+  const deselectIncident = useCallback(() => setSelectedIncidentId(null), []);
+  const deselectFieldUnit = useCallback(() => setSelectedFieldUnitId(null), []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIncidentId(null);
+    setSelectedFieldUnitId(null);
+  }, []);
 
   return {
-    selectedIncident,
-    setSelectedIncident,
+    selectedIncidentId,
+    setSelectedIncidentId: setSelectedIncidentIdCallback,
+    toggleIncidentSelection,
+    selectIncident,
     deselectIncident,
-    selectedFieldUnit,
-    setSelectedFieldUnit,
+    selectedFieldUnitId,
+    setSelectedFieldUnitId: setSelectedFieldUnitIdCallback,
+    toggleFieldUnitSelection,
+    selectFieldUnit,
     deselectFieldUnit,
     clearSelection,
   };

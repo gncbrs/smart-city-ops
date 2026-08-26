@@ -64,58 +64,16 @@ public class OperationalTaskService : IOperationalTaskService
             throw new ValidationException(ruleResult.FailureReason!);
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var originLatitude = fieldUnit.Latitude;
-        var originLongitude = fieldUnit.Longitude;
-        var estimatedEta = _etaEstimator.EstimateEta(originLatitude, originLongitude, incident.Latitude, incident.Longitude);
-
-        var task = new OperationalTask
-        {
-            Id = Guid.NewGuid(),
-            IncidentId = incident.Id,
-            FieldUnitId = fieldUnit.Id,
-            Status = OperationalTaskStatus.Assigned,
-            AssignedAt = now,
-            CompletedAt = null,
-            OriginLatitude = originLatitude,
-            OriginLongitude = originLongitude,
-            EstimatedEtaSeconds = (int)Math.Round(estimatedEta.TotalSeconds)
-        };
-
-        fieldUnit.Status = FieldUnitStatus.Dispatched;
-        fieldUnit.Latitude = incident.Latitude;
-        fieldUnit.Longitude = incident.Longitude;
-
-        var locationHistoryEntry = new FieldUnitLocationHistory
-        {
-            Id = Guid.NewGuid(),
-            FieldUnitId = fieldUnit.Id,
-            IncidentId = incident.Id,
-            Latitude = incident.Latitude,
-            Longitude = incident.Longitude,
-            RecordedAt = now
-        };
-
         if (incident.Status == IncidentStatus.Open)
         {
             incident.Status = IncidentStatus.InProgress;
         }
 
-        _dbContext.OperationalTasks.Add(task);
-        _dbContext.FieldUnitLocationHistories.Add(locationHistoryEntry);
+        var taskDto = await AssignFieldUnitAsync(incident, fieldUnit, cancellationToken);
 
-        try
-        {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            throw new ResourceConflictException("Bu field unit için zaten aktif bir görev atanmış. Başka bir operatör az önce bu unit'i atamış olabilir.");
-        }
+        await _domainEventDispatcher.DispatchAsync(new TaskAssignedEvent(taskDto.Id, incident.Id, fieldUnit.Id), cancellationToken);
 
-        await _domainEventDispatcher.DispatchAsync(new TaskAssignedEvent(task.Id, incident.Id, fieldUnit.Id), cancellationToken);
-
-        return ToDto(task);
+        return taskDto;
     }
 
     public async Task<OperationalTaskDto> CompleteAsync(Guid id, CancellationToken cancellationToken)
@@ -173,19 +131,33 @@ public class OperationalTaskService : IOperationalTaskService
             throw new ValidationException(ruleResult.FailureReason!);
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var originLatitude = newFieldUnit.Latitude;
-        var originLongitude = newFieldUnit.Longitude;
-        var estimatedEta = _etaEstimator.EstimateEta(originLatitude, originLongitude, incident.Latitude, incident.Longitude);
-
         oldTask.Status = OperationalTaskStatus.Reassigned;
         oldFieldUnit.Status = FieldUnitStatus.Available;
 
-        var newTask = new OperationalTask
+        var newTaskDto = await AssignFieldUnitAsync(incident, newFieldUnit, cancellationToken);
+
+        await _domainEventDispatcher.DispatchAsync(
+            new TaskReassignedEvent(oldTask.Id, newTaskDto.Id, incident.Id, oldFieldUnit.Id, newFieldUnit.Id),
+            cancellationToken);
+
+        return newTaskDto;
+    }
+
+    private async Task<OperationalTaskDto> AssignFieldUnitAsync(
+        Incident incident,
+        FieldUnit fieldUnit,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var originLatitude = fieldUnit.Latitude;
+        var originLongitude = fieldUnit.Longitude;
+        var estimatedEta = _etaEstimator.EstimateEta(originLatitude, originLongitude, incident.Latitude, incident.Longitude);
+
+        var task = new OperationalTask
         {
             Id = Guid.NewGuid(),
             IncidentId = incident.Id,
-            FieldUnitId = newFieldUnit.Id,
+            FieldUnitId = fieldUnit.Id,
             Status = OperationalTaskStatus.Assigned,
             AssignedAt = now,
             CompletedAt = null,
@@ -194,21 +166,21 @@ public class OperationalTaskService : IOperationalTaskService
             EstimatedEtaSeconds = (int)Math.Round(estimatedEta.TotalSeconds)
         };
 
-        newFieldUnit.Status = FieldUnitStatus.Dispatched;
-        newFieldUnit.Latitude = incident.Latitude;
-        newFieldUnit.Longitude = incident.Longitude;
+        fieldUnit.Status = FieldUnitStatus.Dispatched;
+        fieldUnit.Latitude = incident.Latitude;
+        fieldUnit.Longitude = incident.Longitude;
 
         var locationHistoryEntry = new FieldUnitLocationHistory
         {
             Id = Guid.NewGuid(),
-            FieldUnitId = newFieldUnit.Id,
+            FieldUnitId = fieldUnit.Id,
             IncidentId = incident.Id,
             Latitude = incident.Latitude,
             Longitude = incident.Longitude,
             RecordedAt = now
         };
 
-        _dbContext.OperationalTasks.Add(newTask);
+        _dbContext.OperationalTasks.Add(task);
         _dbContext.FieldUnitLocationHistories.Add(locationHistoryEntry);
 
         try
@@ -220,11 +192,7 @@ public class OperationalTaskService : IOperationalTaskService
             throw new ResourceConflictException("Bu field unit için zaten aktif bir görev atanmış. Başka bir operatör az önce bu unit'i atamış olabilir.");
         }
 
-        await _domainEventDispatcher.DispatchAsync(
-            new TaskReassignedEvent(oldTask.Id, newTask.Id, incident.Id, oldFieldUnit.Id, newFieldUnit.Id),
-            cancellationToken);
-
-        return ToDto(newTask);
+        return ToDto(task);
     }
 
     private static OperationalTaskDto ToDto(OperationalTask task) =>

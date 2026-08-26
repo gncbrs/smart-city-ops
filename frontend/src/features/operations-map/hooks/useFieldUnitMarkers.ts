@@ -33,10 +33,12 @@ export function useFieldUnitMarkers({
 }: UseFieldUnitMarkersParams) {
   const markersRef = useRef(new Map<string, Marker>());
   const fieldUnitsByIdRef = useRef(new Map<string, FieldUnit>());
+  const operationalTasksRef = useRef<OperationalTask[]>([]);
   const lastRestingPositionsRef = useRef(new Map<string, GeoLocation>());
   const onSelectFieldUnitRef = useRef(onSelectFieldUnit);
   onSelectFieldUnitRef.current = onSelectFieldUnit;
   fieldUnitsByIdRef.current = new Map(fieldUnits.map((fieldUnit) => [fieldUnit.id, fieldUnit]));
+  operationalTasksRef.current = operationalTasks;
 
   // Mount/unmount only: tears every marker down once, when the map instance itself goes away.
   // Deliberately does NOT depend on fieldUnits/selectedFieldUnitId — those are handled by the
@@ -97,21 +99,27 @@ export function useFieldUnitMarkers({
   // window where a Dispatched unit's task hasn't arrived in `operationalTasks` yet. Snapping to
   // `destination` during that window is what caused the teleport; holding at the last resting
   // position instead bridges the gap until the task data catches up.
+  //
+  // Depends only on [map]: closing over `fieldUnits`/`operationalTasks` directly would tear this
+  // effect down and restart `requestAnimationFrame` on every SignalR-triggered refetch, causing a
+  // visible stutter. Instead the tick function reads `fieldUnitsByIdRef.current`/
+  // `operationalTasksRef.current`, which are updated every render above without re-running this
+  // effect; the loop itself only starts once (when `map` becomes ready) and stops on unmount.
   useEffect(() => {
     if (!map) return;
 
     let animationFrameId: number;
     const lastRestingPositions = lastRestingPositionsRef.current;
+    const markers = markersRef.current;
 
     const tick = () => {
       const now = Date.now();
-      const markers = markersRef.current;
 
-      for (const fieldUnit of fieldUnits) {
-        const marker = markers.get(fieldUnit.id);
-        if (!marker) continue;
+      for (const [fieldUnitId, marker] of markers) {
+        const fieldUnit = fieldUnitsByIdRef.current.get(fieldUnitId);
+        if (!fieldUnit) continue;
 
-        const task = findInFlightTask(fieldUnit.id, operationalTasks);
+        const task = findInFlightTask(fieldUnitId, operationalTasksRef.current);
         const destination = { latitude: fieldUnit.latitude, longitude: fieldUnit.longitude };
 
         if (task) {
@@ -120,19 +128,19 @@ export function useFieldUnitMarkers({
 
           const progress = getTravelProgress(new Date(task.assignedAt).getTime(), task.estimatedEtaSeconds, now);
           if (progress >= 1) {
-            lastRestingPositions.set(fieldUnit.id, destination);
+            lastRestingPositions.set(fieldUnitId, destination);
           }
           continue;
         }
 
         if (fieldUnit.status === "Dispatched") {
-          const restingPosition = lastRestingPositions.get(fieldUnit.id) ?? destination;
+          const restingPosition = lastRestingPositions.get(fieldUnitId) ?? destination;
           marker.setLngLat([restingPosition.longitude, restingPosition.latitude]);
           continue;
         }
 
         marker.setLngLat([destination.longitude, destination.latitude]);
-        lastRestingPositions.set(fieldUnit.id, destination);
+        lastRestingPositions.set(fieldUnitId, destination);
       }
 
       animationFrameId = requestAnimationFrame(tick);
@@ -141,5 +149,5 @@ export function useFieldUnitMarkers({
     animationFrameId = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animationFrameId);
-  }, [map, fieldUnits, operationalTasks]);
+  }, [map]);
 }

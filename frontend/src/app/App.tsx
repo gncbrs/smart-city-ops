@@ -16,7 +16,12 @@ import { FieldUnitColumn } from "./components/FieldUnitColumn";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
 import { Menu, type MenuView } from "../features/menu/components/Menu";
 import { CoordinatePickerBanner } from "../features/restricted-zones/components/CoordinatePickerBanner";
-import { getActiveTaskForFieldUnit, getAvailableFieldUnits } from "./lib/operationsSelectors";
+import {
+  getActiveTaskForFieldUnit,
+  getAvailableFieldUnits,
+  getSelectedIncident,
+  getSelectedFieldUnit,
+} from "./lib/operationsSelectors";
 
 const OperationsMap = lazy(() =>
   import("../features/operations-map/components/OperationsMap").then((module) => ({
@@ -35,11 +40,13 @@ export function App() {
   const { zones, locationHistory } = liveData;
 
   const {
-    selectedIncident,
-    setSelectedIncident,
+    selectedIncidentId,
+    toggleIncidentSelection,
+    selectIncident,
     deselectIncident,
-    selectedFieldUnit,
-    setSelectedFieldUnit,
+    selectedFieldUnitId,
+    toggleFieldUnitSelection,
+    selectFieldUnit,
     deselectFieldUnit,
     clearSelection,
   } = useSelection();
@@ -65,6 +72,9 @@ export function App() {
     replay,
     snapshot
   );
+
+  const selectedIncident = getSelectedIncident(selectedIncidentId, incidents);
+  const selectedFieldUnit = getSelectedFieldUnit(selectedFieldUnitId, fieldUnits);
 
   const [menuView, setMenuView] = useState<MenuView>("closed");
 
@@ -95,7 +105,7 @@ export function App() {
   } = useMapFilters();
 
   const activeTaskForSelectedFieldUnit =
-    getActiveTaskForFieldUnit(selectedFieldUnit?.id, operationalTasks) ?? null;
+    getActiveTaskForFieldUnit(selectedFieldUnitId ?? undefined, operationalTasks) ?? null;
 
   const availableFieldUnitsForReassignment = getAvailableFieldUnits(fieldUnits);
 
@@ -113,10 +123,10 @@ export function App() {
               zones={zones}
               restrictedZones={restrictedZones}
               operationalTasks={operationalTasks}
-              selectedIncidentId={selectedIncident?.id ?? null}
-              selectedFieldUnitId={selectedFieldUnit?.id ?? null}
-              onSelectIncident={setSelectedIncident}
-              onSelectFieldUnit={setSelectedFieldUnit}
+              selectedIncidentId={selectedIncidentId}
+              selectedFieldUnitId={selectedFieldUnitId}
+              onSelectIncident={(incident) => toggleIncidentSelection(incident.id)}
+              onSelectFieldUnit={(fieldUnit) => toggleFieldUnitSelection(fieldUnit.id)}
               onClearSelection={clearSelection}
               isPickingCoordinates={coordinatePicker.isPickingCoordinates}
               onPickCoordinates={handlePickCoordinates}
@@ -153,8 +163,14 @@ export function App() {
           movementHistoryFieldUnit={selectedFieldUnit}
           locationHistory={locationHistory}
           restrictedZones={restrictedZones}
-          onSelectIncident={setSelectedIncident}
-          onSelectFieldUnit={setSelectedFieldUnit}
+          onSelectIncident={(incident) => {
+            selectIncident(incident.id);
+            setMenuView("closed");
+          }}
+          onSelectFieldUnit={(fieldUnit) => {
+            selectFieldUnit(fieldUnit.id);
+            setMenuView("closed");
+          }}
           isPickingCoordinates={coordinatePicker.isPickingCoordinates}
           pickedCoordinates={coordinatePicker.pickedCoordinates}
           onStartPickCoordinates={handleStartPickCoordinates}
@@ -195,10 +211,10 @@ export function App() {
         <IncidentPanel
           incident={selectedIncident}
           fieldUnits={fieldUnits}
-          selectedFieldUnitId={selectedFieldUnit?.id ?? null}
+          selectedFieldUnitId={selectedFieldUnitId}
           onResolved={clearSelection}
           onViewTimeline={() => setMenuView("timeline")}
-          onSelectFieldUnit={setSelectedFieldUnit}
+          onSelectFieldUnit={(fieldUnit) => toggleFieldUnitSelection(fieldUnit.id)}
           onClose={deselectIncident}
           readOnly={replay.isReplayMode}
         />
@@ -209,8 +225,8 @@ export function App() {
           incidents={incidents}
           fieldUnits={fieldUnits}
           operationalTasks={operationalTasks}
-          onSelectIncident={setSelectedIncident}
-          onSelectFieldUnit={setSelectedFieldUnit}
+          onSelectIncident={(incident) => toggleIncidentSelection(incident.id)}
+          onSelectFieldUnit={(fieldUnit) => toggleFieldUnitSelection(fieldUnit.id)}
         />
       }
     />

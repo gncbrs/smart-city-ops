@@ -228,15 +228,9 @@ backend/migration change; no test/debug code left in the tree. This is a distinc
 Phase 5.11 teleportation race above — different root cause (wrong task selected, not a timing race)
 and different symptom (marker never moves at all, vs. an instant snap-to-destination).
 
-Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §25:
+Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §25 (the stale-selection item below was
+resolved by Phase 5.14, see §36-37):
 - **No backend test project exists yet** — still fully manual verification (see Commands section).
-- Frontend selection state (`frontend/src/app/hooks/useSelection.ts`) can still go stale after a
-  SignalR `OperationsUpdated` invalidation — one operator's screen can still show a record another
-  operator just changed. The assign/complete/reassign flows sidestep this locally by calling
-  `clearSelection()` on success, but there's no general fix; clicking a recommendation card also
-  changes selection without calling `clearSelection()` (out of scope of the existing workaround).
-  This is a separate, still-open issue from the manual toggle/deselect interactions fixed in Phase
-  5.2 below.
 - Restricted-zone creation's center coordinate can now be set via "Pick on Map" (Phase 5.10) or by
   typing lat/lng directly; radius is still a free-text/number input (consistent with every other
   radius-style input in the project — there's no natural "drag on map" equivalent for a radius). No
@@ -298,5 +292,27 @@ being edited; it now renders inside `RestrictedZoneEditRow`'s own action cell, c
 being edited — a cosmetic change only, not a functional one. `docs/To-Do-List.txt`'s "parçala"
 item for this component is marked `[x]`.
 
-Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, or a
-general fix for the stale selection-state risk.
+Phase 5.14 (`docs/DEVELOPMENT_LOG.md`, Part 12 §36–37) resolved the stale selection-state risk
+noted above, across two steps. Step 1 refactored `frontend/src/app/hooks/useSelection.ts` to store
+only `selectedIncidentId: string | null`/`selectedFieldUnitId: string | null` instead of full
+`Incident`/`FieldUnit` snapshots, exposing `toggleIncidentSelection`/`toggleFieldUnitSelection`
+(same-ID-deselects toggle, replacing the old `setSelectedIncident`/`setSelectedFieldUnit`),
+`selectIncident`/`selectFieldUnit` (unconditional set), `deselectIncident`/`deselectFieldUnit`, and
+`clearSelection`; `frontend/src/app/lib/operationsSelectors.ts` gained
+`getSelectedIncident(selectedId, incidents)`/`getSelectedFieldUnit(selectedId, fieldUnits)` to
+resolve the live object from a React Query array by ID. Step 2 wired `App.tsx` to the new API:
+`selectedIncident`/`selectedFieldUnit` are no longer local state — they're derived every render via
+`getSelectedIncident`/`getSelectedFieldUnit` against `useReplayAwareData`'s output, so a SignalR
+`OperationsUpdated` invalidation now automatically re-resolves the selection against fresh data (or
+drops it to "no selection" if the ID no longer exists), with no separate cleanup mechanism needed.
+Map/`IncidentPanel`/`ActiveTasksPanel` selection callbacks wrap `toggleIncidentSelection(id)`/
+`toggleFieldUnitSelection(id)` (preserving the old click-to-toggle behavior); `Menu`'s
+`onSelectIncident`/`onSelectFieldUnit` call `selectIncident(id)`/`selectFieldUnit(id)` unconditionally
+and close the menu. Downstream component prop types (`FieldUnitColumn`, `IncidentPanel`,
+`ActiveTasksPanel`, `OperationsSidebar`) were unchanged — they still receive derived
+`Incident | null`/`FieldUnit | null` objects, just sourced differently now. `npm run lint`/`npm run
+build` clean (0 errors); no backend/migration change. `docs/To-Do-List.txt`'s "SignalR sonrası seçim
+state'ini reaktif hale getir" and "`useSelection.ts` hook'unu ID tabanlı reaktif yapıya dönüştür"
+items are marked `[x]`.
+
+Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project.

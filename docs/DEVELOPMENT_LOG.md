@@ -4851,3 +4851,179 @@ güncellendi.
 
 ---
 
+## 36. Reactive ID-Based Selection State (Step 1/2) — `useSelection.ts` Refactor & Selectors
+
+**Kapsam:** `docs/DEVELOPMENT_LOG.md` Part 12 "Known open items"de belirtilen stale selection state
+riskini (SignalR cache invalidation sonrası seçili nesnenin eski/stale kalması) gidermenin ilk
+adımı — `useSelection.ts`'in tuttuğu seçim state'i tam `Incident`/`FieldUnit` snapshot'larından
+salt `string | null` ID'lere çevrildi; nesneler artık her render'da güncel React Query cache'inden
+türetiliyor.
+
+**Değişiklik:**
+- `frontend/src/app/hooks/useSelection.ts`: `selectedIncident: Incident | null` /
+  `selectedFieldUnit: FieldUnit | null` state'leri kaldırıldı, yerine `selectedIncidentId: string |
+  null` / `selectedFieldUnitId: string | null` eklendi. Yeni API: `setSelectedIncidentId` /
+  `setSelectedFieldUnitId` (fonksiyonel updater'ı da kabul eden setter'lar),
+  `toggleIncidentSelection(id)` / `toggleFieldUnitSelection(id)` (aynı ID tekrar seçilirse `null`'a
+  döner — önceki `setSelectedIncident`/`setSelectedFieldUnit`'in toggle davranışının ID tabanlı
+  karşılığı), `selectIncident(id)` / `selectFieldUnit(id)` (koşulsuz set), `clearSelection()`,
+  `deselectIncident()`, `deselectFieldUnit()`. Hook artık `Incident`/`FieldUnit` tiplerini import
+  etmiyor — sadece ID'lerle çalışıyor.
+- `frontend/src/app/lib/operationsSelectors.ts`: iki yeni saf fonksiyon eklendi —
+  `getSelectedIncident(selectedId, incidents)` ve `getSelectedFieldUnit(selectedId, fieldUnits)` —
+  ikisi de ilgili ID'yi güncel liste içinde `.find()` ile arayıp bulamazsa `null` döner. Bunlar Adım
+  2'de `App.tsx`'in canlı/replay verisinden seçili nesneyi türetmek için kullanılacak.
+- `App.tsx` bu oturumda **bilinçli olarak değiştirilmedi** — hâlâ eski `selectedIncident`/
+  `setSelectedIncident`/`selectedFieldUnit`/`setSelectedFieldUnit` API'sini çağırıyor, bu yüzden
+  `tsc -b` `App.tsx` için 4 tip hatası veriyor (beklenen; kapsam Adım 2'de kapatılacak).
+
+**Doğrulama:** `npm run lint` (oxlint, temiz). `npm run build`: `useSelection.ts` ve
+`operationsSelectors.ts` sıfır hatayla derlendi; `App.tsx`'teki 4 hata (`selectedIncident`/
+`setSelectedIncident`/`selectedFieldUnit`/`setSelectedFieldUnit` artık mevcut değil) beklenen ve
+kapsam dışı — Adım 2'de `App.tsx` yeni ID tabanlı API'ye ve `getSelectedIncident`/
+`getSelectedFieldUnit` selector'larına taşınınca giderilecek. Backend/migration değişikliği yok.
+
+**Sıradaki adım:** Adım 2/2 — `App.tsx`'i (ve varsa diğer tüketicileri)
+`selectedIncidentId`/`selectedFieldUnitId` + `getSelectedIncident`/`getSelectedFieldUnit`
+selector'larını kullanacak şekilde güncellemek, `npm run lint`/`npm run build`'in tam temiz
+geçtiğini doğrulamak.
+
+---
+
+## 37. Reactive ID-Based Selection State (Step 2/2) — `App.tsx` Wiring & Final Verification
+
+**Kapsam:** §36'da hazırlanan ID tabanlı `useSelection` API'sinin ve `getSelectedIncident`/
+`getSelectedFieldUnit` selector'larının `App.tsx`'e bağlanması — stale selection state refactor'ı
+tamamlandı, `npm run build` artık sıfır hatayla geçiyor.
+
+**Değişiklik:**
+- `frontend/src/app/App.tsx`: `useSelection()`'dan artık `selectedIncidentId`/
+  `selectedFieldUnitId`, `toggleIncidentSelection`/`toggleFieldUnitSelection`, `selectIncident`/
+  `selectFieldUnit`, `deselectIncident`/`deselectFieldUnit`, `clearSelection` tüketiliyor.
+  `selectedIncident`/`selectedFieldUnit` artık local state değil — `useReplayAwareData`'nın
+  döndürdüğü (canlı ya da replay snapshot) `incidents`/`fieldUnits` dizilerinden
+  `getSelectedIncident(selectedIncidentId, incidents)` / `getSelectedFieldUnit(selectedFieldUnitId,
+  fieldUnits)` ile her render'da yeniden türetiliyor — bu yüzden bir SignalR
+  `OperationsUpdated` invalidation'ı sonrası seçili nesne artık otomatik olarak güncel veriyle
+  eşleniyor (ID hâlâ listede varsa), ID listeden düşmüşse (`getSelectedIncident`/
+  `getSelectedFieldUnit` `null` döner) seçim kendiliğinden "seçim yok" durumuna düşüyor — ayrı bir
+  temizleme mekanizmasına gerek kalmadı.
+- Harita seçim callback'leri (`OperationsMap`'e geçilen `onSelectIncident`/`onSelectFieldUnit`) ve
+  `IncidentPanel`/`ActiveTasksPanel`'e geçilenler `toggleIncidentSelection(incident.id)` /
+  `toggleFieldUnitSelection(fieldUnit.id)`'a sarıldı — önceki `setSelectedIncident`/
+  `setSelectedFieldUnit`'in "aynı ID tekrar seçilirse kaldır" toggle davranışının birebir karşılığı.
+  `Menu`'ye geçilen `onSelectIncident`/`onSelectFieldUnit` ise koşulsuz `selectIncident(id)` /
+  `selectFieldUnit(id)` çağırıp `setMenuView("closed")` yapıyor (menüden bir kayda gidildiğinde
+  toggle değil, doğrudan seçim isteniyor — davranış önceki koşulsuz `setSelectedIncident`/
+  `setSelectedFieldUnit` çağrılarıyla aynı).
+  `OperationsMap`/`IncidentPanel`'e geçilen `selectedIncidentId`/`selectedFieldUnitId` propları da
+  artık `selectedIncident?.id ?? null` yerine doğrudan hook'un ID state'inden geliyor.
+  `FieldUnitColumn`, `IncidentPanel`, `ActiveTasksPanel`, `OperationsSidebar` gibi tüketici
+  bileşenlerin prop tipleri değişmedi (hâlâ `Incident | null`/`FieldUnit | null` bekliyorlar) —
+  `App.tsx` onlara türetilmiş `selectedIncident`/`selectedFieldUnit` nesnelerini geçmeye devam
+  ediyor, sadece bu nesnelerin kaynağı artık local state değil, ID'den türetilen bir hesaplama.
+  `getActiveTaskForFieldUnit` çağrısı da `selectedFieldUnit?.id` yerine doğrudan
+  `selectedFieldUnitId ?? undefined` kullanacak şekilde güncellendi.
+
+**Doğrulama:** `npm run lint` (oxlint, temiz) ve `npm run build` (`tsc -b && vite build`)
+`frontend/` içinde çalıştırıldı — **0 tip hatası**, §36'dan kalan 4 beklenen `App.tsx` hatası dahil
+tüm hatalar giderildi. Bundle boyutları önemsiz ölçüde değişti (index chunk ~369.96 kB / gzip
+111.66 kB); mevcut `maplibre-vendor` chunk boyut uyarısı bu refactor'dan bağımsız, önceden var olan
+bir durum (Phase 5.4'te ayrı chunk'a taşınmıştı). Backend/migration değişikliği yok. Full tarayıcı
+regresyon testi (marker toggle/deselect, menüden seçim, panel `✕` kapama, SignalR sonrası eski
+seçimin otomatik temizlenmesi) bu oturumda manuel tıklanmadı — sadece derleme/tip doğrulaması
+yapıldı.
+
+**Sonuç:** Stale selection state riski (`docs/DEVELOPMENT_LOG.md` Part 12 "Known open items",
+`docs/To-Do-List.txt`'in 1. Öncelik maddesi) kökten çözüldü — seçim artık salt ID olarak tutuluyor
+ve her zaman güncel React Query cache'inden türetiliyor. `docs/To-Do-List.txt`'teki "SignalR
+sonrası seçim state'ini reaktif hale getir" ve "`useSelection.ts` hook'unu ID tabanlı reaktif
+yapıya dönüştür" maddeleri `[x]` olarak işaretlendi. `CLAUDE.md`'nin "Current status" ve "Known open
+issues" bölümleri bu iki adımı özetleyen bir paragrafla güncellendi.
+
+---
+
+## 38. `OperationalTaskService.cs` — Assignment Logic Unification (`CreateAsync`/`ReassignAsync`)
+
+**Kapsam:** `docs/To-Do-List.txt`'in 2. Öncelik ("Dosya Parçalama & Modülerleştirme") maddesinde
+belirtilen `OperationalTaskService.cs` kod tekrarını gidermek — `CreateAsync` ve `ReassignAsync`
+metotlarında birebir tekrarlanan ~35 satırlık görev oluşturma/saha birimi mutasyon/konum geçmişi
+kaydı/eşzamanlılık-çakışması yakalama bloğu tek bir private helper'a taşındı. Davranış veya API
+sözleşmesi değişikliği yok — salt bir "extract method" refactor'ı.
+
+**Değişiklik:**
+- `Src/SmartCityOps.Infrastructure/OperationalTasks/OperationalTaskService.cs`: yeni private
+  `AssignFieldUnitAsync(Incident incident, FieldUnit fieldUnit, CancellationToken cancellationToken)`
+  metodu eklendi. Bu metot ortak dizinin tamamını kapsıyor: origin koordinatlarını yakalama
+  (`fieldUnit.Latitude`/`Longitude` mutasyondan önce), `_etaEstimator.EstimateEta(...)` ile ETA
+  hesabı, yeni `OperationalTask` entity'sini `OperationalTaskStatus.Assigned` ile oluşturma,
+  `fieldUnit`'i hedef incident koordinatlarına taşıyıp `FieldUnitStatus.Dispatched` yapma,
+  `FieldUnitLocationHistory` kaydı ekleme, `_dbContext.SaveChangesAsync(...)`'i Postgres unique
+  violation (`23505`) yakalayıp `ResourceConflictException`'a çeviren `try/catch` içinde çağırma ve
+  sonucu `ToDto(task)` ile `OperationalTaskDto`'ya çevirme.
+- `CreateAsync`: incident/field-unit doğrulaması, `_rulePipeline.EvaluateAsync(...)` kural
+  kontrolü ve (yalnızca burada kalan) `incident.Status == Open` ise `InProgress`'e çekme mantığını
+  koruyor; ardından görev oluşturma/mutasyon işini `AssignFieldUnitAsync(incident, fieldUnit,
+  cancellationToken)`'a devrediyor ve dönen dto'nun `Id`'siyle `TaskAssignedEvent`'i dispatch
+  ediyor.
+- `ReassignAsync`: eski task/field-unit/yeni field-unit çözümlemesi ve kural kontrolü aynı kaldı;
+  `oldTask.Status = Reassigned` ve `oldFieldUnit.Status = Available` ataması (yalnızca burada kalan
+  reassign-özel mantık) sonrasında yeni görevin oluşturulması `AssignFieldUnitAsync(incident,
+  newFieldUnit, cancellationToken)`'a devrediliyor; dönen dto'nun `Id`'si `TaskReassignedEvent`'in
+  `newTaskId` alanına geçiliyor.
+- Bilinçli olarak taşınmayan iki parça: (1) incident'i `Open`→`InProgress` çekme mantığı yalnızca
+  `CreateAsync`'te kalıyor — `ReassignAsync` sırasında incident zaten `InProgress` olduğu için bu
+  adım gereksiz ve orijinal kodda da yoktu. (2) `oldTask.CompletedAt`, orijinal kodda olduğu gibi
+  `ReassignAsync`'te hâlâ set edilmiyor — `CLAUDE.md`'nin "Known open items" bölümünde belgelenen
+  "Replay, `Reassigned` hand-off anını yaklaşık olarak yeniden kurar çünkü DB'de
+  zaman damgalanmamıştır" kısıtı hâlâ geçerli; bu refactor'ın kapsamı davranış değişikliği değil,
+  yalnızca kod tekrarını gidermek olduğu için bu kısıt bilinçli olarak korundu.
+
+**Doğrulama:** `dotnet build SmartCityOps.Api/SmartCityOps.Api.csproj` (bu, `Domain` →
+`Application` → `Infrastructure` → `Api` zincirinin tamamını derliyor) `Src/` içinde çalıştırıldı —
+**0 uyarı, 0 hata**. `SmartCityOps.sln` üzerinden `dotnet build` çalıştırıldığında çözüm
+yapılandırmasındaki (`Debug|Any CPU`) proje seçim sorunu nedeniyle hiçbir proje derlenmiyor — bu
+önceden var olan, bu refactor'dan bağımsız bir `.sln`/`.slnf` yapılandırma sorunu (ayrı bir
+`docs/To-Do-List.txt` maddesi olabilir), bu yüzden doğrulama doğrudan `.csproj` referanslarıyla
+yapıldı. Migration değişikliği yok (entity şemaları aynı kaldı); frontend değişikliği yok.
+
+**Sonuç:** `docs/To-Do-List.txt`'teki "`OperationalTaskService.cs` içindeki kod tekrarını birleştir
+(Backend)" maddesi `[x]` olarak işaretlendi.
+
+---
+
+## 39. `useFieldUnitMarkers.ts` — Stabilize the Continuous Animation Loop
+
+**Scope:** `docs/To-Do-List.txt`'in maddesi olan "`useFieldUnitMarkers.ts` animasyon döngüsünü
+sürekli çalışır hale getir" — the animation `useEffect` in
+`frontend/src/features/operations-map/hooks/useFieldUnitMarkers.ts` previously depended on
+`[map, fieldUnits, operationalTasks]`, so every SignalR-triggered `field-units`/`operational-tasks`
+refetch tore the effect down and called `cancelAnimationFrame`/re-issued `requestAnimationFrame`
+from scratch. This didn't visibly break anything (the marker diffing effect already left existing
+`Marker` instances in place, per Phase 5.11/5.12), but it meant the animation loop restarted on
+every live update instead of running as one continuous `requestAnimationFrame` chain — wasted work
+and a latent source of frame jitter under frequent SignalR traffic.
+
+**Change:** Added an `operationalTasksRef` (mirroring the existing `fieldUnitsByIdRef` pattern),
+assigned on every render alongside it. The animation effect's dependency array is now `[map]`
+only — it starts once when `map` becomes ready and only stops (via its cleanup calling
+`cancelAnimationFrame`) when `map` unmounts. Inside `tick`, the loop now iterates
+`markersRef.current` (the marker DOM instances themselves) rather than the `fieldUnits` prop array,
+looking up each field unit via `fieldUnitsByIdRef.current.get(fieldUnitId)` and skipping any marker
+whose field unit is no longer present; `findInFlightTask` now reads from
+`operationalTasksRef.current` instead of closing over the `operationalTasks` prop. The separate
+marker diffing/creation/removal effect (dependency array `[map, fieldUnits, selectedFieldUnitId]`)
+is unchanged — it still adds/removes `Marker` instances and toggles selection styling whenever
+`fieldUnits` changes; the animation loop now just reads whatever markers that effect currently has
+in `markersRef.current` each frame, rather than needing its own dependency on `fieldUnits`.
+
+**Verification:** `npm run lint` (oxlint) and `npm run build` (`tsc -b && vite build`) both run
+clean in `frontend/` — 0 lint errors, 0 type errors, same bundle output as before (this is a
+dependency-array/ref refactor with no rendering or interpolation-math change). No backend/migration
+change.
+
+**Sonuç:** `docs/To-Do-List.txt`'teki "`useFieldUnitMarkers.ts` animasyon döngüsünü sürekli çalışır
+hale getir" maddesi `[x]` olarak işaretlendi.
+
+---
+

@@ -1,5 +1,6 @@
 import type { OperationalTask } from "../../features/operational-tasks/types";
 import type { FieldUnit } from "../../features/field-units/types";
+import type { Incident } from "../../features/incidents/types";
 
 export function getActiveTaskForFieldUnit(
   fieldUnitId: string | undefined,
@@ -19,4 +20,20 @@ export function getTasksForIncident(
 
 export function getAvailableFieldUnits(fieldUnits: FieldUnit[]): FieldUnit[] {
   return fieldUnits.filter((fieldUnit) => fieldUnit.status === "Available");
+}
+
+export function getSelectedIncident(
+  selectedId: string | null,
+  incidents: Incident[]
+): Incident | null {
+  if (!selectedId) return null;
+  return incidents.find((incident) => incident.id === selectedId) ?? null;
+}
+
+export function getSelectedFieldUnit(
+  selectedId: string | null,
+  fieldUnits: FieldUnit[]
+): FieldUnit | null {
+  if (!selectedId) return null;
+  return fieldUnits.find((fieldUnit) => fieldUnit.id === selectedId) ?? null;
 }
