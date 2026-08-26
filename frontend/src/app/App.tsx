@@ -7,12 +7,16 @@ import { useSignalRConnection } from "../shared/hooks/useSignalR";
 import { useSelection } from "./hooks/useSelection";
 import { useOperationsData } from "./hooks/useOperationsData";
 import { useReplayController } from "./hooks/useReplayController";
+import { useReplayAwareData } from "./hooks/useReplayAwareData";
+import { useCoordinatePicker } from "./hooks/useCoordinatePicker";
 import { useOperationsSnapshot } from "../features/operations-replay/hooks/useOperationsSnapshot";
 import { ReplayControlBar } from "../features/operations-replay/components/ReplayControlBar";
 import { OperationsSidebar } from "./components/OperationsSidebar";
 import { FieldUnitColumn } from "./components/FieldUnitColumn";
 import { ActiveTasksPanel } from "../features/dashboard/components/ActiveTasksPanel";
 import { Menu, type MenuView } from "../features/menu/components/Menu";
+import { CoordinatePickerBanner } from "../features/restricted-zones/components/CoordinatePickerBanner";
+import { getActiveTaskForFieldUnit, getAvailableFieldUnits } from "./lib/operationsSelectors";
 
 const OperationsMap = lazy(() =>
   import("../features/operations-map/components/OperationsMap").then((module) => ({
@@ -28,7 +32,7 @@ export function App() {
   useSignalRConnection();
 
   const liveData = useOperationsData();
-  const { zones, locationHistory, restrictedZones } = liveData;
+  const { zones, locationHistory } = liveData;
 
   const {
     selectedIncident,
@@ -56,11 +60,30 @@ export function App() {
     replay.exitReplayMode();
   };
 
-  const incidents = replay.isReplayMode && snapshot ? snapshot.incidents : liveData.incidents;
-  const fieldUnits = replay.isReplayMode && snapshot ? snapshot.fieldUnits : liveData.fieldUnits;
-  const operationalTasks = replay.isReplayMode && snapshot ? snapshot.activeTasks : liveData.operationalTasks;
+  const { incidents, fieldUnits, operationalTasks, restrictedZones } = useReplayAwareData(
+    liveData,
+    replay,
+    snapshot
+  );
 
   const [menuView, setMenuView] = useState<MenuView>("closed");
+
+  const coordinatePicker = useCoordinatePicker();
+
+  const handleStartPickCoordinates = () => {
+    coordinatePicker.startPicking();
+    setMenuView("closed");
+  };
+
+  const handleCancelPickCoordinates = () => {
+    coordinatePicker.cancelPicking();
+    setMenuView("restricted-zones");
+  };
+
+  const handlePickCoordinates = (coordinates: { lat: number; lng: number }) => {
+    coordinatePicker.pickCoordinates(coordinates.lat, coordinates.lng);
+    setMenuView("restricted-zones");
+  };
 
   const {
     priorityFilter,
@@ -72,13 +95,9 @@ export function App() {
   } = useMapFilters();
 
   const activeTaskForSelectedFieldUnit =
-    operationalTasks.find(
-      (task) => task.fieldUnitId === selectedFieldUnit?.id && task.status === "Assigned"
-    ) ?? null;
+    getActiveTaskForFieldUnit(selectedFieldUnit?.id, operationalTasks) ?? null;
 
-  const availableFieldUnitsForReassignment = fieldUnits.filter(
-    (fieldUnit) => fieldUnit.status === "Available"
-  );
+  const availableFieldUnitsForReassignment = getAvailableFieldUnits(fieldUnits);
 
   const mapIncidents = filterIncidentsForMap(incidents, priorityFilter);
   const mapFieldUnits = filterFieldUnitsForMap(fieldUnits, fieldUnitStatusFilter, fieldUnitTypeFilter);
@@ -99,8 +118,13 @@ export function App() {
               onSelectIncident={setSelectedIncident}
               onSelectFieldUnit={setSelectedFieldUnit}
               onClearSelection={clearSelection}
+              isPickingCoordinates={coordinatePicker.isPickingCoordinates}
+              onPickCoordinates={handlePickCoordinates}
             />
           </Suspense>
+          {coordinatePicker.isPickingCoordinates && (
+            <CoordinatePickerBanner onCancel={handleCancelPickCoordinates} />
+          )}
           <ReplayControlBar
             mode={replay.mode}
             onEnterReplay={handleEnterReplay}
@@ -131,6 +155,11 @@ export function App() {
           restrictedZones={restrictedZones}
           onSelectIncident={setSelectedIncident}
           onSelectFieldUnit={setSelectedFieldUnit}
+          isPickingCoordinates={coordinatePicker.isPickingCoordinates}
+          pickedCoordinates={coordinatePicker.pickedCoordinates}
+          onStartPickCoordinates={handleStartPickCoordinates}
+          onCancelPickCoordinates={handleCancelPickCoordinates}
+          onCoordinatesApplied={coordinatePicker.consumePickedCoordinates}
         />
       }
 

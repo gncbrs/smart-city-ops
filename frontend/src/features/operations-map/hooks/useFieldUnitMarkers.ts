@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Marker, type Map as MapLibreMap } from "maplibre-gl";
+import type { GeoLocation } from "../../../shared/types/common";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
-import { getCurrentPosition, isInFlightTask, type InFlightOperationalTask } from "../../operational-tasks/lib/geoInterpolation";
+import { getCurrentPosition, getTravelProgress, isInFlightTask, type InFlightOperationalTask } from "../../operational-tasks/lib/geoInterpolation";
 
 interface UseFieldUnitMarkersParams {
   map: MapLibreMap | null;
@@ -14,9 +15,13 @@ interface UseFieldUnitMarkersParams {
 
 const SELECTED_MARKER_CLASS = "field-unit-marker--selected";
 
+function isInFlightTaskForFieldUnit(fieldUnitId: string) {
+  return (candidate: OperationalTask): candidate is InFlightOperationalTask =>
+    candidate.fieldUnitId === fieldUnitId && isInFlightTask(candidate);
+}
+
 function findInFlightTask(fieldUnitId: string, operationalTasks: OperationalTask[]): InFlightOperationalTask | null {
-  const task = operationalTasks.find((candidate) => candidate.fieldUnitId === fieldUnitId);
-  return task && isInFlightTask(task) ? task : null;
+  return operationalTasks.find(isInFlightTaskForFieldUnit(fieldUnitId)) ?? null;
 }
 
 export function useFieldUnitMarkers({
@@ -28,6 +33,7 @@ export function useFieldUnitMarkers({
 }: UseFieldUnitMarkersParams) {
   const markersRef = useRef(new Map<string, Marker>());
   const fieldUnitsByIdRef = useRef(new Map<string, FieldUnit>());
+  const lastRestingPositionsRef = useRef(new Map<string, GeoLocation>());
   const onSelectFieldUnitRef = useRef(onSelectFieldUnit);
   onSelectFieldUnitRef.current = onSelectFieldUnit;
   fieldUnitsByIdRef.current = new Map(fieldUnits.map((fieldUnit) => [fieldUnit.id, fieldUnit]));
@@ -84,10 +90,18 @@ export function useFieldUnitMarkers({
 
   // Continuous animation loop: every frame, place each marker either at its resting position or,
   // for a field unit with an in-flight task, at its interpolated position along the ETA-timed line.
+  //
+  // Dispatched units are a special case: the backend sets fieldUnit.latitude/longitude to the
+  // destination the instant a task is created, but field-units and operational-tasks are
+  // invalidated as two separate React Query refetches off the same SignalR event, so there's a
+  // window where a Dispatched unit's task hasn't arrived in `operationalTasks` yet. Snapping to
+  // `destination` during that window is what caused the teleport; holding at the last resting
+  // position instead bridges the gap until the task data catches up.
   useEffect(() => {
     if (!map) return;
 
     let animationFrameId: number;
+    const lastRestingPositions = lastRestingPositionsRef.current;
 
     const tick = () => {
       const now = Date.now();
@@ -100,14 +114,25 @@ export function useFieldUnitMarkers({
         const task = findInFlightTask(fieldUnit.id, operationalTasks);
         const destination = { latitude: fieldUnit.latitude, longitude: fieldUnit.longitude };
 
-        if (!task) {
-          marker.setLngLat([destination.longitude, destination.latitude]);
+        if (task) {
+          const position = getCurrentPosition(task, destination, now);
+          marker.setLngLat([position.longitude, position.latitude]);
+
+          const progress = getTravelProgress(new Date(task.assignedAt).getTime(), task.estimatedEtaSeconds, now);
+          if (progress >= 1) {
+            lastRestingPositions.set(fieldUnit.id, destination);
+          }
           continue;
         }
 
-        const position = getCurrentPosition(task, destination, now);
+        if (fieldUnit.status === "Dispatched") {
+          const restingPosition = lastRestingPositions.get(fieldUnit.id) ?? destination;
+          marker.setLngLat([restingPosition.longitude, restingPosition.latitude]);
+          continue;
+        }
 
-        marker.setLngLat([position.longitude, position.latitude]);
+        marker.setLngLat([destination.longitude, destination.latitude]);
+        lastRestingPositions.set(fieldUnit.id, destination);
       }
 
       animationFrameId = requestAnimationFrame(tick);

@@ -212,7 +212,15 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [21. Phase 5.7 — Backend DI & HTTP File Polish](#21-phase-57--backend-di--http-file-polish)
   - [22. Phase 5.8 — Map Interpolation Math Deduplication](#22-phase-58--map-interpolation-math-deduplication)
   - [23. Phase 5.9 — OperationsReplay Time Range Query Optimization](#23-phase-59--operationsreplay-time-range-query-optimization)
-  - [24. Sonuç ve sıradaki adım](#24-sonuç-ve-sıradaki-adım)
+  - [24. Phase 5.10 — "Pick on Map" Coordinate Selection for Restricted Zones](#24-phase-510--pick-on-map-coordinate-selection-for-restricted-zones)
+  - [25. Sonuç ve sıradaki adım](#25-sonuç-ve-sıradaki-adım)
+  - [26. Phase 5 Migration & Backend Pipeline Verification (Origin/ETA)](#26-phase-5-migration--backend-pipeline-verification-originteta)
+  - [27. Phase 5.11 — Field Unit Teleportation Race Condition Fix](#27-phase-511--field-unit-teleportation-race-condition-fix)
+  - [28. Phase 5.12 — Field Unit Animation Freeze Fix (Full Browser Smoke Test)](#28-phase-512--field-unit-animation-freeze-fix-full-browser-smoke-test)
+  - [29. Phase 5.13 (Step 1/2) — Ankara Operational Zones: Domain Extraction & Service Refactor](#29-phase-513-step-12--ankara-operational-zones-domain-extraction--service-refactor)
+  - [30. Phase 5.13 (Step 2/2) — Ankara Operational Zones: Incident Generator Integration & Unification Complete](#30-phase-513-step-22--ankara-operational-zones-incident-generator-integration--unification-complete)
+  - [31. App.tsx Orchestration Simplification (Step 1/2) — Extract Derived Selectors](#31-apptsx-orchestration-basitleştirme-adım-12--türetilmiş-selectorların-çıkarılması)
+  - [32. App.tsx Orchestration Simplification (Step 2/2) — Extract useReplayAwareData Hook](#32-apptsx-orchestration-basitleştirme-adım-22--usereplayawaredata-hookunun-çıkarılması)
 
 
 
@@ -4269,7 +4277,59 @@ daha az DB round trip'iyle.
 
 ---
 
-## 24. Sonuç ve sıradaki adım
+## 24. Phase 5.10 — "Pick on Map" Coordinate Selection for Restricted Zones
+
+**Kapsam:** §24 (eski numaralandırmayla — bkz. aşağıdaki §25) itibarıyla açık kalan bir UX
+eksikliğini kapattı: restricted zone oluşturma formunda lat/lng artık sadece elle yazılan sayı
+kutularıyla değil, haritaya tıklayarak da seçilebiliyor.
+
+**State & orkestrasyon:** Yeni bir `frontend/src/app/hooks/useCoordinatePicker.ts` hook'u
+`isPickingCoordinates` / `pickedCoordinates` state'ini ve `startPicking` / `cancelPicking` /
+`pickCoordinates` / `consumePickedCoordinates` action'larını tutuyor — bu state `App.tsx`'te
+yaşıyor (diğer cross-feature orkestrasyon state'i — `useSelection`, `useReplayController` — ile
+aynı seviyede), çünkü hem haritayı (`OperationsMap`) hem menüyü (`Menu` → `RestrictedZonesSection`)
+aynı anda koordine etmesi gerekiyor. "Pick on Map" butonuna basıldığında `App.tsx` picking'i
+başlatıp `menuView`'i `"closed"`'a çekiyor (operatör haritayı görebilsin diye); haritaya
+tıklandığında veya "Cancel" denildiğinde picking kapanıp `menuView` otomatik olarak
+`"restricted-zones"`'a geri dönüyor — operatör formu elle tekrar açmak zorunda kalmıyor.
+
+**Harita etkileşimi:** `useMapInstance.ts`'teki `onMapClick` callback'i artık parametresiz değil,
+MapLibre'nin `MapMouseEvent`'ini (dolayısıyla `event.lngLat`) alıyor; ayrıca hook ikinci bir
+`isPickingMode` parametresiyle harita canvas'ının `cursor` stilini picking modundayken
+`"crosshair"`'a çeviriyor. `OperationsMap.tsx`, bu event'i alıp `isPickingCoordinates` true ise
+`onPickCoordinates({lat, lng})`'i çağırıyor, değilse eskisi gibi `onClearSelection()`'a düşüyor —
+Phase 5.2'de (§16) kurulan "sadece boş harita alanı bu handler'a ulaşır" garantisi (marker'lar ayrı
+bir DOM katmanında olduğu için) burada da geçerli, marker'lara tıklamak picking modunu etkilemiyor.
+
+**Form & UX:** `RestrictedZonesSection.tsx`'e enlem/boylam kutularının yanına bir "📍 Pick on Map"
+butonu eklendi; picking aktifken bu buton "Cancel Picking"e dönüşüyor. `pickedCoordinates`
+değiştiğinde bir `useEffect`, `latitude`/`longitude` state'ini 5 ondalık basamağa yuvarlanmış
+(`toFixed(5)`) değerlerle dolduruyor ve `onCoordinatesApplied()` (= `consumePickedCoordinates`)
+çağırarak aynı koordinatın tekrar tekrar uygulanmasını engelliyor. Menü picking sırasında kapalı
+olduğundan (operatör haritayı görebilsin diye), formun kendi "Cancel Picking" butonu o an
+görünmüyor — bu yüzden haritanın üstünde her zaman görünür kalan ayrı bir
+`CoordinatePickerBanner` bileşeni (`features/restricted-zones/components/`, `ReplayControlBar` ile
+aynı üst-orta konumlandırma deseni) "Click on the map to set the restricted zone center." mesajıyla
+birlikte kendi "Cancel" butonunu gösteriyor.
+
+**Prop threading:** Yeni state/callback'ler `App.tsx` → `Menu.tsx` → `MenuSectionRouter.tsx` →
+`RestrictedZonesSection.tsx` zincirinde iletiliyor (mevcut `restrictedZones` prop'unun izlediği
+aynı yol) — yeni bir global state kütüphanesi eklenmedi, mevcut prop-threading deseni korundu.
+
+**Styling:** `CoordinatePickerBanner.css` ve `RestrictedZonesSection.css`'e eklenen kurallar mevcut
+BEM + sabit koyu tema paletini (`#0F172A`, `rgba(15, 23, 42, 0.9)`, `#F8FAFC`) takip ediyor; yeni
+buton `app-button--outlined` (mevcut paylaşılan `buttons.css` sınıfı) kullanıyor, yeni bir buton
+varyantı eklenmedi.
+
+**Doğrulama:** `npm run lint` (`oxlint`) ve `npm run build` (`tsc -b && vite build`) — 0 hata/uyarı
+(bundle boyutu uyarısı Phase 5.4'ten beri sadece MapLibre chunk'ının kendi boyutundan kaynaklanıyor,
+bu değişiklik yeni bir chunk eklemedi). Bu oturumda Docker kapalıydı, bu yüzden gerçek bir backend'e
+karşı tarayıcıda tıklama-ile-koordinat-seçme akışı gözlemlenemedi — bir sonraki oturum bunu Phase 5
+duman testiyle birlikte doğrulamalı.
+
+---
+
+## 25. Sonuç ve sıradaki adım
 
 | Faz | Durum |
 |---|---|
@@ -4294,6 +4354,7 @@ daha az DB round trip'iyle.
 | Phase 5.7 — Backend DI & HTTP File Polish | Tamamlandı |
 | Phase 5.8 — Map Interpolation Math Deduplication | Tamamlandı |
 | Phase 5.9 — OperationsReplay Time Range Query Optimization | Tamamlandı |
+| Phase 5.10 — "Pick on Map" Coordinate Selection for Restricted Zones | Tamamlandı (tarayıcıda gerçek backend'e karşı duman testi yapılmadı — Docker kapalıydı) |
 
 `DEVELOPMENT_LOG11.md` §9'da flag'lenen iki riskten biri — `OperationalTaskService.CreateAsync`
 check-then-act yarış durumu — Phase 0.2 ile kapatıldı. İkincisi — seçim state'inin SignalR
@@ -4302,12 +4363,11 @@ invalidation sonrası bayatlayabilmesi — hâlâ genel bir çözüme kavuşmad�
 Öneri kartına tıklamak da seçimi değiştiriyor ama `clearSelection` çağırmıyor (seçimi temizlemek
 değil, tam tersi bir field unit seçmek amacı taşıyor) — bu akış mevcut riskin kapsamı dışında.
 
-Restricted zone oluşturma formunda koordinat/yarıçap girişi serbest metin/sayı kutularıyla
-yapılıyor — haritaya tıklayarak merkez seçme gibi bir UX henüz yok; operatör lat/lng'yi elle
-giriyor (projede zaten başka hiçbir koordinat girişi de bundan farklı değil). Ayrıca sistemde
-hâlâ hiç restricted zone kaydı yok (seed data eklenmedi) — kural şimdilik hep `Success()`
-dönüyor, canlı olarak gözlemlemek için önce `POST /api/restricted-zones` ile en az bir bölge
-oluşturulmalı.
+Restricted zone oluşturma formunda merkez koordinatı artık haritaya tıklayarak da seçilebiliyor
+(Phase 5.10, §24) — yarıçap hâlâ serbest sayı kutusuyla giriliyor (projede yarıçap için doğal bir
+"haritada sürükle" karşılığı yok). Sistemde hâlâ hiç restricted zone kaydı yok (seed data
+eklenmedi) — kural şimdilik hep `Success()` dönüyor, canlı olarak gözlemlemek için önce
+`POST /api/restricted-zones` ile en az bir bölge oluşturulmalı.
 
 Phase 4.1/4.2 ile Level 3 case study'sinin son maddesi de ("geçmiş operasyonların tekrar
 oynatılması") kapatıldı — bu doküman itibarıyla case study'nin brief'te listelenen dört
@@ -4357,8 +4417,437 @@ gerekmedi; `npm run lint`/`npm run build` temiz. Tam tarayıcı görsel doğrula
 tile/marker render'ı) hâlâ yapılmadı — bu, aşağıdaki "sıradaki adım" adaylarından Phase 5 duman
 testiyle aynı genel açık maddeye giriyor.
 
-Sıradaki adım kullanıcı tarafından henüz belirtilmedi — muhtemel adaylar: Phase 5'in (ve şimdi
-Phase 5.4'ün) tarayıcıda görsel duman testiyle doğrulanması, backend test projesi eklenmesi
+Phase 5.10 (§24), §25'in önceki bir sürümünde açık madde olarak duran "haritaya tıklayarak merkez
+seçme" eksikliğini kapattı: `RestrictedZonesSection`'a "📍 Pick on Map" butonu eklendi,
+`useCoordinatePicker` hook'u (`App.tsx`) picking modunu ve menü açık/kapalı geçişini koordine
+ediyor, harita tıklaması picking modundayken `onClearSelection` yerine seçilen `{lat, lng}`'i forma
+yazıyor. Backend/migration değişikliği gerekmedi; `npm run lint`/`npm run build` temiz. Docker bu
+oturumda kapalıydı, bu yüzden gerçek backend'e karşı tarayıcıda duman testi yapılamadı.
+
+Sıradaki adım kullanıcı tarafından henüz belirtilmedi — muhtemel adaylar: Phase 5'in (ve Phase
+5.4/5.10'un) tarayıcıda görsel duman testiyle doğrulanması, backend test projesi eklenmesi
 (`CLAUDE.md`'de hâlâ "test yok, manuel doğrulama" notu duruyor), ya da seçim state'inin
 bayatlaması riskinin genel bir çözüme kavuşturulması.
+
+---
+
+## 26. Phase 5 Migration & Backend Pipeline Verification (Origin/ETA)
+
+**Kapsam:** §25'te ve `CLAUDE.md`'de açık madde olarak duran "Phase 5 migration'ı yerel DB'ye
+uygulanmadı, hiç doğrulanmadı" notunu kapatmak — `20260824125110_AddOperationalTaskOriginAndEta`
+migration'ının gerçekten uygulandığını ve `OperationalTaskService`'in origin/ETA verisini doğru
+hesapladığını doğrulamak.
+
+**Docker kısıtı:** Bu makinede Docker Desktop için yönetici (admin) yetkisi yok — Docker Engine
+bir önceki denemede başlatılamadı (`dockerDesktopLinuxEngine` pipe hatası). Kullanıcı bu ortamda
+Docker'ın hiçbir görev için kullanılmamasını istedi. Bunun yerine `netstat` ile port 5432'nin zaten
+dinlemede olduğu ve ayrıca 5080 portunda halihazırda çalışan bir `SmartCityOps.Api.exe` (PID 19728)
+sürecinin — üzerine kurulu, gerçek bir istemci bağlantısıyla (muhtemelen kullanıcının kendi
+frontend/API oturumu) — bulunduğu tespit edildi. Bu, migration'ın zaten önceki bir oturumda yerel
+Postgres'e uygulandığı ve backend'in hâlihazırda o veritabanına karşı çalıştığı anlamına geliyordu.
+
+**Doğrulama yöntemi:** `dotnet ef migrations list` çalıştırılamadı — EF Core CLI, startup projesini
+(`SmartCityOps.Api`) yeniden derlemeye çalışırken zaten çalışmakta olan `SmartCityOps.Api.exe`
+sürecinin kilitlediği `SmartCityOps.Infrastructure.dll`'i kopyalayamadı (MSB3027/MSB3021 — beklenen
+bir kilitlenme, gerçek bir derleme hatası değil). Bunun yerine migration'ın uygulanmış olduğu, canlı
+API'ye doğrudan HTTP çağrısıyla ampirik olarak kanıtlandı: `GET /api/operational-tasks`
+sorgulandığında migration öncesinden kalan eski task'ların `originLatitude`/`originLongitude`/
+`estimatedEtaSeconds` alanlarının `null` döndüğü görüldü (bu beklenen davranış — bu sütunlar
+migration'dan önce yoktu, eski satırlar için varsayılan `null` kalır). Ardından gerçek bir
+`POST /api/operational-tasks` çağrısıyla (açık bir incident + müsait bir field unit kullanılarak)
+yeni bir task atandı; yanıt şu değerleri döndürdü:
+
+```json
+{
+  "id": "a5d43e47-cf43-42a2-a533-cc54a61f3ddd",
+  "status": "Assigned",
+  "originLatitude": 39.90940676708308,
+  "originLongitude": 32.79163196125328,
+  "estimatedEtaSeconds": 1209
+}
+```
+
+Bu üç alanın da dolu (non-null) dönmesi hem migration'ın uygulandığını (sütunlar var ve EF Core
+bunları doğru okuyup yazabiliyor) hem de `OperationalTaskService.CreateAsync`'in origin/ETA
+hesaplamasını doğru yaptığını tek bir istekle kanıtlıyor. Test task'ı hemen ardından
+`POST /api/operational-tasks/{id}/complete` ile tamamlanıp field unit `Available` durumuna geri
+döndürülerek canlı uygulama state'i temizlendi (kullanıcının kendi bağlı oturumunu bozmamak için).
+
+**Kod incelemesi (tekrar teyit):** `OperationalTaskService.cs`'de hem `CreateAsync` (satır 67-70)
+hem `ReassignAsync` (satır 176-179), `originLatitude`/`originLongitude`'u `fieldUnit.Latitude`/
+`Longitude`'dan, bu alanlar `incident.Latitude`/`Longitude` ile üzerine yazılmadan (satır 86-87 ve
+198-199) *önce* okuyor; `_etaEstimator.EstimateEta(...)`'nın `.TotalSeconds`'ı yuvarlanarak (`Math.
+Round`) `EstimatedEtaSeconds`'a atanıyor. `ToDto` (satır 230-240) her iki alanı da DTO'ya
+aktarıyor. Bu, Adım 1/2'de (§24 öncesi bir oturumda) yapılan statik kod incelemesiyle birebir aynı
+sonucu doğruluyor — kod hiç değişmedi, sadece gerçek bir veritabanına karşı ampirik olarak teyit
+edildi.
+
+**`SmartCityOps.Api.http`:** `Assign a task`/`Complete a task`/`Reassign a task` istekleri zaten
+(Phase 5.7, §21'de) `@name`-etiketli zincirleme GET/POST istekleri olarak kuruluydu; içerik olarak
+ek bir değişikliğe gerek kalmadı — `assignTask` isteğinin yanıtı yukarıdaki gibi origin/ETA
+alanlarını zaten içeriyor.
+
+**Build doğrulaması:** `dotnet build SmartCityOps.sln` (`Src/` içinden) — 0 hata (aynı "Geri
+yüklenecek proje bulunamadı" uyarısı önceki oturumlardan beri zararsız bir NuGet restore uyarısı,
+derlemeyi etkilemiyor).
+
+**Sonuç:** `CLAUDE.md`'deki "Phase 5 unverified in-browser" maddesi güncellendi — migration/backend
+veri hattı artık doğrulandı. Geriye kalan tek açık madde, haritada marker animasyonunun tarayıcıda
+gözle izlenmesi (bu oturumda sadece API seviyesinde doğrulama yapıldı, frontend render'ı
+gözlemlenmedi).
+
+---
+
+## 27. Phase 5.11 — Field Unit Teleportation Race Condition Fix
+
+**Kapsam:** §26'da doğrulanan origin/ETA veri hattına rağmen, kullanıcı tarayıcıda field unit
+marker'ının animasyon yerine incident konumuna anında ışınlandığını (teleport) bildirdi. İki adımlı
+bir soruşturma yapıldı: Adım 1/2 tanı (diagnostic) logları eklendi, Adım 2/2 kök nedeni düzeltti ve
+logları temizledi.
+
+**Adım 1/2 — Tanı:** `geoInterpolation.ts`'deki `getTravelProgress`'e ve
+`useFieldUnitMarkers.ts`'deki animasyon döngüsüne geçici `console.log` çağrıları eklendi. İki
+hipotez statik kod incelemesiyle elendi:
+- **Timezone/parsing hipotezi elendi:** `OperationalTask.AssignedAt` bir `DateTimeOffset`
+  (`Src/SmartCityOps.Domain/Entities/OperationalTask.cs`), `DateTimeOffset.UtcNow` ile set ediliyor
+  ve System.Text.Json bunu açık offset'li (`...+00:00`) serialize ediyor — `new Date(...)` bunu
+  belirsizliksiz parse eder, elapsedMs sıçraması buradan gelmiyor.
+- **Marker-diff effect reset hipotezi elendi:** `useFieldUnitMarkers.ts`'deki ikinci effect
+  (incremental diff) sadece *yeni* marker oluştururken `setLngLat` çağırıyor; var olan bir
+  marker'ın pozisyonunu hiç resetlemiyor.
+
+**Kök neden:** `useSignalR.ts`, aynı `OperationsUpdated` event'inde `field-units` ve
+`operational-tasks` React Query cache'lerini iki *ayrı* `invalidateQueries` çağrısıyla invalidate
+ediyor — bunlar iki bağımsız HTTP round-trip, farklı zamanlarda resolve oluyor.
+`OperationalTaskService.CreateAsync`, task'ı yaratırken `fieldUnit.Latitude/Longitude`'u aynı
+transaction içinde *anında* incident'in koordinatlarına set ediyor. Sonuç: `field-units` sorgusu
+`operational-tasks` sorgusundan önce resolve olursa, animasyon döngüsündeki `destination`
+(`fieldUnit.latitude/longitude`) zaten hedef konuma güncellenmiş oluyor ama `findInFlightTask` henüz
+`operationalTasks` içinde yeni task'ı bulamadığı için `null` dönüyor — eski kod bu durumda marker'ı
+doğrudan `destination`'a snap'liyordu (teleport). `operational-tasks` sorgusu daha sonra resolve
+olduğunda marker zaten hedefte olduğu için animasyon hiç görünmüyordu.
+
+**Adım 2/2 — Düzeltme:** `useFieldUnitMarkers.ts`'ye bir `lastRestingPositionsRef` (`Map<string,
+GeoLocation>`) eklendi, animasyon döngüsü üç duruma ayrıldı:
+1. `findInFlightTask` bir task buluyorsa → `getCurrentPosition(task, destination, now)` ile
+   origin→destination arası interpolasyon uygulanır; `getTravelProgress(...) >= 1` olduğunda
+   `lastRestingPositionsRef` güncellenir.
+2. Task bulunamıyor ama `fieldUnit.status === "Dispatched"` (yarış penceresi) → marker,
+   `destination`'a snap'lenmek yerine `lastRestingPositionsRef`'teki son bilinen dinlenme
+   konumunda (yoksa `destination`'da, ilk render güvenliği için) tutulur.
+3. Diğer tüm durumlar (`Available`/`OutOfService`, task yok) → marker `destination`'a set edilir ve
+   `lastRestingPositionsRef` güncellenir.
+
+Tanı logları (`console.log` çağrıları) `geoInterpolation.ts` ve `useFieldUnitMarkers.ts`'den
+kaldırıldı. Backend/migration değişikliği gerekmedi; `npm run lint`/`npm run build` temiz.
+
+**Sonuç:** Field unit marker'ının artık `Dispatched` durumuna geçişte anında ışınlanmaması
+bekleniyor — yarış penceresinde son bilinen konumda beklenip, `operationalTasks` verisi geldiğinde
+kaldığı yerden interpolasyona devam edilecek. Tam tarayıcı görsel doğrulaması (gerçek bir atama
+yapıp animasyonun gözle izlenmesi) bu oturumda yapılmadı — bu, §25/§26'da bahsedilen genel "Phase 5
+duman testi" açık maddesiyle aynı kalemdir.
+
+---
+
+## 28. Phase 5.12 — Field Unit Animation Freeze Fix (Full Browser Smoke Test)
+
+**Kapsam:** §25/§26/§27'de defalarca "outstanding" olarak bırakılan tam tarayıcı görsel duman testi
+bu oturumda gerçekten yapıldı ve gerçek bir animasyon donma (freeze) bug'ı bulundu. Route çizgisi
+(dashed line, `useDispatchedRouteLayers.ts`) origin→destination arası doğru çiziliyordu, ama field
+unit marker'ı hiç hareket etmiyordu — tamamen sabit kalıyordu.
+
+**Doğrulama ortamı:** Postgres zaten `localhost:5432`'de çalışıyordu (docker olmadan, muhtemelen
+portable kurulum). Backend (`dotnet run --project SmartCityOps.Api`) ve frontend (`npm run dev`)
+arka planda başlatıldı. `puppeteer-core`, sistemde zaten kurulu olan Chrome'u (`C:\Program
+Files\Google\Chrome\Application\chrome.exe`) `--no-sandbox` ile headless başlatarak sürdü —
+proje bağımlılıklarına kalıcı bir `playwright`/`puppeteer` eklenmedi, sadece scratchpad dizininde
+geçici bir doğrulama scripti kuruldu ve iş bitince silindi.
+
+**Adım 1 — Backend veri hattı doğrulandı (API üzerinden doğrudan):** `POST /api/incidents` ve
+`POST /api/operational-tasks` ile gerçek bir görev ataması yapıldı. Yanıt doğru
+`originLatitude`/`originLongitude`/`estimatedEtaSeconds`/`assignedAt` (offset'li, `+00:00`)
+içeriyordu. `assignedAt` ve `estimatedEtaSeconds` değerleri Node'da izole olarak
+`getTravelProgress` mantığıyla test edildi — progress zamanla doğru şekilde ilerliyordu (12
+saniyede ~%2.5). Yani backend ve saf interpolasyon matematiği tamamen sağlamdı; şüphe React/MapLibre
+render katmanına kaydı.
+
+**Adım 2 — Tarayıcıda gerçek donma doğrulandı:** Headless Chrome'da uygulama açıldı, atanmış field
+unit marker'ının `style.transform` (MapLibre'nin CSS transform tabanlı konumlama mekanizması) 15
+saniye arayla iki kez okundu. Görev gerçekten uçuştaydı (~%28 progress), ama **23 marker'ın 0'ı**
+pozisyon değiştirmedi.
+
+**Kök neden:** `useFieldUnitMarkers.ts`'deki `findInFlightTask`:
+```ts
+const task = operationalTasks.find((candidate) => candidate.fieldUnitId === fieldUnitId);
+return task && isInFlightTask(task) ? task : null;
+```
+`.find()` bir field unit için **ilk eşleşen** task'ı (fieldUnitId eşleşmesine göre) alıyor, sonra o
+tek task üzerinde `isInFlightTask` kontrolü yapıyordu. Ama bir field unit zaman içinde birden fazla
+task'a sahip olabilir (tamamlanmış eski görevler + yeni atanan görev), ve `operationalTasks` API
+yanıtında sıralama task oluşturulma sırasına göre değil — o field unit'in **ilk** (genelde eski,
+`Completed`) task'ı array'de yeni `Assigned` task'tan önce geliyorsa, `.find()` o eski task'ı
+buluyor, `isInFlightTask` üzerinde `false` dönüyor, ve fonksiyon `null` dönüyordu — gerçek uçan
+görev array'de dururken. Geçici `console.log` ile doğrulandı: `task found: false`, ama
+`raw task` olarak 18 Ağustos'tan kalma `Completed` bir görev basılıyordu.
+
+Bu, `useDispatchedRouteLayers.ts`'nin neden doğru çalıştığını da açıklıyor: oradaki
+`buildFeatureCollection`, `operationalTasks.flatMap` içinde **her** task için `isInFlightTask`
+kontrolü yapıyor (ilk eşleşen task'ı seçip sonra kontrol etmek yerine), yani sıralamadan
+etkilenmiyor.
+
+**Düzeltme:** `findInFlightTask`, field unit eşleşmesi VE in-flight kontrolünü tek bir `find`
+predicate'inde birleştirecek şekilde yeniden yazıldı — TypeScript'in `.find()` dönüş tipini
+`InFlightOperationalTask`'e daraltabilmesi için ayrı bir type-predicate fonksiyonu
+(`isInFlightTaskForFieldUnit`) kullanıldı:
+```ts
+function isInFlightTaskForFieldUnit(fieldUnitId: string) {
+  return (candidate: OperationalTask): candidate is InFlightOperationalTask =>
+    candidate.fieldUnitId === fieldUnitId && isInFlightTask(candidate);
+}
+
+function findInFlightTask(fieldUnitId: string, operationalTasks: OperationalTask[]): InFlightOperationalTask | null {
+  return operationalTasks.find(isInFlightTaskForFieldUnit(fieldUnitId)) ?? null;
+}
+```
+
+**Doğrulama:** Aynı headless Chrome scripti düzeltmeden sonra tekrar çalıştırıldı — bu sefer 23
+marker'dan **1'i** (atanmış field unit) 15 saniyelik pencerede pozisyon değiştirdi, geri kalanı
+(hareketsiz field unit'ler) sabit kaldı — beklenen davranış. `npm run lint` ve `npm run build`
+temiz. Test incident'ı `resolve` edildi, backend/frontend arka plan süreçleri sonlandırıldı; kalıcı
+kod tabanına test/debug kodu bırakılmadı.
+
+**Sonuç:** §25/§26/§27'de tekrar tekrar "outstanding" bırakılan Phase 5 tam tarayıcı duman testi bu
+oturumda tamamlandı ve gerçek bir bug bulup düzeltti — teleport bug'ı (§27) ile karıştırılmamalı;
+bu ayrı bir kök nedene (yanlış task seçimi, zamanlama yarışı değil) sahip, tamamen farklı bir
+belirti (asla hareket etmeme, anlık ışınlanma değil) üreten bir hataydı. Backend/migration değişikliği
+gerekmedi.
+
+---
+
+## 29. Phase 5.13 (Step 1/2) — Ankara Operational Zones: Domain Extraction & Service Refactor
+
+**Kapsam:** `AnkaraZones` verisi, `Src/incident-generator/Worker.cs` ile
+`Src/SmartCityOps.Infrastructure/OperationalZones/OperationalZoneService.cs` arasında elle senkron
+tutulan bir kopyaydı (bkz. §8/§9 civarı restricted zones öncesi zaten var olan bu duplication).
+Bu, iki adımlık bir unification işinin ilk adımı: Clean Architecture'ı bozmadan tek bir kaynak
+oluşturmak.
+
+**Değişiklik:**
+- `Src/SmartCityOps.Domain/Common/AnkaraOperationalZones.cs` (yeni dosya): framework bağımlılığı
+  olmayan bir `OperationalZoneDefinition` record'u (`Name`, `Latitude`, `Longitude`, `Spread`,
+  `Weight`) ve 7 Ankara bölgesini içeren statik `AnkaraOperationalZones.All` listesi. Koordinatlar,
+  spread ve weight değerleri iki eski kopyadan birebir taşındı — davranış değişikliği yok.
+- `Src/SmartCityOps.Infrastructure/OperationalZones/OperationalZoneService.cs`: yerel `Zones`
+  dizisi kaldırıldı; artık `AnkaraOperationalZones.All`'u `OperationalZoneDto`'ya map ediyor.
+  Eski Türkçe "elle senkron tutuyoruz" uyarı yorumu da kaldırıldı çünkü artık geçerli değil.
+- `Src/incident-generator/Worker.cs` bu adımda **bilinçli olarak dokunulmadı** — generator'ın
+  Api/Application/Domain projelerine referansı yok (bkz. üstteki "Incident Generator" mimari
+  notu), bu yüzden `Domain`'e bağlanması ayrı bir adım (Step 2) gerektiriyor; büyük ihtimalle
+  generator projesine `SmartCityOps.Domain`'e bir proje referansı eklenmesi veya verinin ayrı bir
+  paylaşılan pakete taşınması gerekecek.
+
+**Doğrulama:** `dotnet build` hem `SmartCityOps.Infrastructure.csproj` hem `SmartCityOps.Api.csproj`
+için (transitive olarak `Domain`/`Application`'ı da derleyerek) 0 hata ile tamamlandı. Frontend'e
+dokunulmadı.
+
+**Sonraki adım (Step 2):** `incident-generator`'ı `AnkaraOperationalZones.All`'a bağlamak — mimari
+karar (proje referansı eklemek vs. ayrı paylaşılan paket) kullanıcıyla netleştirilmeli, çünkü
+generator'ın Api/Application/Domain'den bağımsız kalması bilinçli bir tasarım kararıydı.
+
+---
+
+## 30. Phase 5.13 (Step 2/2) — Ankara Operational Zones: Incident Generator Integration & Unification Complete
+
+**Kapsam:** §29'da başlatılan Ankara bölge verisi tekilleştirmesinin ikinci ve son adımı:
+`incident-generator`'ı §29'da oluşturulan `SmartCityOps.Domain.Common.AnkaraOperationalZones`'a
+bağlamak. Kullanıcı, mimari kararı netleştirdi: generator'a doğrudan `SmartCityOps.Domain`'e bir
+proje referansı eklensin (ayrı bir paylaşılan paket değil) — `SmartCityOps.Domain` sıfır framework
+bağımlılığı olan saf C# tanımları içerdiği için, generator'ın Api/Infrastructure'dan bağımsız
+kalması gerektiren mimari kararı (bkz. "Incident Generator" mimari notu) bu referansla bozulmuyor.
+
+**Değişiklik:**
+- `Src/incident-generator/SmartCityOps.IncidentGenerator.csproj`: `SmartCityOps.Domain.csproj`'a
+  bir `<ProjectReference>` eklendi.
+- `Src/incident-generator/Worker.cs`: yerel `OperationZone` record'u ve `AnkaraZones` statik dizisi
+  tamamen kaldırıldı. `GetRandomZone()` artık `AnkaraOperationalZones.All` üzerinde dönüyor ve
+  dönüş tipi `OperationalZoneDefinition`'a değişti; `BuildRandomIncident()` değişmeden aynı
+  `zone.Latitude/Longitude/Spread` alanlarını kullanmaya devam ediyor çünkü
+  `OperationalZoneDefinition`'ın property isimleri `OperationZone`'unkilerle birebir aynı. Weight
+  semantiğini açıklayan eski yorum (ağırlıkların normalize edilmediği, sadece birbirine oranının
+  önemli olduğu) artık tek kaynakta, `AnkaraOperationalZones.cs`'de yaşıyor; `Worker.cs`'de
+  tekrarlanmıyor.
+
+**Doğrulama:** `dotnet build Src/SmartCityOps.sln`, `dotnet build Src/incident-generator/SmartCityOps.IncidentGenerator.csproj`
+ve `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` (Api → Infrastructure → Application →
+Domain transitive derlemesi dahil) hepsi 0 hata / 0 uyarı ile tamamlandı. Frontend'e dokunulmadı.
+
+**Sonuç:** Ankara bölge verisi tekilleştirmesi tamamlandı. Artık tek kaynak
+`Src/SmartCityOps.Domain/Common/AnkaraOperationalZones.cs`; hem `OperationalZoneService`
+(§29) hem `incident-generator/Worker.cs` (bu bölüm) oradan okuyor. Bölge sınırları/ağırlıkları
+değiştirilecekse artık yalnızca bu tek dosya güncellenmeli — önceki "elle iki yerde senkron tut"
+riski ortadan kalktı. `docs/To-Do-List.txt`'deki ilgili madde `[x]` olarak işaretlendi.
+
+---
+
+## 31. App.tsx Orchestration Basitleştirme (Adım 1/2) — Türetilmiş Selector'ların Çıkarılması
+
+**Kapsam:** `App.tsx` içinde satır içi (`inline`) yazılmış türetilmiş seçim mantığını
+(`.find(...)`, `.filter(...)`) saf bir yardımcı dosyaya taşımak — davranış değişikliği yok.
+Bu, `App.tsx`'i sadeleştirmeyi hedefleyen iki adımlı bir refactor'ın ilk adımı; ikinci adım
+(replay hook'unun çıkarılması) kapsam dışı bırakıldı.
+
+**Değişiklik:**
+- `frontend/src/app/lib/operationsSelectors.ts` (yeni dosya): üç saf fonksiyon export ediyor —
+  `getActiveTaskForFieldUnit(fieldUnitId, operationalTasks)`, `getTasksForIncident(incidentId,
+  operationalTasks)`, `getAvailableFieldUnits(fieldUnits)`. Hiçbiri React hook'u kullanmıyor;
+  sadece tipli girdi/çıktı.
+- `frontend/src/app/App.tsx`: `activeTaskForSelectedFieldUnit` ve
+  `availableFieldUnitsForReassignment` artık satır içi `.find`/`.filter` yerine bu yeni
+  fonksiyonları çağırıyor. `getTasksForIncident` şu an `App.tsx` içinde kullanılmıyor (mevcut
+  kod incident için ayrı bir görev listesi türetmiyordu) ama Promt.txt gereksinimine göre
+  ileride kullanılabilecek genel bir selector olarak eklendi.
+
+**Doğrulama:** `npm run lint` (oxlint, temiz) ve `npm run build` (`tsc -b && vite build`, 0
+hata) `frontend/` içinde çalıştırıldı, ikisi de temiz geçti. Bundle boyutları önceki
+duruma göre değişmedi (365 kB ana chunk, MapLibre ayrı chunk'ta — bkz. §18). Backend/migration
+değişikliği yok.
+
+---
+
+## 32. App.tsx Orchestration Basitleştirme (Adım 2/2) — `useReplayAwareData` Hook'unun Çıkarılması
+
+**Kapsam:** §31'de başlatılan `App.tsx` sadeleştirmesinin ikinci ve son adımı: canlı sunucu
+verisi ile replay snapshot'ı arasında geçiş yapan koşullu veri seçimini (`replay.isReplayMode &&
+snapshot ? snapshot.X : liveData.X` üçlü ifadeleri) `frontend/src/app/hooks/useReplayAwareData.ts`
+adlı ayrı bir hook'a taşımak — davranış değişikliği yok.
+
+**Değişiklik:**
+- `frontend/src/app/hooks/useReplayAwareData.ts` (yeni dosya): `useReplayAwareData(liveData,
+  replay, snapshot)` imzasıyla `{ incidents, fieldUnits, operationalTasks, restrictedZones }`
+  döndürüyor. `incidents`/`fieldUnits`/`operationalTasks` replay modu aktifse ve bir snapshot
+  mevcutsa snapshot'tan, aksi halde `liveData`'dan geliyor; `restrictedZones` ise replay modundan
+  bağımsız her zaman `liveData.restrictedZones` — kısıtlı bölgeler replay'de zaman-değişmez kabul
+  edildiği için (bkz. "Current status" bölümü, Known open items).
+- `frontend/src/app/App.tsx`: `const { zones, locationHistory, restrictedZones } = liveData;`
+  satırından `restrictedZones` çıkarıldı (artık hook'tan geliyor); önceki üç ayrı `const
+  incidents/fieldUnits/operationalTasks = ... ? ... : ...;` satırı tek bir
+  `const { incidents, fieldUnits, operationalTasks, restrictedZones } =
+  useReplayAwareData(liveData, replay, snapshot);` çağrısıyla değiştirildi.
+
+**Doğrulama:** `npm run lint` (oxlint, temiz) ve `npm run build` (`tsc -b && vite build`, 0 hata)
+`frontend/` içinde çalıştırıldı, ikisi de temiz geçti; bundle boyutları değişmedi. Backend/migration
+değişikliği yok.
+
+**Sonuç:** `App.tsx` orkestrasyon sadeleştirmesi (§31 + §32) tamamlandı — türetilmiş seçiciler
+`app/lib/operationsSelectors.ts`'e, replay/canlı veri geçişi `app/hooks/useReplayAwareData.ts`'e
+taşındı; `App.tsx` artık sadece bu iki yardımcıyı çağırıp sonucu bileşenlere geçiriyor.
+`docs/To-Do-List.txt`'deki "App.tsx orkestrasyonunu sadeleştir" maddesi `[x]` olarak işaretlendi.
+
+---
+
+## 33. `RestrictedZonesSection.tsx` Decomposition (Step 1/3) — State Hooks Extraction
+
+**Kapsam:** `frontend/src/features/restricted-zones/components/RestrictedZonesSection.tsx`
+büyümüş bir bileşen; onu üç adımda küçültme planının ilk adımı — form/inline-edit state'ini iki
+ayrı custom hook'a taşımak. Bileşen dosyası bu adımda henüz değiştirilmedi (Adım 2/3'te
+`RestrictedZonesSection.tsx` bu hook'ları kullanacak şekilde güncellenecek); bu, sadece yeni
+hook'ların hazırlanıp derlendiği bir ara adım.
+
+**Değişiklik:**
+- `frontend/src/features/restricted-zones/hooks/useRestrictedZoneForm.ts` (yeni dosya): yeni bölge
+  oluşturma formunun state'ini (`name`, `description`, `zoneType`, `latitude`, `longitude`,
+  `radiusMeters`) ve `pickedCoordinates` değiştiğinde `latitude`/`longitude`'u `toFixed(5)` ile dolduran
+  `useEffect`'i taşıdı. `useCreateRestrictedZone`'u sarmalayıp `canSubmit`, `resetForm`,
+  `handleCreate` (+ `isCreating`/`isCreateError`/`createError`) döndürüyor.
+- `frontend/src/features/restricted-zones/hooks/useRestrictedZoneEdit.ts` (yeni dosya): satır-içi
+  düzenleme state'ini (`editingId`, `editForm`) taşıdı. `useUpdateRestrictedZone`'u sarmalayıp
+  `startEditing(zone)`, `cancelEditing()`, `updateEditField(field, value)`, `saveEditing(id)` (+
+  `isUpdating`/`isUpdateError`/`updateError`) döndürüyor.
+
+**Doğrulama:** `npm run lint` (oxlint, temiz) ve `npm run build` (`tsc -b && vite build`, 0 hata)
+`frontend/` içinde çalıştırıldı, ikisi de temiz geçti. `RestrictedZonesSection.tsx` henüz bu
+hook'ları kullanmıyor (Adım 2/3'e bırakıldı), bu yüzden bundle boyutlarında/davranışta değişiklik
+yok.
+
+**Sıradaki adım:** Adım 2/3 — `RestrictedZonesSection.tsx`'i bu iki hook'u tüketecek şekilde
+güncellemek (mevcut inline state/handler'ları kaldırıp hook çağrılarıyla değiştirmek); Adım 3/3 —
+tablo satırı ve form JSX'ini ayrı alt bileşenlere ayırmak.
+
+---
+
+## 34. `RestrictedZonesSection.tsx` Decomposition (Step 2/3) — Subcomponent Extraction
+
+**Kapsam:** §33'te hazırlanan `useRestrictedZoneForm`/`useRestrictedZoneEdit` hook'larının
+tükettirileceği dört alt bileşeni oluşturmak — tablo satırı (salt okunur ve düzenleme modu),
+tablonun kendisi, ve oluşturma formu. `RestrictedZonesSection.tsx` bu adımda henüz güncellenmedi
+(Adım 3/3'e bırakıldı); bu adım sadece yeni bileşenlerin hazırlanıp derlendiği bir ara adım.
+
+**Değişiklik:**
+- `frontend/src/features/restricted-zones/constants.ts` (yeni dosya): `ZONE_TYPES` sabiti
+  `RestrictedZonesSection.tsx`'ten çıkarılıp buraya taşındı — hem `RestrictedZoneEditRow` hem
+  `RestrictedZoneForm` aynı listeyi kullanıyor, tek kaynak.
+- `frontend/src/features/restricted-zones/hooks/useRestrictedZoneEdit.ts`: `EditFormState`
+  interface'i `export` edildi ki yeni bileşenler onu import edebilsin (davranış değişikliği yok).
+- `frontend/src/features/restricted-zones/components/RestrictedZoneRow.tsx` (yeni dosya): tek bir
+  `RestrictedZone` için salt okunur tablo satırı + Edit/Delete aksiyon butonları.
+- `frontend/src/features/restricted-zones/components/RestrictedZoneEditRow.tsx` (yeni dosya):
+  satır-içi düzenleme modundaki tablo satırı; `editForm` state'ini `onUpdateField`/`onSave`/
+  `onCancel` ile bağlıyor. Not: orijinal kodda güncelleme hata mesajı tablo dışında, tek bir yerde
+  gösteriliyordu; burada `isUpdateError`/`updateError` satırın kendi aksiyon hücresine taşındı
+  (düzenlenmekte olan satırla daha yakın bağlam) — Adım 3'te `RestrictedZonesSection.tsx` bu yeni
+  yerleşimi kullanacak, görsel bir davranış değişikliği ama işlevsel değil.
+- `frontend/src/features/restricted-zones/components/RestrictedZoneTable.tsx` (yeni dosya):
+  `<table>` iskeleti, başlıklar, boş durum mesajı (`"No restricted zones defined yet."`) ve
+  `zones.map` üzerinden `editingId`'ye göre `RestrictedZoneRow`/`RestrictedZoneEditRow` seçimi.
+- `frontend/src/features/restricted-zones/components/RestrictedZoneForm.tsx` (yeni dosya): "Define
+  New Restricted Zone" formu — tüm input'lar, "📍 Pick on Map"/"Cancel Picking" koordinat seçim
+  butonu, submit butonu ve oluşturma hata mesajı.
+- Tüm mevcut BEM sınıfları (`restricted-zones-section__*`, `history-table__*`) ve importlar
+  (`HistoryTable.css`, `buttons.css`) birebir korundu; tema/dark-mode stilinde değişiklik yok.
+
+**Doğrulama:** `npm run lint` (oxlint, temiz) ve `npm run build` (`tsc -b && vite build`, 0 hata)
+`frontend/` içinde çalıştırıldı, ikisi de temiz geçti. Dört yeni bileşen henüz hiçbir yerden import
+edilmiyor (`RestrictedZonesSection.tsx` Adım 3'e kadar değişmeyecek), bu yüzden bundle
+boyutlarında/davranışta değişiklik yok.
+
+**Sıradaki adım:** Adım 3/3 — `RestrictedZonesSection.tsx`'i sadeleştirip `useRestrictedZoneForm`,
+`useRestrictedZoneEdit`, `RestrictedZoneTable`, `RestrictedZoneForm`'u kompoze eden ince bir
+bileşene indirmek.
+
+---
+
+## 35. `RestrictedZonesSection.tsx` Decomposition (Step 3/3) — Final Composition & Cleanup
+
+**Kapsam:** §33-34'te hazırlanan iki hook (`useRestrictedZoneForm`, `useRestrictedZoneEdit`) ve
+dört alt bileşenin (`RestrictedZoneRow`, `RestrictedZoneEditRow`, `RestrictedZoneTable`,
+`RestrictedZoneForm`) `RestrictedZonesSection.tsx`'e bağlanarak parçalama işini tamamlanması —
+davranış değişikliği yok.
+
+**Değişiklik:**
+- `frontend/src/features/restricted-zones/components/RestrictedZonesSection.tsx`: 361 satırdan
+  74 satıra indi. İçerik artık: `useRestrictedZoneForm(pickedCoordinates, onCoordinatesApplied)` ve
+  `useRestrictedZoneEdit()` çağrıları, `useDeleteRestrictedZone` + `window.confirm` içeren
+  `handleDelete` (silme akışı ufak olduğu için ayrı bir hook'a çıkarılmadı), ve
+  `RestrictedZoneTable`/`RestrictedZoneForm`'a prop geçen bir JSX gövdesi. Bileşen imzası
+  (`RestrictedZonesSectionProps`) ve dış sarmalayıcı (`<div className="restricted-zones-section">`)
+  birebir korundu; `HistoryTable.css`/`RestrictedZonesSection.css`/`buttons.css` importları da
+  aynı kaldı (alt bileşenler kendi ihtiyaç duydukları CSS'i de ayrıca import ediyor, React bunu
+  tekilleştiriyor).
+- Satır içi tablo/form JSX'i, yerel `ZONE_TYPES`/`EditFormState`/`toEditFormState` tanımları ve
+  `handleCreate`/`handleStartEdit`/`handleCancelEdit`/`handleSaveEdit` fonksiyonları tamamen
+  kaldırıldı — bunların hepsi artık §33-34'te oluşturulan hook/bileşenlerde yaşıyor.
+
+**Doğrulama:** `npm run lint` (oxlint, temiz) ve `npm run build` (`tsc -b && vite build`, 0 hata)
+`frontend/` içinde çalıştırıldı, ikisi de temiz geçti; bundle boyutları önemsiz ölçüde değişti
+(index chunk 367.38 kB → 369.47 kB gzip, kod aynı miktarda farklı dosyalara dağıldığı için).
+`npm run dev` ile geliştirme sunucusu ayağa kaldırılıp `curl` ile ana sayfanın `200` döndüğü
+doğrulandı (backend çalışmadığı için tam operatör akışı bu oturumda manuel tıklanmadı — sadece
+derleme/başlatma doğrulaması yapıldı). Backend/migration değişikliği yok.
+
+**Sonuç:** `RestrictedZonesSection.tsx` parçalama işi (§33+§34+§35) tamamlandı —
+`docs/To-Do-List.txt`'deki "RestrictedZonesSection.tsx bileşenini parçala" maddesi `[x]` olarak
+işaretlendi. `CLAUDE.md`'nin "Current status" bölümü bu üç adımı özetleyen bir paragrafla
+güncellendi.
+
+---
 

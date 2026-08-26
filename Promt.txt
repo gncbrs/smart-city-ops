@@ -1,17 +1,19 @@
-Please refactor `OperationsReplayService.GetReplayTimeRangeAsync` in `Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs` to optimize the time range calculation:
+Task: Decompose RestrictedZonesSection.tsx - Step 3/3 (Final Composition & Cleanup)
 
-### Tasks:
-1. Review lines 92-106 in `OperationsReplayService.cs`. Currently, it executes 8 sequential scalar queries (`MinAsync`/`MaxAsync` on `Incidents.ReportedAt`/`ResolvedAt`, `FieldUnitLocationHistories.RecordedAt`, `OperationalTasks.AssignedAt`/`CompletedAt`).
-2. Streamline / consolidate these queries into optimized database round-trips (or a single consolidated aggregate query if feasible with EF Core Npgsql provider) to compute the global `MinTimestamp` and `MaxTimestamp`.
-3. Verify that `dotnet build` from `Src/` passes cleanly with 0 errors.
+### Objective
+Finalize the decomposition of `frontend/src/features/restricted-zones/components/RestrictedZonesSection.tsx` by replacing the internal inline state and rendering logic with the hooks and subcomponents created in Steps 1 & 2.
 
----
+### Requirements
+1. Refactor `frontend/src/features/restricted-zones/components/RestrictedZonesSection.tsx`:
+   - Consume `useRestrictedZoneForm(pickedCoordinates, onCoordinatesApplied)`.
+   - Consume `useRestrictedZoneEdit()`.
+   - Render `RestrictedZoneTable` and `RestrictedZoneForm` with their respective props and handlers.
+   - Maintain the existing component signature, props interface (`RestrictedZonesSectionProps`), and styling wrappers (`.restricted-zones-section`).
+   - Reduce the component size down to a clean composition container (~40-60 lines).
 
-### Mandatory Documentation Update:
-- Update `docs/DEVELOPMENT_LOG.md` (Part 12):
-  - Add a new section `## 23. Phase 5.9 — OperationsReplay Time Range Query Optimization`.
-  - Document the consolidation of the sequential scalar Min/Max queries in `OperationsReplayService`.
-  - Update the Table of Contents and the summary table (renumbering conclusion to `## 24. Sonuç ve sıradaki adım`).
-- Update `CLAUDE.md` if any references need sync.
+2. Verification:
+   - Run `npm run lint` and `npm run build` in `frontend/` to confirm that the entire feature builds cleanly with zero errors.
 
-Please proceed with this refactoring step.
+3. Documentation:
+   - Update `docs/DEVELOPMENT_LOG.md` under Part 12 (as section 35) and update `CLAUDE.md`.
+   - In `docs/To-Do-List.txt`, mark the item `RestrictedZonesSection.tsx bileşenini parçala` as completed `[x]`.

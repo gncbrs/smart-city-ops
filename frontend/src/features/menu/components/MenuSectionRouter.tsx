@@ -30,6 +30,11 @@ interface MenuSectionRouterProps {
   restrictedZones: RestrictedZone[];
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
+  isPickingCoordinates: boolean;
+  pickedCoordinates: { lat: number; lng: number } | null;
+  onStartPickCoordinates: () => void;
+  onCancelPickCoordinates: () => void;
+  onCoordinatesApplied: () => void;
 }
 
 export function MenuSectionRouter({
@@ -44,6 +49,11 @@ export function MenuSectionRouter({
   restrictedZones,
   onSelectIncident,
   onSelectFieldUnit,
+  isPickingCoordinates,
+  pickedCoordinates,
+  onStartPickCoordinates,
+  onCancelPickCoordinates,
+  onCoordinatesApplied,
 }: MenuSectionRouterProps) {
   return (
     <>
@@ -105,7 +115,16 @@ export function MenuSectionRouter({
           <p>No field unit selected.</p>
         ))}
 
-      {view === "restricted-zones" && <RestrictedZonesSection zones={restrictedZones} />}
+      {view === "restricted-zones" && (
+        <RestrictedZonesSection
+          zones={restrictedZones}
+          isPickingCoordinates={isPickingCoordinates}
+          pickedCoordinates={pickedCoordinates}
+          onStartPickCoordinates={onStartPickCoordinates}
+          onCancelPickCoordinates={onCancelPickCoordinates}
+          onCoordinatesApplied={onCoordinatesApplied}
+        />
+      )}
     </>
   );
 }

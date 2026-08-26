@@ -12,4 +12,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmartCityOps.Domain\SmartCityOps.Domain.csproj" />
+  </ItemGroup>
 </Project>

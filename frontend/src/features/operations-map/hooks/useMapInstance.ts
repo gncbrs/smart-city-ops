@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Map as MapLibreMap } from "maplibre-gl";
+import { Map as MapLibreMap, type MapMouseEvent } from "maplibre-gl";
 import { ANKARA_CENTER, ANKARA_BOUNDS, MAP_STYLE_URL } from "../lib/mapConfig";
 
-export function useMapInstance(onMapClick?: () => void) {
+export function useMapInstance(onMapClick?: (event: MapMouseEvent) => void, isPickingMode?: boolean) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
@@ -31,8 +31,8 @@ export function useMapInstance(onMapClick?: () => void) {
 
     // Markers live in a DOM layer separate from the map canvas, so clicks on them never
     // reach this handler — only genuinely empty map space does.
-    const handleMapClick = () => {
-      onMapClickRef.current?.();
+    const handleMapClick = (event: MapMouseEvent) => {
+      onMapClickRef.current?.(event);
     };
     instance.on("click", handleMapClick);
 
@@ -44,6 +44,11 @@ export function useMapInstance(onMapClick?: () => void) {
       setMap(null);
     };
   }, []);
+
+  useEffect(() => {
+    if (!map) return;
+    map.getCanvas().style.cursor = isPickingMode ? "crosshair" : "";
+  }, [map, isPickingMode]);
 
   return { mapContainerRef, map };
 }

@@ -2,6 +2,7 @@ using System.Net.Http.Json; //apilere json formatında veri göndermeyi kolayla�
 //using System.Runtime.CompilerServices;
 using System.Text.Json; // c# nesnelerini jsona dönüştürür.
 using Microsoft.Extensions.Options; // uygulama ayarlarını okumayı sağlar.
+using SmartCityOps.Domain.Common;
 
 namespace SmartCityOps.IncidentGenerator;
 
@@ -23,21 +24,6 @@ public class Worker : BackgroundService
       "Low",
       "Medium",
       "High"
-    };
-
-    private record OperationZone(string Name, double Latitude, double Longitude, double Spread, int Weight);
-
-    // Ankara'nın farklı ilçelerine yayılmış bölgeler; Weight, o bölgede ne sıklıkla incident
-    // üretileceğini belirliyor (toplamları normalize edilmiyor, sadece birbirine oranı önemli).
-    private static readonly OperationZone[] AnkaraZones =
-    {
-        new("Merkez (Çankaya)", 39.925, 32.836, 0.05, 30),
-        new("Keçiören",         39.995, 32.865, 0.03, 12),
-        new("Mamak",            39.930, 32.920, 0.03, 12),
-        new("Etimesgut",        39.950, 32.670, 0.03, 12),
-        new("Sincan",           39.970, 32.575, 0.03, 12),
-        new("Gölbaşı",          39.790, 32.810, 0.03, 10),
-        new("Pursaklar",        40.040, 32.895, 0.03, 8),
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -90,12 +76,12 @@ public class Worker : BackgroundService
         }
     }
 
-    private OperationZone GetRandomZone()
+    private OperationalZoneDefinition GetRandomZone()
     {
-        var totalWeight = AnkaraZones.Sum(zone => zone.Weight);
+        var totalWeight = AnkaraOperationalZones.All.Sum(zone => zone.Weight);
         var value = random.Next(totalWeight);
 
-        foreach (var zone in AnkaraZones)
+        foreach (var zone in AnkaraOperationalZones.All)
         {
             if (value < zone.Weight)
             {
@@ -105,7 +91,7 @@ public class Worker : BackgroundService
             value -= zone.Weight;
         }
 
-        return AnkaraZones[0];
+        return AnkaraOperationalZones.All[0];
     }
 
     private IncidentPayload BuildRandomIncident()

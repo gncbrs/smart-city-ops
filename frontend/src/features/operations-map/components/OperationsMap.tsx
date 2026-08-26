@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import type { MapMouseEvent } from "maplibre-gl";
 import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
@@ -23,6 +25,8 @@ interface OperationsMapProps {
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
   onClearSelection: () => void;
+  isPickingCoordinates?: boolean;
+  onPickCoordinates?: (coordinates: { lat: number; lng: number }) => void;
 }
 
 export function OperationsMap({
@@ -36,8 +40,21 @@ export function OperationsMap({
   onSelectIncident,
   onSelectFieldUnit,
   onClearSelection,
+  isPickingCoordinates = false,
+  onPickCoordinates,
 }: OperationsMapProps) {
-  const { mapContainerRef, map } = useMapInstance(onClearSelection);
+  const handleMapClick = useCallback(
+    (event: MapMouseEvent) => {
+      if (isPickingCoordinates) {
+        onPickCoordinates?.({ lat: event.lngLat.lat, lng: event.lngLat.lng });
+        return;
+      }
+      onClearSelection();
+    },
+    [isPickingCoordinates, onPickCoordinates, onClearSelection]
+  );
+
+  const { mapContainerRef, map } = useMapInstance(handleMapClick, isPickingCoordinates);
 
   useIncidentMarkers({ map, incidents, selectedIncidentId, onSelectIncident });
   useDispatchedRouteLayers({ map, operationalTasks, incidents });

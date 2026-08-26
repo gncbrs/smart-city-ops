@@ -7,7 +7,7 @@ Projedeki açıkta kalan tüm teknik borçlar, eksik özellikler ve geliştirme 
 * [ ] **SignalR sonrası seçim state'ini reaktif hale getir:** `useSelection.ts` içindeki seçili incident ve field unit nesnelerini, SignalR `OperationsUpdated` tetiklendiğinde güncel sunucu verisiyle eşitleyen veya geçersiz kalan seçimleri temizleyen genel bir senkronizasyon mekanizması kur.
 
 
-* [ ] **Ankara bölge verisini tekilleştir:** `incident-generator` ve `OperationalZoneService.cs` içindeki çift tutulan `AnkaraZones` statik listesini tek bir ortak yapıya/kaynağa bağla.
+* [x] **Ankara bölge verisini tekilleştir:** `incident-generator` ve `OperationalZoneService.cs` içindeki çift tutulan `AnkaraZones` statik listesini tek bir ortak yapıya/kaynağa bağla. (Tamamlandı — `SmartCityOps.Domain.Common.AnkaraOperationalZones`, bkz. `docs/DEVELOPMENT_LOG.md` Part 12 §29-30.)
 
 
 
@@ -89,7 +89,8 @@ Claude'un son denetim raporu ve mevcut projedeki tüm açık gereksinimler birle
 
 ### 2. Öncelik — Dosya Parçalama & Modülerleştirme (Decomposition)
 
-* [ ] **`RestrictedZonesSection.tsx` bileşenini parçala (324 satır):**
+* [x] **`RestrictedZonesSection.tsx` bileşenini parçala (324 satır):** (Tamamlandı — 3 adımda,
+bkz. `docs/DEVELOPMENT_LOG.md` Part 12 §33-35.)
 * Form state'i, satır içi düzenleme ve tablo çizimini tek dosyadan çıkararak alt parçalara böl:
 * `RestrictedZoneTable.tsx` (Tablo iskeleti)
 * `RestrictedZoneRow.tsx` / `RestrictedZoneEditRow.tsx` (Satır ve düzenleme bileşenleri)
@@ -103,13 +104,6 @@ Claude'un son denetim raporu ve mevcut projedeki tüm açık gereksinimler birle
 * `CreateAsync` ve `ReassignAsync` metotlarında tekrarlanan ~35 satırlık görev oluşturma, saha birimi durum mutasyonu, konum geçmişi kaydı ve Postgres unique exception catch mantığını tek bir `private AssignFieldUnitAsync(incident, fieldUnit, ct)` yardımcı metoduna topla.
 
 
-
-
-* [ ] **`App.tsx` orkestrasyonunu sadeleştir:**
-* Replay modu veri geçişini `useReplayAwareData(liveData, replay, snapshot)` hook'una taşı.
-* `App.tsx:74-81` satırları arasındaki türetilmiş seçici (derived selector) mantıklarını `lib/` klasörü altına çıkar.
-
-
 * [ ] *(Opsiyonel / İleride)* `ReplayControlBar.tsx` (119 satır) ve `MenuSectionRouter.tsx` (110 satır) bileşenlerini gözden geçir.
 * [ ] *(Opsiyonel / İleride)* `incident-generator/Worker.cs` içindeki rastgele olay üretim ve ağırlık matematiğini ayrı bir `IncidentFactory` sınıfına taşı.
 
@@ -119,12 +113,6 @@ Claude'un son denetim raporu ve mevcut projedeki tüm açık gereksinimler birle
 
 ### 3. Öncelik — Eksik İşlevler & Fonksiyonel Geliştirmeler
 
-* [ ] **Restricted Zone için haritadan nokta seçimi ekle:**
-* `RestrictedZonesSection.tsx` formundaki metin kutularına ek olarak, haritaya tıklandığında koordinatları (`lat`, `lng`) forma otomatik dolduran harita seçim modu ekle.
-
-
-
-
 * [ ] **Restricted Zone başlangıç verisi (Seed Data) ekle:**
 * `RestrictedZoneAssignmentRule` kuralının varsayılan olarak test edilebilmesi için `RestrictedZoneConfiguration.cs` içine EF Core `HasData` ile örnek 1-2 yasaklı bölge ekle ve migration üret.
 
@@ -133,13 +121,6 @@ Claude'un son denetim raporu ve mevcut projedeki tüm açık gereksinimler birle
 
 * [ ] **Operational Zones kapsama alanını genişlet:**
 * Ankara'nın boşta kalan dış ilçelerini (Yenimahalle, Altındağ, Polatlı vb.) kapsayacak şekilde `Spread` değerlerini veya bölge poligonlarını güncelle.
-
-
-
-
-* [ ] **Ankara bölge verisini tekilleştir (`AnkaraZones`):**
-* `incident-generator/Worker.cs` ve `OperationalZoneService.cs` içinde ayrı ayrı tutulan statik listeyi tek bir ortak yapıya/veritabanına bağla.
-
 
 
 

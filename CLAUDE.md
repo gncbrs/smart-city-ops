@@ -84,11 +84,21 @@ per-entity payload. The frontend's `useSignalRConnection` hook
 new mutating endpoint or a new query key that should stay live, follow both halves of this
 pattern.
 
-**Ankara zone data is manually duplicated** between
-`Src/SmartCityOps.Infrastructure/OperationalZones/OperationalZoneService.cs` (serves the map's
-operational-zones layer via the API) and `Src/incident-generator/Worker.cs` (weights where
-simulated incidents land). There is no shared source — if you change district boundaries/weights
-in one, check whether the other needs the same change.
+**Ankara zone data has a single source of truth.** `Src/SmartCityOps.Domain/Common/AnkaraOperationalZones.cs`
+holds an `OperationalZoneDefinition` record (`Name`, `Latitude`, `Longitude`, `Spread`, `Weight`)
+and a static `AnkaraOperationalZones.All` list of the 7 Ankara zones — this is the only place zone
+boundaries/weights are defined; there is no longer a duplicated copy anywhere. Both consumers read
+from it: `OperationalZoneService.GetAllAsync`
+(`Src/SmartCityOps.Infrastructure/OperationalZones/OperationalZoneService.cs`, serves the map's
+operational-zones layer via the API) maps `AnkaraOperationalZones.All` to `OperationalZoneDto`, and
+`Src/incident-generator/Worker.cs` (weights where simulated incidents land) calls
+`AnkaraOperationalZones.All` directly via a `<ProjectReference>` to `SmartCityOps.Domain` in
+`SmartCityOps.IncidentGenerator.csproj`. This reference doesn't compromise the generator's
+architectural independence from Api/Infrastructure (see "Incident Generator" above) — `Domain` has
+zero framework dependencies, only plain C# records/enums, so the generator still doesn't share any
+API/Infrastructure/Application code. See `docs/DEVELOPMENT_LOG.md`, Part 12 §29–30. If you change
+district boundaries or weights, update only `AnkaraOperationalZones.All` — both consumers pick it
+up automatically.
 
 ### Frontend — React + TypeScript + Vite, feature-folder structure
 ```
@@ -164,13 +174,61 @@ duplicating the progress/clamp logic. No behavior change. Phase 5.9
 (`Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs`) from 8 sequential
 scalar `MinAsync`/`MaxAsync` round trips down to 3 — one aggregate query per table (`Incidents`,
 `FieldUnitLocationHistories`, `OperationalTasks`) using `GroupBy(_ => 1)` to compute all of that
-table's min/max columns in a single SQL statement. No behavior change.
+table's min/max columns in a single SQL statement. No behavior change. Phase 5.10
+(`docs/DEVELOPMENT_LOG.md`, Part 12 §24) added an interactive "Pick on Map" coordinate mode for the
+Restricted Zone creation form: `frontend/src/app/hooks/useCoordinatePicker.ts` holds
+`isPickingCoordinates`/`pickedCoordinates` state in `App.tsx` (alongside `useSelection` and
+`useReplayController`), since it has to coordinate both the map and the menu at once. Starting a
+pick closes the menu (`setMenuView("closed")`) so the operator can see the map; a click on empty
+map space while picking is active — the same "genuinely empty space" click that normally calls
+`onClearSelection()` (see Selection UX below) — instead calls `onPickCoordinates({ lat, lng })` and
+reopens the menu to `"restricted-zones"`. `useMapInstance`'s `onMapClick` callback now receives the
+MapLibre `MapMouseEvent` (previously took no arguments) so callers can read `event.lngLat`, and the
+hook sets the map canvas cursor to `crosshair` while picking. A `CoordinatePickerBanner`
+(`frontend/src/features/restricted-zones/components/`) stays visible over the map with a Cancel
+button while the menu is closed for picking. No backend/migration change. If you add another mode
+that needs to intercept the map's empty-space click for a purpose other than selection, follow this
+same pattern rather than adding a second click listener.
 
-Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §24:
-- **Phase 5 unverified in-browser**: its migration (`20260824125110_AddOperationalTaskOriginAndEta`)
-  was generated but not yet applied to a local DB, and the feature has never been run/observed in
-  the browser. Before further work, run `docker compose up -d` → `dotnet ef database update` →
-  start the API and frontend, and smoke-test it.
+Phase 5.11 (`docs/DEVELOPMENT_LOG.md`, Part 12 §27) fixed the field-unit teleportation bug flagged
+as outstanding below: on task assignment, `OperationalTaskService.CreateAsync` sets
+`fieldUnit.Latitude/Longitude` to the incident's coordinates in the same transaction that creates
+the task, but `useSignalR.ts` invalidates the `field-units` and `operational-tasks` React Query
+caches as two separate requests off the same `OperationsUpdated` event — when `field-units`
+resolved first, `useFieldUnitMarkers`'s animation loop saw a `Dispatched` unit with no matching
+task yet in `findInFlightTask` and snapped the marker straight to the (already-updated)
+destination, which is what looked like a teleport. `useFieldUnitMarkers.ts` now holds a
+`lastRestingPositionsRef` (`Map<string, GeoLocation>`): a `Dispatched` unit with no in-flight task
+yet keeps its marker at that last resting position instead of snapping to `fieldUnit.latitude/
+longitude`, and the ref is only updated to the new destination once an in-flight task is found and
+`getTravelProgress(...) >= 1`, or once the unit is `Available`/`OutOfService`. No backend/migration
+change; `npm run lint`/`npm run build` clean. Diagnosed via temporary logging in
+`getTravelProgress`/`useFieldUnitMarkers.ts` (removed once the root cause was confirmed) — a
+timezone-parsing hypothesis for `assignedAt` and a marker-diff-effect-reset hypothesis were both
+ruled out by code inspection before landing on the cross-query race above.
+
+Phase 5.12 (`docs/DEVELOPMENT_LOG.md`, Part 12 §28) finally ran the full browser visual smoke test
+that §25/§26/§27 had repeatedly left outstanding, using a headless Chrome driven by `puppeteer-core`
+(pointed at the system's existing Chrome install, no new project dependency added) — and it caught a
+real bug: the field unit marker never animated at all, even though the dashed route line
+(`useDispatchedRouteLayers.ts`) rendered correctly. Root cause: `findInFlightTask` in
+`useFieldUnitMarkers.ts` used `.find()` to grab the *first* task matching a field unit's id, then
+checked `isInFlightTask` on that single result — but a field unit accumulates task history, so if an
+old `Completed` task for that unit happened to come before the new `Assigned` one in the
+`operationalTasks` array, `.find()` returned the stale task, `isInFlightTask` on it was `false`, and
+the function returned `null` forever, even while a genuinely in-flight task existed elsewhere in the
+array. This is why `useDispatchedRouteLayers.ts` was unaffected — its `buildFeatureCollection` calls
+`isInFlightTask` inside a `flatMap` over *every* task, not `.find()`-then-check on one. Fixed by
+combining the field-unit-match and in-flight checks into a single `find` predicate (via a
+`isInFlightTaskForFieldUnit(fieldUnitId)` type-predicate factory, so `.find()`'s return type narrows
+correctly to `InFlightOperationalTask`). Verified by reading marker `style.transform` values from
+the live DOM before/after a 15-second window against a real assigned task: 0/23 markers moved before
+the fix, 1/23 (the dispatched unit) moved after. `npm run lint`/`npm run build` clean; no
+backend/migration change; no test/debug code left in the tree. This is a distinct bug from the
+Phase 5.11 teleportation race above — different root cause (wrong task selected, not a timing race)
+and different symptom (marker never moves at all, vs. an instant snap-to-destination).
+
+Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §25:
 - **No backend test project exists yet** — still fully manual verification (see Commands section).
 - Frontend selection state (`frontend/src/app/hooks/useSelection.ts`) can still go stale after a
   SignalR `OperationsUpdated` invalidation — one operator's screen can still show a record another
@@ -179,10 +237,11 @@ Known open items, per `docs/DEVELOPMENT_LOG.md`, Part 12 §24:
   changes selection without calling `clearSelection()` (out of scope of the existing workaround).
   This is a separate, still-open issue from the manual toggle/deselect interactions fixed in Phase
   5.2 below.
-- Restricted-zone creation takes lat/lng/radius as free-text/number inputs — no click-on-map center
-  picker yet (consistent with every other coordinate input in the project). No restricted zones
-  exist by default (no seed data), so the assignment rule always returns `Success()` until an
-  operator creates one via `POST /api/restricted-zones`.
+- Restricted-zone creation's center coordinate can now be set via "Pick on Map" (Phase 5.10) or by
+  typing lat/lng directly; radius is still a free-text/number input (consistent with every other
+  radius-style input in the project — there's no natural "drag on map" equivalent for a radius). No
+  restricted zones exist by default (no seed data), so the assignment rule always returns
+  `Success()` until an operator creates one via `POST /api/restricted-zones`.
 - Replay reconstructs `Reassigned` hand-off moments and `OutOfService` transitions approximately,
   since they aren't timestamped in the DB; a real event-sourcing/audit-log table would be needed to
   fix this precisely. Restricted zones and operational zones are treated as time-invariant in
@@ -200,6 +259,44 @@ fired the empty-space deselect handler, instantly undoing the selection. If you 
 marker-like clickable overlay to the map, apply the same `stopPropagation()` pattern or it will
 silently fight with `onClearSelection`.
 
-The next step was not yet specified by the user as of `docs/DEVELOPMENT_LOG.md` Part 12; candidates noted
-there: the Phase 5 (and now Phase 5.4) smoke test above, adding a backend test project, or a
+Phase 5.13 (`docs/DEVELOPMENT_LOG.md`, Part 12 §29–30) unified the previously-duplicated Ankara
+zone data (see "Ankara zone data has a single source of truth" above) across two steps: Step 1
+extracted a shared `OperationalZoneDefinition`/`AnkaraOperationalZones.All` into
+`SmartCityOps.Domain.Common` and refactored `OperationalZoneService` to read from it; Step 2 added
+a `SmartCityOps.Domain` project reference to `SmartCityOps.IncidentGenerator.csproj` and rewired
+`incident-generator/Worker.cs`'s `GetRandomZone()` to read from `AnkaraOperationalZones.All`
+instead of its own local copy. This unification is now complete — see `docs/To-Do-List.txt`.
+
+`App.tsx` orchestration was simplified in two steps (`docs/DEVELOPMENT_LOG.md`, Part 12 §31–32).
+Step 1 extracted the derived-selector logic (looking up the active task for the selected field
+unit, filtering available field units for reassignment) into pure functions in
+`frontend/src/app/lib/operationsSelectors.ts` (`getActiveTaskForFieldUnit`, `getTasksForIncident`,
+`getAvailableFieldUnits`). Step 2 extracted the conditional live-vs-replay-snapshot data
+resolution into `frontend/src/app/hooks/useReplayAwareData.ts` — `useReplayAwareData(liveData,
+replay, snapshot)` returns `{ incidents, fieldUnits, operationalTasks, restrictedZones }`, reading
+from `snapshot` when replay mode is active and a snapshot is loaded, otherwise from `liveData`
+(`restrictedZones` always comes from `liveData`, since restricted zones are treated as
+time-invariant in replay). `App.tsx` now composes these two helpers instead of inlining `.find`/
+`.filter`/ternary logic. No behavior change; `npm run lint`/`npm run build` clean.
+
+`RestrictedZonesSection.tsx` (324 lines) was decomposed into hooks + subcomponents across three
+steps (`docs/DEVELOPMENT_LOG.md`, Part 12 §33–35). `frontend/src/features/restricted-zones/hooks/
+useRestrictedZoneForm.ts` owns the "create zone" form state (including the `pickedCoordinates`
+sync effect) and `useRestrictedZoneEdit.ts` owns inline row-editing state, each wrapping their
+respective mutation hook (`useCreateRestrictedZone`/`useUpdateRestrictedZone`).
+`frontend/src/features/restricted-zones/components/RestrictedZoneTable.tsx` renders the table
+shell and picks `RestrictedZoneRow.tsx` (read-only) or `RestrictedZoneEditRow.tsx` (inline edit)
+per row by `editingId`; `RestrictedZoneForm.tsx` renders the "Define New Restricted Zone" form,
+including the "Pick on Map" button. A shared `ZONE_TYPES` constant moved to
+`frontend/src/features/restricted-zones/constants.ts` so both `RestrictedZoneEditRow` and
+`RestrictedZoneForm` read from one source. `RestrictedZonesSection.tsx` itself is now a ~74-line
+composition container: it calls the two hooks, wires up `handleDelete` (kept inline —
+`useDeleteRestrictedZone` + `window.confirm`, too small to warrant its own hook), and passes props
+down to `RestrictedZoneTable`/`RestrictedZoneForm`. One deliberate deviation from the original
+layout: the update-error message used to render once below the table regardless of which row was
+being edited; it now renders inside `RestrictedZoneEditRow`'s own action cell, closer to the row
+being edited — a cosmetic change only, not a functional one. `docs/To-Do-List.txt`'s "parçala"
+item for this component is marked `[x]`.
+
+Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, or a
 general fix for the stale selection-state risk.

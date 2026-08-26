@@ -28,6 +28,11 @@ interface MenuProps {
   restrictedZones: RestrictedZone[];
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
+  isPickingCoordinates: boolean;
+  pickedCoordinates: { lat: number; lng: number } | null;
+  onStartPickCoordinates: () => void;
+  onCancelPickCoordinates: () => void;
+  onCoordinatesApplied: () => void;
 }
 
 export function Menu({
@@ -42,6 +47,11 @@ export function Menu({
   restrictedZones,
   onSelectIncident,
   onSelectFieldUnit,
+  isPickingCoordinates,
+  pickedCoordinates,
+  onStartPickCoordinates,
+  onCancelPickCoordinates,
+  onCoordinatesApplied,
 }: MenuProps) {
   const isOpen = view !== "closed";
 
@@ -79,6 +89,11 @@ export function Menu({
           restrictedZones={restrictedZones}
           onSelectIncident={handleSelectIncident}
           onSelectFieldUnit={handleSelectFieldUnit}
+          isPickingCoordinates={isPickingCoordinates}
+          pickedCoordinates={pickedCoordinates}
+          onStartPickCoordinates={onStartPickCoordinates}
+          onCancelPickCoordinates={onCancelPickCoordinates}
+          onCoordinatesApplied={onCoordinatesApplied}
         />
       </MenuOverlay>
     </>
