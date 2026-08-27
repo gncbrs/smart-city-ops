@@ -10,6 +10,7 @@ public class OperationalTask : EntityBase
     public OperationalTaskStatus Status { get; set; }
     public DateTimeOffset AssignedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
+    public DateTimeOffset? ReassignedAt { get; set; }
     public double? OriginLatitude { get; set; }
     public double? OriginLongitude { get; set; }
     public int? EstimatedEtaSeconds { get; set; }

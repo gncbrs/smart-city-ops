@@ -1,7 +1,6 @@
-using System.Net.Http.Json; //apilere json formatında veri göndermeyi kolaylaştır.
-//using System.Runtime.CompilerServices;
-using System.Text.Json; // c# nesnelerini jsona dönüştürür.
-using Microsoft.Extensions.Options; // uygulama ayarlarını okumayı sağlar.
+using System.Net.Http.Json; // simplifies sending JSON payloads to the API.
+using System.Text.Json; // serializes C# objects to JSON.
+using Microsoft.Extensions.Options; // reads app configuration.
 using SmartCityOps.Domain.Common;
 
 namespace SmartCityOps.IncidentGenerator;
@@ -28,8 +27,8 @@ public class Worker : BackgroundService
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly ILogger<Worker> logger; // ekran/konsola bilgilendirme (loglama) yazmak için.
-    private readonly HttpClient httpClient; //sanal tarayıcı ya da istemci.
+    private readonly ILogger<Worker> logger; // writes informational output to the console.
+    private readonly HttpClient httpClient; // client used to call the API.
     private readonly IncidentGeneratorOptions options;
     private readonly Random random = new();
 
@@ -40,10 +39,10 @@ public class Worker : BackgroundService
         this.options = options.Value;
     }
 
-    //arka plan servisinin kalbi. Otomatik olarak çalışır(uygulama başladığında.).
+    // The heart of the background service. Runs automatically when the app starts.
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested) //uygulama kapatılmadığı sürece sonsuz döngü.
+        while (!stoppingToken.IsCancellationRequested) // loops indefinitely until the app shuts down.
         {
             await GenerateAndSendIncidentAsync(stoppingToken);
             await Task.Delay(TimeSpan.FromSeconds(options.IntervalSeconds), stoppingToken);
@@ -103,9 +102,9 @@ public class Worker : BackgroundService
 
         return new IncidentPayload
         (
-            // Milisaniyeye kadar zaman damgası: process her yeniden başlatıldığında sıfırdan
-            // sayan bir "sequence" alanına göre daha güvenli -- iki farklı process çalıştırması
-            // aynı günde aynı kodu üretip IX_Incidents_IncidentCode unique index'ine çarpmıyor.
+            // Millisecond-precision timestamp: safer than a "sequence" field that resets to
+            // zero on every process restart -- two separate process runs on the same day
+            // won't collide on the IX_Incidents_IncidentCode unique index.
             IncidentCode: $"INC-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
             Type: IncidentTypes[random.Next(IncidentTypes.Length)],
             Priority: Priorities[random.Next(Priorities.Length)],

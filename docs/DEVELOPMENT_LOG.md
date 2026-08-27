@@ -5027,3 +5027,317 @@ hale getir" maddesi `[x]` olarak işaretlendi.
 
 ---
 
+## 40. Comprehensive Codebase Audit & To-Do List Synchronization
+
+**Scope:** A full architectural and code-level audit across all four backend layers
+(`Domain`/`Application`/`Infrastructure`/`Api`), `incident-generator`, and the entire frontend
+(`App.tsx` orchestration, all `features/*` slices, shared hooks/components), cross-referenced
+against this log's Part 12 §1–§39 and `CLAUDE.md`'s "Current status" section, to reconcile
+`docs/To-Do-List.txt` (which had accumulated two overlapping/duplicated lists with several stale
+entries) against actual code state rather than prose claims.
+
+**Method:** Every open item in the pre-audit `docs/To-Do-List.txt` was verified directly against
+the source rather than trusted from `CLAUDE.md`'s narrative:
+- `Src/SmartCityOps.Infrastructure/Persistence/Configurations/RestrictedZoneConfiguration.cs` —
+  read in full: no `HasData(...)` call exists, confirming the "Restricted Zone seed data" item is
+  still genuinely open.
+- `Src/SmartCityOps.Domain/Common/AnkaraOperationalZones.cs` — read in full: `AnkaraOperationalZones.All`
+  has exactly 7 entries (Merkez/Çankaya, Keçiören, Mamak, Etimesgut, Sincan, Gölbaşı, Pursaklar);
+  Yenimahalle, Altındağ, and Polatlı are still uncovered, confirming that item is still open (Sincan,
+  previously listed as a gap, is in fact already present — corrected in the rewritten list).
+- `Src/SmartCityOps.Infrastructure/OperationalTasks/OperationalTaskService.cs` — grepped for
+  `CompletedAt`: only set in `CompleteAsync`, never in `ReassignAsync`, confirming the Reassign
+  hand-off timestamp gap noted in §38 is still open; no `FieldUnitStatusHistory`-style table exists
+  anywhere in `Src/`, confirming the `OutOfService` history item is still open.
+- `grep -rn "TODO\|FIXME\|HACK"` across `Src/**/*.cs` and `frontend/src/**/*.{ts,tsx}` returned
+  zero matches — the "close pending TODO comments" item is now `[x]`. Same sweep also found zero
+  stray `console.log` calls in `frontend/src/`.
+- `Src/SmartCityOps.Api/SmartCityOps.Api.http` — `@name` count confirmed at 4, corroborating §21's
+  claim that the file was converted to chained, runnable REST Client requests.
+- No `*.Tests.csproj` exists anywhere under `Src/`, and `frontend/package.json` has no
+  `vitest`/`jest` dependency — both test-infrastructure items remain fully open (0% coverage).
+- Line counts taken for the decomposition candidates named in the old list:
+  `ReplayControlBar.tsx` (119 lines), `MenuSectionRouter.tsx` (129 lines),
+  `incident-generator/Worker.cs` (128 lines) — all comfortably under the ~250-line threshold used
+  elsewhere in this project to justify decomposition (see §33–35), so these stay demoted to
+  low-priority/optional rather than active items.
+
+**New finding — `SmartCityOps.sln` configuration gap:** `dotnet build SmartCityOps.sln` was run
+during the audit to double check §38's aside about a "pre-existing `.sln`/`.slnf` configuration
+issue." Root cause identified: `Src/SmartCityOps.sln`'s `ProjectConfigurationPlatforms` section maps
+`Debug|Any CPU.ActiveCfg = Debug|x64` for every project GUID but never emits the matching
+`Debug|Any CPU.Build.0` line (only `Debug|x64.Build.0` is present) — so when `dotnet build` is
+invoked against the `.sln` with the default `Debug|Any CPU` configuration, MSBuild resolves an
+active configuration for each project but finds no `Build.0` flag telling it to actually build that
+project, so the build silently completes with 0 projects compiled and a "no project found to
+restore" warning. Direct `.csproj` builds (as this project's own `dotnet build`/`dotnet run`
+commands in `CLAUDE.md`'s Commands section already do) are unaffected. Added to
+`docs/To-Do-List.txt` as a new Technical Debt item — fix is either adding the missing
+`Build.0` lines or standardizing `.sln`-based build invocations with `-p:Platform=x64`.
+
+**Verification:** `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` — 0 warnings, 0
+errors (builds the full `Domain → Application → Infrastructure → Api` chain). `npm run lint`
+(oxlint) — clean. `npm run build` (`tsc -b && vite build`) — clean, 0 type errors; bundle output
+unchanged from §37/§39 (`index` chunk 369.96 kB / gzip 111.67 kB, `maplibre-vendor` chunk
+942.37 kB / gzip 244.91 kB — the pre-existing maplibre-vendor size warning noted since §18 is
+unrelated to this audit and was not investigated further here). No code changes were made in this
+session beyond documentation — this was a read-only audit.
+
+**Outcome:** `docs/To-Do-List.txt` was rewritten from its two overlapping lists into a single
+de-duplicated, priority-grouped list: Priority 1 (Functional — restricted-zone seed data,
+operational-zone coverage expansion, Reassign hand-off timestamp, `OutOfService` history), Priority
+2 (Test Infrastructure — still fully absent on both backend and frontend), Priority 3 (Technical
+Debt — the newly-found `.sln` configuration gap, plus demoted-to-optional decomposition candidates
+and minor npm version drift), and an archive section listing every item this audit confirmed
+already done (Pick on Map, `launchSettings.json` cleanup, `.http` automation, TODO cleanup, `App.tsx`
+orchestration split, `RestrictedZonesSection` decomposition, ID-based reactive selection,
+`OperationalTaskService` unification, animation loop stabilization, Ankara zone data unification).
+No `CLAUDE.md` changes were needed beyond this log entry — its "Current status & known open issues"
+section already accurately listed the genuinely-open items (no backend tests, replay
+approximation of Reassign/OutOfService) that this audit confirmed are still open; the only
+correction folded into that section is the `.sln` build gap, noted below.
+
+---
+
+## 41. Phase 5.16 — Restricted Zones Seed Data & Migration (HasData)
+
+**Problem:** `RestrictedZoneAssignmentRule` could not be exercised out-of-the-box — with zero
+restricted zones in the database, the rule always short-circuited to `Success()`, so a fresh clone
+of the repo had no way to see the rule actually block a task assignment without an operator first
+creating a zone by hand via `POST /api/restricted-zones`. §40's audit had confirmed this was still
+genuinely open (no `HasData(...)` call existed anywhere in `RestrictedZoneConfiguration.cs`).
+
+**Fix — seed data:** Following the same deterministic-GUID/`HasData(...)` convention already used
+in `FieldUnitConfiguration.cs`, two realistic Ankara restricted zones were added to
+`Src/SmartCityOps.Infrastructure/Persistence/Configurations/RestrictedZoneConfiguration.cs`:
+
+- **Kızılay Security Zone** (`d1111111-1111-1111-1111-111111111111`) — `SecurityLockdown`,
+  39.9208/32.8541, 600 m radius — models a government-district police-only perimeter.
+- **Eskişehir Road Construction** (`d2222222-2222-2222-2222-222222222222`) — `RoadConstruction`,
+  39.9080/32.7650, 800 m radius — models a main-arterial infrastructure closure.
+
+Both use hardcoded static GUIDs (`Guid.Parse(...)`, never `Guid.NewGuid()`) and a fixed UTC
+`CreatedAt` (`new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero)`) rather than `DateTimeOffset.UtcNow`
+— both are required for `HasData(...)`, since EF Core snapshots seed data into the migration at
+`add`-time and needs stable values to produce a deterministic, idempotent `InsertData` diff across
+environments; a `NewGuid()`/`UtcNow` call would regenerate different values on every `migrations add`
+invocation and falsely appear as a change on every subsequent migration.
+
+**Migration:** `dotnet ef migrations add SeedRestrictedZones --project SmartCityOps.Infrastructure
+--startup-project SmartCityOps.Api --output-dir Persistence/Migrations` generated
+`20260827061228_SeedRestrictedZones.cs` containing an `InsertData` call for both records in `Up()`
+and a matching `DeleteData` call for both in `Down()`. The migration was reviewed before applying
+(no `database update` was run until the generated file was inspected), then applied cleanly with
+`dotnet ef database update` — no duplicate-key or schema errors.
+
+**Verification:** Backend build (`dotnet build SmartCityOps.Api/SmartCityOps.Api.csproj`) — 0
+warnings, 0 errors. Started the API and queried `GET /api/restricted-zones` directly: both seeded
+zones ("Kızılay Security Zone", "Eskişehir Road Construction") were present in the response
+alongside three pre-existing operator-created zones already in the local dev database, confirming
+`RestrictedZoneAssignmentRule` now has real data to evaluate against out-of-the-box on a fresh
+clone + `database update`. `npm run lint` (oxlint) and `npm run build` (`tsc -b && vite build`)
+both remained clean; frontend bundle sizes unchanged from §39/§40, since this was a backend-only
+change with no frontend code touched.
+
+**Outcome:** The "Restricted Zone başlangıç verisi (Seed Data) ekle" item is now `[x]` in
+`docs/To-Do-List.txt`, moved to the completed archive section. `CLAUDE.md`'s "Current status &
+known open issues" section's prior note that "No restricted zones exist by default... the
+assignment rule always returns `Success()`" is now resolved and updated accordingly.
+
+---
+
+## 42. Phase 5.17 — Ankara Operational Zones Geographic Expansion & Map Bounds Adjustment
+
+**Problem:** §40's audit had confirmed `AnkaraOperationalZones.All` still covered only 7 Ankara
+districts (Merkez/Çankaya, Keçiören, Mamak, Etimesgut, Sincan, Gölbaşı, Pursaklar) — several large
+districts (Yenimahalle, Altındağ, Polatlı, Elmadağ, Kahramankazan) had no coverage, so simulated
+incidents and the operational-zones map layer never appeared there.
+
+**Fix:** Five new `OperationalZoneDefinition` entries were added to the single source of truth,
+`Src/SmartCityOps.Domain/Common/AnkaraOperationalZones.cs`, bringing the list from 7 to 12 zones:
+
+- **Yenimahalle** — 39.970/32.795, spread 0.035, weight 12
+- **Altındağ (Ulus/Dışkapı)** — 39.955/32.865, spread 0.030, weight 12
+- **Polatlı** — 39.585/32.145, spread 0.040, weight 6
+- **Elmadağ** — 39.920/33.230, spread 0.035, weight 6
+- **Kahramankazan** — 40.195/32.685, spread 0.035, weight 6
+
+Weights keep the existing proportional shape: central/inner districts (Merkez 30, Keçiören/Mamak/
+Etimesgut/Sincan/Yenimahalle/Altındağ at 12) stay weighted well above the newly-added outer
+districts (Polatlı/Elmadağ/Kahramankazan at 6, alongside the existing Pursaklar at 8), so simulated
+incident density still concentrates centrally rather than spreading evenly.
+
+As documented under "Ankara zone data has a single source of truth" in `CLAUDE.md`, this list has
+exactly two consumers and neither needed any code change: `OperationalZoneService.GetAllAsync`
+(`Src/SmartCityOps.Infrastructure/OperationalZones/OperationalZoneService.cs`) just maps whatever is
+in `AnkaraOperationalZones.All` to `OperationalZoneDto`, and `incident-generator/Worker.cs`'s
+`GetRandomZone()` reads the same list via its existing `SmartCityOps.Domain` project reference —
+both automatically picked up all 12 zones with zero duplication.
+
+**Map bounds:** Two of the new zones fell outside (Polatlı, at lng 32.145) or right at the edge of
+(Kahramankazan, at lat 40.195) the previous `ANKARA_BOUNDS` in
+`frontend/src/features/operations-map/lib/mapConfig.ts` (`[[32.4, 39.6], [33.3, 40.2]]`). The bounds
+were extended to `[[32.0, 39.45], [33.35, 40.3]]` so the map camera can comfortably pan/zoom to
+every zone, including Polatlı, with margin to spare rather than clipping it at the literal edge of
+the bounding box.
+
+**Verification:** `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` — 0 warnings, 0
+errors. Started the API and queried `GET /api/operational-zones` directly: the response contained
+all 12 zones, the 7 pre-existing ones unchanged plus the 5 new districts with the exact coordinates/
+spread/weight above. `npm run lint` (oxlint) and `npm run build` (`tsc -b && vite build`) in
+`frontend/` both remained clean (0 errors); bundle sizes unchanged from §41, since only a constant
+array literal was edited, no new dependency or component.
+
+**Outcome:** The "Operational Zones kapsama alanını genişlet" item is now `[x]` in
+`docs/To-Do-List.txt`, moved to the completed archive section. `CLAUDE.md`'s "Ankara zone data has
+a single source of truth" paragraph and "Current status" section were updated to say 12 zones
+instead of 7 and note the outer-coverage gap is closed.
+
+---
+
+## 43. Phase 5.18 — Operational Task ReassignedAt Timestamp & Operations Replay Precision
+
+**Problem:** §38/§40 both noted the same gap: `OperationalTaskService.ReassignAsync` transitions
+`oldTask.Status` to `Reassigned` but deliberately leaves `oldTask.CompletedAt` `null` — that field
+means "task completed", not "task handed off", so overloading it would have been semantically
+confusing. Without any timestamp for the hand-off moment, `OperationsReplayService` had no way to
+know exactly when the old field unit was released or when the old task stopped being active; it
+approximated both using `AssignedAt` of the *new* task, which is close in practice (assignment
+happens immediately after reassignment in the same request) but not exact.
+
+**Fix — dedicated `ReassignedAt` column:**
+
+- **Domain:** `OperationalTask` (`Src/SmartCityOps.Domain/Entities/OperationalTask.cs`) gained a
+  nullable `DateTimeOffset? ReassignedAt { get; set; }`, parallel to the existing `CompletedAt`.
+- **Application:** `OperationalTaskDto` gained the matching `DateTimeOffset? ReassignedAt` field.
+- **Service:** `OperationalTaskService.ReassignAsync`
+  (`Src/SmartCityOps.Infrastructure/OperationalTasks/OperationalTaskService.cs`) now captures a
+  single `now = DateTimeOffset.UtcNow` and sets `oldTask.ReassignedAt = now` in the same statement
+  block as `oldTask.Status = OperationalTaskStatus.Reassigned`, then passes that same `now` into the
+  `AssignFieldUnitAsync` helper (extracted in §38) so the new task's `AssignedAt` and the old task's
+  `ReassignedAt` are the *identical* instant rather than two separate `UtcNow` calls milliseconds
+  apart — the hand-off is now an atomic, explicit audit timestamp instead of an implicit one.
+  `GetAllAsync`'s projection and the private `ToDto` helper both map the new column.
+- **Replay:** `OperationsReplayService`
+  (`Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs`) no longer
+  approximates hand-off timing via `AssignedAt`:
+  - `BuildFieldUnitReplayDto`'s status switch now treats a `Reassigned` task as releasing its field
+    unit (`FieldUnitStatus.Available`) only once `ReassignedAt.HasValue && ReassignedAt <= timestamp`
+    — before that instant, the unit is correctly still shown as `Dispatched` under the old task.
+  - The `activeTaskDtos` filter now keeps a `Reassigned` task "active" for
+    `AssignedAt <= timestamp && (!ReassignedAt.HasValue || ReassignedAt.Value > timestamp)`, mirroring
+    the same precise cutoff, instead of unconditionally excluding every `Reassigned` task from the
+    active set regardless of the requested replay timestamp.
+  - `GetReplayTimeRangeAsync`'s per-table aggregate query for `OperationalTasks` now also selects
+    `MaxReassignedAt`, folded into the overall max-timestamp calculation alongside
+    `MaxAssignedAt`/`MaxCompletedAt`, so the replay scrubber's time range correctly extends to cover
+    any reassignment that happened after the last `AssignedAt`/`CompletedAt`.
+- **Frontend:** `OperationalTask` (`frontend/src/features/operational-tasks/types.ts`) gained an
+  optional `reassignedAt?: string | null` field for type alignment; no UI currently renders it.
+
+**Migration:** `AddOperationalTaskReassignedAt`
+(`Src/SmartCityOps.Infrastructure/Persistence/Migrations/20260827072347_AddOperationalTaskReassignedAt.cs`)
+adds a single nullable `timestamp with time zone` column,
+`ALTER TABLE "OperationalTasks" ADD "ReassignedAt" timestamp with time zone;`. It was generated,
+inspected, and then applied cleanly with
+`dotnet ef database update --project SmartCityOps.Infrastructure --startup-project SmartCityOps.Api`
+— the EF Core migration log shows the `ALTER TABLE` executing and the migration ID being recorded in
+`__EFMigrationsHistory` with no errors.
+
+**Verification:** `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` — 0 warnings, 0
+errors, both before and after applying the migration. `npm run lint` (oxlint) and `npm run build`
+(`tsc -b && vite build`) in `frontend/` both clean (0 errors); bundle output unchanged from prior
+phases, since only a type field was added, no new component/dependency.
+
+**Outcome:** The "Operations Replay simülasyonunu kesinleştir — Reassign devir zamanı" item is now
+`[x]` in `docs/To-Do-List.txt`, moved to the completed archive section. `CLAUDE.md`'s "Current
+status & known open issues" section was updated to say reassignment hand-offs are now explicitly
+timestamped and no longer approximated in replay.
+
+---
+
+## 44. Phase 5.19 — Component Review & Health Check (ReplayControlBar & MenuSectionRouter)
+
+**Scope:** `docs/To-Do-List.txt` carried a low-priority reminder to revisit
+`frontend/src/features/operations-replay/components/ReplayControlBar.tsx` (119 lines) and
+`frontend/src/features/menu/components/MenuSectionRouter.tsx` (129 lines) — both were candidates
+for the same decomposition treatment applied to `RestrictedZonesSection.tsx` (§33–35) once/if they
+grew. This phase performed that review directly against source, not from memory.
+
+**`ReplayControlBar.tsx` findings:** the mode toggle (Live/Historical Replay), playback controls
+(play/pause button, range-input scrubber, speed `<select>`), and the timestamp/read-only-note
+footer are each a self-contained JSX block gated by `isReplayMode`/`hasHistory`, with no
+cross-cutting logic between them. No dead code, no unused props — every prop in
+`ReplayControlBarProps` is read exactly once. Zero inline `style=` attributes; all styling goes
+through BEM classes in `ReplayControlBar.css` plus the shared `app-button` class. No unstable
+render-time allocations that would defeat memoization (no new object/array literals passed as
+props to children — MapLibre isn't involved here at all).
+
+**`MenuSectionRouter.tsx` findings:** the `SECTIONS` list stays a flat declarative array, and
+routing between `CompletedTasksSection`/`StatisticsSection`/`IncidentTimelineSection`/
+`FieldUnitMovementHistorySection`/`RestrictedZonesSection` is a sequence of `view === "..."`
+conditional JSX blocks — no nested ternary chains or switch statement obscuring the mapping from
+`MenuView` to component. `import type { MenuView } from "./Menu"` already uses `import type`
+correctly, consistent with the project's type-import convention. Zero inline styles.
+
+**Decision — no changes made (YAGNI):** both components sit at 119 and 129 lines, well under the
+~250-line threshold that triggered the `RestrictedZonesSection.tsx` decomposition. Splitting either
+into subcomponents/hooks now would add indirection (extra files, extra prop-drilling) without a
+concrete readability or reuse benefit — the kind of premature abstraction this project's conventions
+explicitly avoid. Left both files untouched.
+
+**Verification:** `npm run lint` (oxlint) in `frontend/` — clean for both files (only pre-existing
+warnings in unrelated files: `useMapInstance.ts`, `IncidentTimelineSection.tsx`,
+`useReplayController.ts`, `useFieldUnitMarkers.ts`, `useRestrictedZoneLayers.ts`,
+`useRestrictedZoneForm.ts`). `npm run build` (`tsc -b && vite build`) in `frontend/` — 0 errors,
+same chunk output as prior phases. `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` — 0
+warnings, 0 errors (no backend files touched).
+
+**Outcome:** the `ReplayControlBar.tsx`/`MenuSectionRouter.tsx` review item is now `[x]` in
+`docs/To-Do-List.txt`, moved to the completed archive section.
+
+---
+
+## 45. Phase 5.20 — Incident Generator Evaluation & Comment Normalization (Worker.cs)
+
+**Scope:** `docs/To-Do-List.txt` carried a low-priority reminder to consider extracting an
+`IncidentFactory` class from `Src/incident-generator/Worker.cs` (128 lines) to hold the random
+incident generation and zone-weight math. This phase reviewed that suggestion directly against
+source.
+
+**Findings:** `Worker.cs` is a single `BackgroundService` with one responsibility — simulate an
+external incident feed — cleanly decomposed into `ExecuteAsync` (the timer loop),
+`GenerateAndSendIncidentAsync` (HTTP send + logging), `GetRandomZone()` (weighted zone selection),
+`BuildRandomIncident()` (payload assembly), and a plain `IncidentPayload` record. None of these are
+duplicated elsewhere, none exceed a handful of lines, and the class has a single collaborator
+boundary (`HttpClient` → the API). There is no backend test project in this solution (verification
+here is manual, per the Commands section), so the usual justification for a factory extraction —
+unit-testing generation logic in isolation — doesn't apply either.
+
+**Decision — no extraction made (YAGNI):** at 128 lines, well under the project's ~150–250 line
+decomposition threshold, with zero duplication and a single clear responsibility, pulling
+`GetRandomZone`/`BuildRandomIncident` into a separate `IncidentFactory` class would add a new
+class/DI registration for two methods only ever called from one place, in sequence, with no
+variation point — the kind of premature abstraction this project's conventions explicitly avoid.
+Left the generation/weighting logic in place.
+
+**Comment normalization:** while reviewing the file, several inline comments were still in Turkish
+(explaining `using` directives, the `logger`/`httpClient` fields, the `ExecuteAsync`/`while` loop
+purpose, and the `IncidentCode` timestamp rationale) — inconsistent with the English-comment
+convention already applied elsewhere in the codebase (Phase 5.5, §19, to `useSignalR.ts`). All were
+translated to English; no functional code changed. User-facing log message strings
+(`"Incident gönderildi..."`, etc.) and the seeded `IncidentPayload.Description` text were left as-is
+— those are string literal data/log output, not code comments, and out of scope for this pass.
+
+**Verification:** `dotnet build Src/incident-generator/SmartCityOps.IncidentGenerator.csproj` — 0
+warnings, 0 errors. `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` — 0 warnings, 0
+errors. `npm run lint` (oxlint) in `frontend/` — clean (only pre-existing warnings in unrelated
+files, unchanged from prior phases). `npm run build` (`tsc -b && vite build`) in `frontend/` — 0
+errors, same chunk output as prior phases (frontend untouched by this phase).
+
+**Outcome:** the `IncidentFactory` extraction item is now `[x]` in `docs/To-Do-List.txt`, moved to
+the completed archive section, documenting that `Worker.cs` was evaluated and kept intact under the
+project's YAGNI policy.
+
+---
+

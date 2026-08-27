@@ -1,95 +1,107 @@
-Projedeki açıkta kalan tüm teknik borçlar, eksik özellikler ve geliştirme ihtiyaçları için öncelik sırasına göre hazırlanmış yapılacaklar listesi (To-Do List):
+Projedeki açıkta kalan tüm teknik borçlar, eksik özellikler ve geliştirme ihtiyaçları için öncelik
+sırasına göre hazırlanmış, kapsamlı denetim (audit) sonrası güncellenmiş yapılacaklar listesi.
+Son güncelleme: 2026-08-27 — bkz. `docs/DEVELOPMENT_LOG.md` Part 12 §40 (Comprehensive Codebase
+Audit & To-Do List Synchronization).
+
+Bu liste önceki iki ayrı/örtüşen listenin (Turkish "1-4 Öncelik" + "Master To-Do List") tek listede
+birleştirilmiş, tamamlanmış maddeleri `[x]`'e çevrilmiş ve kod tabanına karşı doğrulanmış halidir.
+Zaten tamamlanmış maddeler referans için en altta "Tamamlanan Maddeler (Arşiv)" bölümünde tutulur.
 
 ---
 
-### 1. Öncelik — Mimari Riskler & Çoklu Operatör Senkronizasyonu
+### 1. Öncelik — Eksik İşlevler & Fonksiyonel Geliştirmeler
 
-* [x] **SignalR sonrası seçim state'ini reaktif hale getir:** `useSelection.ts` içindeki seçili incident ve field unit nesnelerini, SignalR `OperationsUpdated` tetiklendiğinde güncel sunucu verisiyle eşitleyen veya geçersiz kalan seçimleri temizleyen genel bir senkronizasyon mekanizması kur. — ID tabanlı reaktif refactor ile çözüldü (bkz. madde 49 / `docs/DEVELOPMENT_LOG.md` Part 12 §36-37).
-
----
-
-### 2. Öncelik — Eksik Özellikler & Fonksiyonel İyileştirmeler
-
-* [ ] **Restricted Zone için haritadan nokta seçimi ekle:** `RestrictedZonesSection.tsx` formundaki serbest metin koordinat girişine ek olarak, operatörün haritaya tıklayarak enlem/boylam belirlemesini sağla.
-
-* [ ] **Restricted Zone başlangıç verisi (Seed Data) ekle:** `RestrictedZoneAssignmentRule` kuralının varsayılan olarak test edilebilmesi için EF Core `HasData` ile örnek yasaklı bölgeler tanımla.
-
-* [ ] **Operational Zones kapsama alanını genişlet:** Sincan, Polatlı, Yenimahalle gibi boşta kalan dış ilçeleri kapsayacak şekilde bölge poligonlarını/jitter yarıçaplarını (`Spread`) güncelle.
-
-* [ ] **Operations Replay simülasyonunu kesinleştir:**
-* [ ] Görev devri (`Reassign`) anındaki eski görevin devir zamanını netleştirmek için `CompletedAt` / timestamp alanını kaydet.
-
-* [ ] `OutOfService` durum geçişlerini tarihsel olarak takip edebilmek için durum geçmişi kaydı ekle.
+(Tüm öncelikli fonksiyonel maddeler tamamlandı)
 
 ---
 
-### 3. Öncelik — Test Altyapısı & Performans
+### 2. Öncelik — Test Altyapısı (hâlâ hiç yok) 
 
-* [ ] **Backend için otomatik test projesi kur:** Çözüme xUnit/NUnit tabanlı bir test projesi ekleyerek `ITaskAssignmentRule`, scoring motoru ve `OperationalTaskService` için unit/integration testleri yaz.
+NOT: Test altyapısını en son kuracağım şuanda herhangi bir acelesi yok, bu yüzden öncelik sırasını değiştirdim.
 
-* [ ] **Frontend test altyapısını kur:** Vitest veya Jest ekleyerek `geoInterpolation.ts`, `applyMapFilters.ts` ve hook mantıkları için testler oluştur.
+* [ ] **Backend için otomatik test projesi kur (xUnit):** Çözümde `*.Tests.csproj` yok —
+  doğrulama tamamen manuel (Swagger/`SmartCityOps.Api.http`). `Src/SmartCityOps.Tests` projesi
+  açıp `ITaskAssignmentRule` kural zinciri, `RestrictedZoneAssignmentRule`, Haversine ETA hesabı ve
+  `FieldUnitRecommendation` puanlama motoru için birim testleri; `OperationalTaskService.CreateAsync`/
+  `ReassignAsync`'in eşzamanlılık-çakışması (`ResourceConflictException`) davranışı için
+  entegrasyon testleri yaz.
 
----
-
-### 4. Öncelik — Kod Temizliği & Teknik Borçlar (Technical Debt)
-
-* [ ] **`launchSettings.json` profilini sadeleştir:** Backend yalnızca HTTP (`5080`) üzerinden çalıştığı için kullanılmayan `https` profilini kaldır.
-
-* [ ] **`.http` test dosyasını otomatikleştir:** `SmartCityOps.Api.http` içindeki ID gerektiren istekleri response'tan dinamik değişken yakalayacak şekilde yapılandır.
-
-* [ ] **Kod içi `// TODO` notlarını kapat:** `Program.cs` ve `Worker.cs` dosyalarındaki bekleyen TODO yorumlarını ele al.
-
-******************************************************************************
-Claude'un son denetim raporu ve mevcut projedeki tüm açık gereksinimler birleştirilerek hazırlanan, hiçbir detayın atlanmadığı **Kapsamlı Yapılacaklar Listesi (Master To-Do List)**:
-
----
+* [ ] **Frontend test altyapısını kur (Vitest):** `frontend/package.json`'da hiç test bağımlılığı
+  yok (`vitest`/`jest` aranmadı, bulunamadı). Vitest ekleyip `frontend/src/features/
+  operational-tasks/lib/geoInterpolation.ts` (`isInFlightTask`, `getCurrentPosition`, ETA/travel
+  progress matematiği), `applyMapFilters.ts` ve `frontend/src/app/lib/operationsSelectors.ts`
+  (`getActiveTaskForFieldUnit`, `getTasksForIncident`, `getAvailableFieldUnits`,
+  `getSelectedIncident`/`getSelectedFieldUnit`) gibi saf fonksiyonlar için test paketi oluştur —
+  bunlar zaten saf/side-effect-free oldukları için testi en ucuz, değeri en yüksek yerler.
 
 ---
 
-### 2. Öncelik — Dosya Parçalama & Modülerleştirme (Decomposition)
+  ### 3. Öncelik — Kod Temizliği & Teknik Borçlar (Technical Debt)
 
-* [ ] *(Opsiyonel / İleride)* `ReplayControlBar.tsx` (119 satır) ve `MenuSectionRouter.tsx` (110 satır) bileşenlerini gözden geçir.
-* [ ] *(Opsiyonel / İleride)* `incident-generator/Worker.cs` içindeki rastgele olay üretim ve ağırlık matematiğini ayrı bir `IncidentFactory` sınıfına taşı.
+* [ ] **`SmartCityOps.sln` — `Debug|Any CPU` konfigürasyonu proje derlemiyor:**
+  `Src/SmartCityOps.sln`'in `ProjectConfigurationPlatforms` bölümünde her proje için
+  `Debug|Any CPU.ActiveCfg = Debug|x64` satırı var ama karşılık gelen
+  `Debug|Any CPU.Build.0 = Debug|x64` satırı yok (yalnızca `Debug|x64.Build.0` var) — bu yüzden
+  `dotnet build SmartCityOps.sln` (varsayılan konfigürasyon `Debug|Any CPU` olduğunda) hiçbir
+  projeyi derlemiyor ("Geri yüklenecek proje bulunamadı" uyarısı), doğrulama şu an yalnızca
+  doğrudan `.csproj` referanslarıyla yapılabiliyor (bkz. `docs/DEVELOPMENT_LOG.md` Part 12 §38).
+  Her proje GUID'i için eksik `Debug|Any CPU.Build.0` / `Release|Any CPU.Build.0` satırlarını
+  `Debug|x64` / `Release|x64`'e eşleyerek ekle, ya da `dotnet build` çağrılarını
+  `-p:Platform=x64` ile standardize et.
 
----
-
-### 3. Öncelik — Eksik İşlevler & Fonksiyonel Geliştirmeler
-
-* [ ] **Restricted Zone başlangıç verisi (Seed Data) ekle:**
-* `RestrictedZoneAssignmentRule` kuralının varsayılan olarak test edilebilmesi için `RestrictedZoneConfiguration.cs` içine EF Core `HasData` ile örnek 1-2 yasaklı bölge ekle ve migration üret.
-
-* [ ] **Operational Zones kapsama alanını genişlet:**
-* Ankara'nın boşta kalan dış ilçelerini (Yenimahalle, Altındağ, Polatlı vb.) kapsayacak şekilde `Spread` değerlerini veya bölge poligonlarını güncelle.
-
-* [ ] **Operations Replay simülasyonunu kesinleştir:**
-* Görev devri (`Reassign`) anında eski görevin devir anı için `OperationalTask` tablosuna kesin timestamp/bitiş kaydı ekle.
-
-* `OutOfService` araç geçişlerini geriye dönük takip edebilmek için araç durum tarihçesi oluştur.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+* [ ] *(Opsiyonel / bakım)* **Küçük npm bağımlılık güncellemeleri:** `npm outdated` şu an
+  `@tanstack/react-query` (5.101.4→5.102.6), `axios` (1.19.0→1.20.0), `maplibre-gl`
+  (6.3.0→6.6.0), `vite` (8.2.1→8.2.2), `oxlint` (1.78.0→1.80.0) gibi minör/patch güncellemeler
+  gösteriyor — hiçbiri kırıcı değil, acil değil, uygun bir zamanda `npm update` ile toplu
+  güncellenebilir.
 
 ---
 
-### 4. Öncelik — Test Altyapısı
+### Opsiyonel / İleride Düşünülebilecekler
 
-* [ ] **Backend için otomatik test projesi kur (xUnit):**
-* `SmartCityOps.Tests` projesi açarak `ITaskAssignmentRule` kuralları, Haversine ETA hesabı ve 3 faktörlü öneri puanlama motoru için birim/entegrasyon testleri yaz.
+* [ ] *(Opsiyonel / Düşük Öncelik)* **OutOfService durum geçmişi (YAGNI):** Operatör arayüzden
+  araçları OutOfService durumuna manuel geçiremediği için şu an zorunlu değil — durum tamamen
+  seed-data ile belirleniyor ve birimler görev yaşam döngüsünde yalnızca `Available`/`Dispatched`
+  arasında geçiş yapıyor. Karşılık gelen bir mutating endpoint/UI akışı olmadan
+  `FieldUnitStatusHistory` tablosu eklemek YAGNI ihlali olur; `OperationsReplayService` de
+  `OutOfService`'i bilinçli olarak zaman-değişmez (time-invariant) kabul ediyor. İleride servis
+  dışı bırakma özelliği eklenirse değerlendirilecek.
 
-* [ ] **Frontend test altyapısını kur (Vitest):**
-* `geoInterpolation.ts`, `applyMapFilters.ts` ve `describeTask.ts` saf fonksiyonları için test paketi oluştur.
 ---
+
+### Tamamlanan Maddeler (Arşiv — bu denetimde kod tabanına karşı doğrulandı)
+
+* [x] Restricted Zone için haritadan nokta seçimi ("Pick on Map") — Phase 5.10, §24.
+* [x] `launchSettings.json` gereksiz `https` profilinin kaldırılması — Phase 5.6, §20.
+* [x] `.http` test dosyasının `@name` ile zincirlenmiş isteklere dönüştürülmesi — Phase 5.7, §21
+  (doğrulandı: `SmartCityOps.Api.http` içinde 4 adet `@name` etiketi mevcut).
+* [x] Kod içi `// TODO` notları — doğrulandı: `Src/` ve `frontend/src/` içinde artık hiç
+  `TODO`/`FIXME`/`HACK` yorumu yok.
+* [x] `App.tsx` orchestration sadeleştirmesi (`operationsSelectors.ts` + `useReplayAwareData.ts`)
+  — §31-32.
+* [x] `RestrictedZonesSection.tsx` decomposition (hooks + subcomponents) — §33-35.
+* [x] Seçim state'inin ID tabanlı reaktif hale getirilmesi (`useSelection.ts`) — §36-37.
+* [x] `OperationalTaskService.cs`'teki `CreateAsync`/`ReassignAsync` kod tekrarının
+  `AssignFieldUnitAsync` helper'ında birleştirilmesi — §38.
+* [x] `useFieldUnitMarkers.ts` animasyon döngüsünün sürekli çalışır hale getirilmesi
+  (`[map]` bağımlılığı, ref tabanlı okuma) — §39.
+* [x] Ankara zone verisinin tek kaynağa (`AnkaraOperationalZones.All`) birleştirilmesi — §29-30.
+* [x] Restricted Zone başlangıç verisi (Seed Data) — `RestrictedZoneConfiguration.cs`'e
+  `HasData(...)` ile 2 örnek yasaklı bölge (Kızılay Security Zone, Eskişehir Road Construction)
+  eklendi, `SeedRestrictedZones` migration'ı üretilip veritabanına uygulandı — Phase 5.16, §41.
+* [x] `ReplayControlBar.tsx` (119 satır) ve `MenuSectionRouter.tsx` (129 satır) bileşenlerinin
+  gözden geçirilmesi — her ikisi de denetlendi ve temiz, iyi kapsamlı (<130 satır), deklaratif
+  ve projenin BEM/`import type` standartlarına uygun bulundu; yapay bir alt bileşene bölme
+  ihtiyacı olmadığına karar verildi — Phase 5.19, §44.
+* [x] `incident-generator/Worker.cs` (128 satır) içindeki rastgele olay üretim ve ağırlık
+  matematiğini ayrı bir `IncidentFactory` sınıfına taşıma önerisi — değerlendirildi ve projenin
+  YAGNI politikası gereği dokunulmadan bırakıldı: dosya temiz, 128 satır, tek sorumluluk, kod
+  tekrarı yok. Kalan Türkçe satır içi yorumlar İngilizce'ye çevrildi — Phase 5.20, §45.
+* [x] Operational Zones kapsama alanını genişlet — `AnkaraOperationalZones.All`'a Yenimahalle,
+  Altındağ (Ulus/Dışkapı), Polatlı, Elmadağ, Kahramankazan eklendi (7 → 12 bölge), `ANKARA_BOUNDS`
+  dış ilçeleri kapsayacak şekilde genişletildi — Phase 5.17, §42.
+* [x] Operations Replay simülasyonunu kesinleştir — Reassign devir zamanı: `OperationalTask`'a
+  nullable `ReassignedAt` kolonu eklendi, `ReassignAsync` artık `oldTask.ReassignedAt = now`
+  değerini `oldTask.Status = Reassigned` ile aynı anda set ediyor, `OperationsReplayService` devir
+  anını `AssignedAt` yaklaşıklamasına gerek kalmadan `ReassignedAt`'e göre kesin olarak yeniden
+  kuruyor — Phase 5.18, §43.

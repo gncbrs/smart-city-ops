@@ -5,7 +5,8 @@ namespace SmartCityOps.Infrastructure.FieldUnitRecommendations;
 
 public class HaversineEtaEstimator : IEtaEstimator
 {
-    private const double AverageCitySpeedKmh = 40.0;
+    //It is normally 40.0 but it is too slow for demo so i changed the value to 82 :)
+    private const double AverageCitySpeedKmh = 82.0;
 
     public TimeSpan EstimateEta(double fromLat, double fromLng, double toLat, double toLng)
     {

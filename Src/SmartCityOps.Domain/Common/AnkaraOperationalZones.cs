@@ -13,5 +13,10 @@ public static class AnkaraOperationalZones
         new("Sincan",           39.970, 32.575, 0.03, 12),
         new("Gölbaşı",          39.790, 32.810, 0.03, 10),
         new("Pursaklar",        40.040, 32.895, 0.03, 8),
+        new("Yenimahalle",      39.970, 32.795, 0.035, 12),
+        new("Altındağ (Ulus/Dışkapı)", 39.955, 32.865, 0.030, 12),
+        new("Polatlı",          39.585, 32.145, 0.040, 6),
+        new("Elmadağ",          39.920, 33.230, 0.035, 6),
+        new("Kahramankazan",    40.195, 32.685, 0.035, 6),
     };
 }

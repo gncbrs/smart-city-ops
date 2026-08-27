@@ -71,7 +71,9 @@ public class OperationsReplayService : IOperationsReplayService
             .ToList();
 
         var activeTaskDtos = tasksAssignedByThen
-            .Where(t => t.Status != OperationalTaskStatus.Reassigned && (t.CompletedAt is null || t.CompletedAt > timestamp))
+            .Where(t => t.Status == OperationalTaskStatus.Reassigned
+                ? t.AssignedAt <= timestamp && (!t.ReassignedAt.HasValue || t.ReassignedAt.Value > timestamp)
+                : t.CompletedAt is null || t.CompletedAt > timestamp)
             .Select(t => new OperationalTaskDto(
                 t.Id,
                 t.IncidentId,
@@ -79,6 +81,7 @@ public class OperationsReplayService : IOperationsReplayService
                 OperationalTaskStatus.Assigned.ToString(),
                 t.AssignedAt,
                 null,
+                t.ReassignedAt,
                 t.OriginLatitude,
                 t.OriginLongitude,
                 t.EstimatedEtaSeconds))
@@ -117,7 +120,8 @@ public class OperationsReplayService : IOperationsReplayService
             {
                 MinAssignedAt = g.Min(t => (DateTimeOffset?)t.AssignedAt),
                 MaxAssignedAt = g.Max(t => (DateTimeOffset?)t.AssignedAt),
-                MaxCompletedAt = g.Max(t => t.CompletedAt)
+                MaxCompletedAt = g.Max(t => t.CompletedAt),
+                MaxReassignedAt = g.Max(t => t.ReassignedAt)
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -134,7 +138,8 @@ public class OperationsReplayService : IOperationsReplayService
             incidentRange?.MaxResolvedAt,
             locationRange?.MaxRecordedAt,
             taskRange?.MaxAssignedAt,
-            taskRange?.MaxCompletedAt
+            taskRange?.MaxCompletedAt,
+            taskRange?.MaxReassignedAt
         }.Max();
 
         return new ReplayTimeRangeDto(minTimestamp, maxTimestamp);
@@ -153,10 +158,7 @@ public class OperationsReplayService : IOperationsReplayService
     }
 
     // OutOfService is only ever set via seed data with no tracked transition event, so it is
-    // treated as time-invariant here. A Reassigned task frees its old field unit immediately in
-    // the live system, but that hand-off moment isn't persisted (the old task keeps no
-    // CompletedAt), so a unit whose latest task was reassigned is approximated as Available for
-    // any timestamp at/after that task's AssignedAt.
+    // treated as time-invariant here.
     private static FieldUnitReplayDto BuildFieldUnitReplayDto(
         FieldUnit fieldUnit,
         OperationalTask? latestTaskAtOrBefore,
@@ -171,7 +173,9 @@ public class OperationsReplayService : IOperationsReplayService
             : latestTaskAtOrBefore switch
             {
                 null => FieldUnitStatus.Available,
-                { Status: OperationalTaskStatus.Reassigned } => FieldUnitStatus.Available,
+                { Status: OperationalTaskStatus.Reassigned, ReassignedAt: not null } t when t.ReassignedAt <= timestamp
+                    => FieldUnitStatus.Available,
+                { Status: OperationalTaskStatus.Reassigned } => FieldUnitStatus.Dispatched,
                 { Status: OperationalTaskStatus.Completed, CompletedAt: not null } t when t.CompletedAt <= timestamp
                     => FieldUnitStatus.Available,
                 _ => FieldUnitStatus.Dispatched

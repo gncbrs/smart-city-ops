@@ -86,7 +86,9 @@ pattern.
 
 **Ankara zone data has a single source of truth.** `Src/SmartCityOps.Domain/Common/AnkaraOperationalZones.cs`
 holds an `OperationalZoneDefinition` record (`Name`, `Latitude`, `Longitude`, `Spread`, `Weight`)
-and a static `AnkaraOperationalZones.All` list of the 7 Ankara zones — this is the only place zone
+and a static `AnkaraOperationalZones.All` list of 12 Ankara zones (the original 7 — Merkez/Çankaya,
+Keçiören, Mamak, Etimesgut, Sincan, Gölbaşı, Pursaklar — plus 5 outer districts added in Phase 5.17:
+Yenimahalle, Altındağ, Polatlı, Elmadağ, Kahramankazan) — this is the only place zone
 boundaries/weights are defined; there is no longer a duplicated copy anywhere. Both consumers read
 from it: `OperationalZoneService.GetAllAsync`
 (`Src/SmartCityOps.Infrastructure/OperationalZones/OperationalZoneService.cs`, serves the map's
@@ -96,7 +98,7 @@ operational-zones layer via the API) maps `AnkaraOperationalZones.All` to `Opera
 `SmartCityOps.IncidentGenerator.csproj`. This reference doesn't compromise the generator's
 architectural independence from Api/Infrastructure (see "Incident Generator" above) — `Domain` has
 zero framework dependencies, only plain C# records/enums, so the generator still doesn't share any
-API/Infrastructure/Application code. See `docs/DEVELOPMENT_LOG.md`, Part 12 §29–30. If you change
+API/Infrastructure/Application code. See `docs/DEVELOPMENT_LOG.md`, Part 12 §29–30, §42. If you change
 district boundaries or weights, update only `AnkaraOperationalZones.All` — both consumers pick it
 up automatically.
 
@@ -233,13 +235,23 @@ resolved by Phase 5.14, see §36-37):
 - **No backend test project exists yet** — still fully manual verification (see Commands section).
 - Restricted-zone creation's center coordinate can now be set via "Pick on Map" (Phase 5.10) or by
   typing lat/lng directly; radius is still a free-text/number input (consistent with every other
-  radius-style input in the project — there's no natural "drag on map" equivalent for a radius). No
-  restricted zones exist by default (no seed data), so the assignment rule always returns
-  `Success()` until an operator creates one via `POST /api/restricted-zones`.
-- Replay reconstructs `Reassigned` hand-off moments and `OutOfService` transitions approximately,
-  since they aren't timestamped in the DB; a real event-sourcing/audit-log table would be needed to
-  fix this precisely. Restricted zones and operational zones are treated as time-invariant in
-  replay (always shown as their current state).
+  radius-style input in the project — there's no natural "drag on map" equivalent for a radius).
+  Restricted zones now have default seed data (Phase 5.16,
+  `docs/DEVELOPMENT_LOG.md` Part 12 §41): `RestrictedZoneConfiguration.cs` seeds "Kızılay Security
+  Zone" (`SecurityLockdown`) and "Eskişehir Road Construction" (`RoadConstruction`) via
+  `HasData(...)` and the `SeedRestrictedZones` migration, so `RestrictedZoneAssignmentRule` has
+  real data to evaluate against out-of-the-box after `dotnet ef database update` — no longer
+  dependent on an operator first creating a zone via `POST /api/restricted-zones`.
+- Replay reconstructs `OutOfService` transitions approximately, since they aren't timestamped in the
+  DB (`FieldUnit`/`FieldUnitStatusHistory` has no `LastStatusChangedAt`-equivalent for this
+  transition); a real event-sourcing/audit-log table would be needed to fix this precisely.
+  `Reassigned` hand-off moments, previously also approximated (via the new task's `AssignedAt`), are
+  now explicit: `OperationalTask` has a dedicated nullable `ReassignedAt` column, set by
+  `OperationalTaskService.ReassignAsync` at the same instant as the new task's `AssignedAt`, and
+  `OperationsReplayService` resolves field-unit availability and historical active tasks against
+  that exact timestamp instead of approximating (Phase 5.18, `docs/DEVELOPMENT_LOG.md` Part 12 §43).
+  Restricted zones and operational zones are still treated as time-invariant in replay (always shown
+  as their current state).
 
 **Selection UX (Phase 5.2, resolved):** manual selection toggle/deselect now works fully.
 Re-clicking an already-selected incident/field-unit marker deselects it
@@ -315,4 +327,60 @@ build` clean (0 errors); no backend/migration change. `docs/To-Do-List.txt`'s "S
 state'ini reaktif hale getir" and "`useSelection.ts` hook'unu ID tabanlı reaktif yapıya dönüştür"
 items are marked `[x]`.
 
-Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project.
+`OperationalTaskService.CreateAsync`/`ReassignAsync` (`docs/DEVELOPMENT_LOG.md`, Part 12 §38) had
+their duplicated task-creation/field-unit-mutation/location-history/concurrency-guard block
+extracted into a private `AssignFieldUnitAsync` helper in
+`Src/SmartCityOps.Infrastructure/OperationalTasks/OperationalTaskService.cs` — pure "extract
+method", no behavior change. `useFieldUnitMarkers.ts` (`docs/DEVELOPMENT_LOG.md`, Part 12 §39) had
+its animation `useEffect` dependency array reduced to `[map]` (previously
+`[map, fieldUnits, operationalTasks]`), reading field units/tasks each frame via
+`fieldUnitsByIdRef`/`operationalTasksRef` instead of closing over the props, so the
+`requestAnimationFrame` chain now runs continuously instead of restarting on every SignalR-driven
+refetch.
+
+Phase 5.15 / Audit (`docs/DEVELOPMENT_LOG.md`, Part 12 §40) was a read-only, code-verified audit
+(not prose-trusted) of the full backend + frontend against `docs/To-Do-List.txt`, which had two
+overlapping/duplicated lists with several stale entries. `docs/To-Do-List.txt` was rewritten into
+one de-duplicated, priority-grouped list; every remaining open item was re-verified directly
+against source (grep/read), not inferred from this file's prose. One new finding surfaced:
+**`Src/SmartCityOps.sln`'s `ProjectConfigurationPlatforms` section is missing `Debug|Any
+CPU.Build.0`/`Release|Any CPU.Build.0` mappings** for every project (only the `x64` platform
+variants have `Build.0`), so `dotnet build SmartCityOps.sln` under the default `Debug|Any CPU`
+configuration silently compiles zero projects — this is why this project's own Commands section
+above always builds via `dotnet build` at the repo root (implicit project discovery) or specific
+`.csproj` paths, never `dotnet build SmartCityOps.sln` directly. Tracked as a new Technical Debt
+item in `docs/To-Do-List.txt`. Confirmed still accurate as of this audit: no backend test project,
+no frontend test runner (`vitest`/`jest` absent from `frontend/package.json`), no
+`RestrictedZoneConfiguration.cs` seed data, `AnkaraOperationalZones.All` still has 7 zones (Sincan
+is present; Yenimahalle/Altındağ/Polatlı are not), and `OperationalTaskService.ReassignAsync` still
+never sets `oldTask.CompletedAt`. Zero stray `TODO`/`FIXME`/`console.log` found anywhere in `Src/`
+or `frontend/src/`. `dotnet build`/`npm run lint`/`npm run build` all confirmed green.
+
+Phase 5.17 (`docs/DEVELOPMENT_LOG.md`, Part 12 §42) closed the outer-district coverage gap §40's
+audit had flagged: `AnkaraOperationalZones.All` gained 5 new zones — Yenimahalle, Altındağ
+(Ulus/Dışkapı), Polatlı, Elmadağ, Kahramankazan — bringing the total from 7 to 12, with weights kept
+proportional (central/inner districts weighted higher than the newly-added outer ones). Both
+consumers (`OperationalZoneService.GetAllAsync` and `incident-generator/Worker.cs`) picked up all 12
+zones automatically, per the single-source-of-truth design above — no consumer code changed.
+`ANKARA_BOUNDS` in `frontend/src/features/operations-map/lib/mapConfig.ts` was extended from
+`[[32.4, 39.6], [33.3, 40.2]]` to `[[32.0, 39.45], [33.35, 40.3]]` so the map camera can comfortably
+reach Polatlı and Kahramankazan, which fell outside/at the edge of the previous bounds. Verified via
+a live `GET /api/operational-zones` call (all 12 zones present with the expected coordinates) plus
+`dotnet build`/`npm run lint`/`npm run build`, all clean. `docs/To-Do-List.txt`'s "Operational Zones
+kapsama alanını genişlet" item is now `[x]`, moved to the completed archive section.
+
+Phase 5.18 (`docs/DEVELOPMENT_LOG.md`, Part 12 §43) added an explicit nullable `ReassignedAt`
+(`DateTimeOffset?`) column to `OperationalTask` (and `OperationalTaskDto`) to capture the exact
+hand-off moment during a reassignment, replacing the previous `AssignedAt`-of-the-new-task
+approximation flagged in §38/§40.
+`OperationalTaskService.ReassignAsync` now sets `oldTask.ReassignedAt` to the same `now` timestamp
+used for the new task's `AssignedAt`; `OperationsReplayService` resolves field-unit availability and
+which tasks were active at a given replay timestamp against `ReassignedAt` precisely, instead of
+approximating, and `GetReplayTimeRangeAsync`'s aggregate query now also considers
+`MaxReassignedAt`. Migration `AddOperationalTaskReassignedAt` was generated, inspected (nullable
+`timestamp with time zone` column), and applied via `dotnet ef database update`. `dotnet build`/
+`npm run lint`/`npm run build` all clean. `docs/To-Do-List.txt`'s "Operations Replay simülasyonunu
+kesinleştir — Reassign devir zamanı" item is now `[x]`, moved to the completed archive section.
+
+Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, and the
+still-open `OutOfService` transition timestamping gap (see "Known open items" above).

@@ -1,21 +1,22 @@
-Task: Stabilize Field Unit Markers Animation Loop (Performance Refactor)
+Normalize comments in `Worker.cs` to English, update `docs/To-Do-List.txt`, and document the architecture evaluation in `docs/DEVELOPMENT_LOG.md`.
 
-### Objective
-Ensure the continuous animation loop in `frontend/src/features/operations-map/hooks/useFieldUnitMarkers.ts` runs seamlessly without getting torn down and restarted on every SignalR update or data refetch.
+### Tasks & Steps:
+1. **Comment Normalization in `Src/incident-generator/Worker.cs`:**
+   - Translate any remaining Turkish inline comments in `Worker.cs` to clean English (matching the convention applied in Phase 5.5 to `useSignalR.ts`), without changing any functional code logic.
 
-### Requirements
-1. In `frontend/src/features/operations-map/hooks/useFieldUnitMarkers.ts`:
-   - Keep `operationalTasks` and `fieldUnits` updated in refs:
-     - Ensure `fieldUnitsByIdRef.current` (or an `operationalTasksRef`) always contains the latest references on every render.
-   - Refactor the continuous animation `useEffect`:
-     - Change its dependency array from `[map, fieldUnits, operationalTasks]` to `[map]`.
-     - The inner `tick` function should read `operationalTasksRef.current` and `fieldUnitsByIdRef.current` (or iterate over `markersRef.current` and look up units/tasks from refs) instead of closing over reactive array props.
-     - Ensure the loop starts when `map` is ready and only stops (cancels `animationFrameId`) when `map` unmounts.
-   - Ensure the separate marker diffing / creation / removal `useEffect` continues to update marker DOM instances when `fieldUnits` change.
+2. **Update `docs/To-Do-List.txt`:**
+   - Locate the item:
+     `* [ ] *(Opsiyonel / düşük öncelik)* **`incident-generator/Worker.cs` (128 satır) içindeki rastgele olay üretim ve ağırlık matematiğini ayrı bir `IncidentFactory` sınıfına taşı.**`
+   - Remove it from open tasks and add it to `### Tamamlanan Maddeler (Arşiv)` as `[x]`, documenting that `Worker.cs` was evaluated and kept intact under the project's YAGNI policy (clean, 128 lines, single responsibility, no duplication).
 
-2. Verification:
-   - Run `npm run lint` and `npm run build` in `frontend/` to confirm zero lint and zero TypeScript errors.
+3. **Update `docs/DEVELOPMENT_LOG.md`:**
+   - Append a new section under Part 12:
+     - `## 45. Phase 5.20 — Incident Generator Evaluation & Comment Normalization (Worker.cs)`
+     - Document the architectural review of `Src/incident-generator/Worker.cs` (128 lines).
+     - Record the deliberate decision to avoid premature abstraction (`IncidentFactory`) since the worker is concise, cohesive, and has zero code duplication (YAGNI).
+     - Note the comment normalization to English.
 
-3. Documentation:
-   - Update `docs/DEVELOPMENT_LOG.md` under Part 12 (as section 39).
-   - In `docs/To-Do-List.txt`, mark the item `useFieldUnitMarkers.ts animasyon döngüsünü sürekli çalışır hale getir` as completed `[x]`.
+### Verification:
+- Build generator: `dotnet build Src/incident-generator/SmartCityOps.IncidentGenerator.csproj` (0 errors, 0 warnings).
+- Build backend API: `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` (0 errors, 0 warnings).
+- Run frontend checks: `npm run lint` and `npm run build` in `frontend/`.

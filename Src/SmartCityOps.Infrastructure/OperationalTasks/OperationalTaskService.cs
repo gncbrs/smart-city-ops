@@ -42,6 +42,7 @@ public class OperationalTaskService : IOperationalTaskService
                 t.Status.ToString(),
                 t.AssignedAt,
                 t.CompletedAt,
+                t.ReassignedAt,
                 t.OriginLatitude,
                 t.OriginLongitude,
                 t.EstimatedEtaSeconds))
@@ -69,7 +70,7 @@ public class OperationalTaskService : IOperationalTaskService
             incident.Status = IncidentStatus.InProgress;
         }
 
-        var taskDto = await AssignFieldUnitAsync(incident, fieldUnit, cancellationToken);
+        var taskDto = await AssignFieldUnitAsync(incident, fieldUnit, DateTimeOffset.UtcNow, cancellationToken);
 
         await _domainEventDispatcher.DispatchAsync(new TaskAssignedEvent(taskDto.Id, incident.Id, fieldUnit.Id), cancellationToken);
 
@@ -131,10 +132,12 @@ public class OperationalTaskService : IOperationalTaskService
             throw new ValidationException(ruleResult.FailureReason!);
         }
 
+        var now = DateTimeOffset.UtcNow;
         oldTask.Status = OperationalTaskStatus.Reassigned;
+        oldTask.ReassignedAt = now;
         oldFieldUnit.Status = FieldUnitStatus.Available;
 
-        var newTaskDto = await AssignFieldUnitAsync(incident, newFieldUnit, cancellationToken);
+        var newTaskDto = await AssignFieldUnitAsync(incident, newFieldUnit, now, cancellationToken);
 
         await _domainEventDispatcher.DispatchAsync(
             new TaskReassignedEvent(oldTask.Id, newTaskDto.Id, incident.Id, oldFieldUnit.Id, newFieldUnit.Id),
@@ -146,9 +149,9 @@ public class OperationalTaskService : IOperationalTaskService
     private async Task<OperationalTaskDto> AssignFieldUnitAsync(
         Incident incident,
         FieldUnit fieldUnit,
+        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
         var originLatitude = fieldUnit.Latitude;
         var originLongitude = fieldUnit.Longitude;
         var estimatedEta = _etaEstimator.EstimateEta(originLatitude, originLongitude, incident.Latitude, incident.Longitude);
@@ -203,6 +206,7 @@ public class OperationalTaskService : IOperationalTaskService
             task.Status.ToString(),
             task.AssignedAt,
             task.CompletedAt,
+            task.ReassignedAt,
             task.OriginLatitude,
             task.OriginLongitude,
             task.EstimatedEtaSeconds);
