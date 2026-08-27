@@ -1,21 +1,19 @@
 .filter-panel__group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .filter-panel__group-label {
-  width: 100%;
+  display: block;
+  font-size: 0.75rem;
   font-weight: 600;
-  font-size: 0.85rem;
-  color: #F8FAFC;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #f8fafc;
+  margin-bottom: 6px;
 }
 
-.filter-panel__option {
+.filter-panel__chips {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.85rem;
+  flex-wrap: wrap;
+  gap: 6px;
 }

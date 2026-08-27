@@ -2,4 +2,75 @@
   margin-bottom: 16px;
   padding-bottom: 16px;
   border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.filter-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  border-radius: 6px;
+  background: #1E293B;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-chip:hover {
+  border-color: #f8fafc;
+  color: #f8fafc;
+}
+
+.filter-chip__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.filter-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+
+.filter-chip--selected {
+  background: #2563EB;
+  border: 1px solid #3B82F6;
+  color: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+
+.filter-chip--selected:hover {
+  border-color: #f8fafc;
+  color: #f8fafc;
+}
+
+.filter-chip--priority-high.filter-chip--selected {
+  background: #EF4444;
+  border-color: #EF4444;
+  color: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
+
+.filter-chip--priority-medium.filter-chip--selected {
+  background: #D97706;
+  border-color: #D97706;
+  color: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25);
+}
+
+.filter-chip--priority-low.filter-chip--selected {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
 }

@@ -33,6 +33,7 @@ export function FilterPanel({
         options={ALL_PRIORITIES}
         selectedOptions={selectedPriorities}
         onToggle={onTogglePriority}
+        variant="priority"
       />
 
       <FilterCheckboxGroup

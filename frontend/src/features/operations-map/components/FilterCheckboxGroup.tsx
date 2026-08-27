@@ -6,6 +6,7 @@ interface FilterCheckboxGroupProps<T extends string> {
   options: T[];
   selectedOptions: T[];
   onToggle: (option: T) => void;
+  variant?: "default" | "priority";
 }
 
 export function FilterCheckboxGroup<T extends string>({
@@ -13,20 +14,36 @@ export function FilterCheckboxGroup<T extends string>({
   options,
   selectedOptions,
   onToggle,
+  variant = "default",
 }: FilterCheckboxGroupProps<T>) {
   return (
     <div className="filter-panel__group">
       <span className="filter-panel__group-label">{label}</span>
-      {options.map((option) => (
-        <label key={option} className="filter-panel__option">
-          <input
-            type="checkbox"
-            checked={selectedOptions.includes(option)}
-            onChange={() => onToggle(option)}
-          />
-          {formatEnumLabel(option)}
-        </label>
-      ))}
+      <div className="filter-panel__chips">
+        {options.map((option) => {
+          const isSelected = selectedOptions.includes(option);
+          const priorityModifier =
+            variant === "priority" ? ` filter-chip--priority-${option.toLowerCase()}` : "";
+
+          return (
+            <label
+              key={option}
+              className={`filter-chip${isSelected ? " filter-chip--selected" : ""}${
+                isSelected ? priorityModifier : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="filter-chip__input"
+                checked={isSelected}
+                onChange={() => onToggle(option)}
+              />
+              {isSelected && <span className="filter-chip__dot" aria-hidden="true" />}
+              {formatEnumLabel(option)}
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }

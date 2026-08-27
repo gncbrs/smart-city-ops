@@ -121,6 +121,18 @@ bottom bar (field units / incidents / active tasks), and a full-screen `Menu` ov
 (`features/menu`) for Completed Tasks, Statistics, and drill-down detail views (incident timeline,
 field unit movement history) routed via `MenuSectionRouter`.
 
+The sidebar (`app/components/OperationsSidebar.tsx`) renders `FilterPanel` plus
+`features/incidents/components/ActiveIncidentsList.tsx` — a scrollable card list of non-resolved
+incidents, filtered by the active priority filter and sorted via `sortActiveIncidents` (priority
+score descending, then `type` ascending). Each card shows a deterministic priority-score bar/badge
+computed by `features/incidents/lib/incidentPriorityScore.ts`: `getIncidentPriorityScore` hashes
+`incident.id` into a 0-100 score bucketed by `priority` (Low 0-30 / Medium 31-70 / High 71-100, no
+backend schema change needed since the score is derived, not stored), and `getPriorityScoreColor`
+maps a score to its bar/text color. The 5 summary counters that used to live in the sidebar
+(Active Incidents, High Priority Active Incidents, Available/Dispatched/Out of Service Field
+Units) were moved into an "Operational Overview" stat-card grid at the top of the Menu's
+`features/dashboard/components/StatisticsSection.tsx`.
+
 Styling is plain CSS with BEM naming, one stylesheet per component, colocated under each feature's
 `styles/` folder — no CSS-in-JS, no Tailwind.
 
@@ -343,13 +355,11 @@ Phase 5.15 / Audit (`docs/DEVELOPMENT_LOG.md`, Part 12 §40) was a read-only, co
 overlapping/duplicated lists with several stale entries. `docs/To-Do-List.txt` was rewritten into
 one de-duplicated, priority-grouped list; every remaining open item was re-verified directly
 against source (grep/read), not inferred from this file's prose. One new finding surfaced:
-**`Src/SmartCityOps.sln`'s `ProjectConfigurationPlatforms` section is missing `Debug|Any
-CPU.Build.0`/`Release|Any CPU.Build.0` mappings** for every project (only the `x64` platform
-variants have `Build.0`), so `dotnet build SmartCityOps.sln` under the default `Debug|Any CPU`
-configuration silently compiles zero projects — this is why this project's own Commands section
-above always builds via `dotnet build` at the repo root (implicit project discovery) or specific
-`.csproj` paths, never `dotnet build SmartCityOps.sln` directly. Tracked as a new Technical Debt
-item in `docs/To-Do-List.txt`. Confirmed still accurate as of this audit: no backend test project,
+`Src/SmartCityOps.sln`'s `ProjectConfigurationPlatforms` section was missing `Debug|Any
+CPU.Build.0`/`Release|Any CPU.Build.0` mappings for every project (only the `x64` platform
+variants had `Build.0`), so `dotnet build SmartCityOps.sln` under the default `Debug|Any CPU`
+configuration silently compiled zero projects. Tracked as a new Technical Debt
+item in `docs/To-Do-List.txt` and fixed in Phase 5.22 below. Confirmed still accurate as of this audit: no backend test project,
 no frontend test runner (`vitest`/`jest` absent from `frontend/package.json`), no
 `RestrictedZoneConfiguration.cs` seed data, `AnkaraOperationalZones.All` still has 7 zones (Sincan
 is present; Yenimahalle/Altındağ/Polatlı are not), and `OperationalTaskService.ReassignAsync` still
@@ -381,6 +391,16 @@ approximating, and `GetReplayTimeRangeAsync`'s aggregate query now also consider
 `timestamp with time zone` column), and applied via `dotnet ef database update`. `dotnet build`/
 `npm run lint`/`npm run build` all clean. `docs/To-Do-List.txt`'s "Operations Replay simülasyonunu
 kesinleştir — Reassign devir zamanı" item is now `[x]`, moved to the completed archive section.
+
+Phase 5.22 (`docs/DEVELOPMENT_LOG.md`, Part 12 §47) fixed the `Src/SmartCityOps.sln` build mapping
+gap flagged by the Phase 5.15 audit above: `.Debug|Any CPU.Build.0`/`.Release|Any CPU.Build.0`
+mappings (pointing to `Debug|x64`/`Release|x64`, matching each project's existing `ActiveCfg`) were
+added for all 5 project GUIDs (`SmartCityOps.Domain`, `SmartCityOps.Application`,
+`SmartCityOps.Infrastructure`, `SmartCityOps.Api`, `SmartCityOps.IncidentGenerator`). Standard
+`dotnet build` / `dotnet build SmartCityOps.sln` from `Src/` now builds all 5 projects cleanly (0
+warnings, 0 errors) under the default `Debug|Any CPU` configuration — no `-p:Platform=x64` or
+explicit `.csproj` path is needed anymore. `docs/To-Do-List.txt`'s "`SmartCityOps.sln` — `Debug|Any
+CPU` konfigürasyonu proje derlemiyor" item is now `[x]`, moved to the completed archive section.
 
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, and the
 still-open `OutOfService` transition timestamping gap (see "Known open items" above).

@@ -47,10 +47,12 @@ Api → Infrastructure → Application → Domain
 - **Api** — controller-based REST endpoints, Swagger, CORS, centralized exception handling.
 
 **Incident Generator** — a standalone .NET worker service that simulates incidents arriving from
-an external monitoring system. It has no project reference to the API — it only communicates over
-HTTP — by design, to mirror a real external integration. Incidents are distributed across a
-weighted set of Ankara districts (`AnkaraZones`), which the API also exposes (as a separate,
-manually-synced copy) for the map's operational-zones layer.
+an external monitoring system. It has no project reference to the API/Application/Infrastructure —
+it only communicates over HTTP — by design, to mirror a real external integration; it does,
+however, reference `SmartCityOps.Domain` directly (framework-free plain C#) to read the single
+source of truth for Ankara zone data, `AnkaraOperationalZones.All`. Incidents are distributed
+across this weighted set of 12 Ankara districts, which the API's operational-zones endpoint also
+reads from the same list for the map's operational-zones layer.
 
 **Frontend** — React + TypeScript + Vite, feature-folder structure, fixed (non-scrolling) layout:
 a map with a filter/summary sidebar on top, a three-column bottom bar (field unit / incident /

@@ -1,22 +1,14 @@
-Normalize comments in `Worker.cs` to English, update `docs/To-Do-List.txt`, and document the architecture evaluation in `docs/DEVELOPMENT_LOG.md`.
+Update `docs/DEVELOPMENT_LOG.md` and `docs/To-Do-List.txt` to record the FilterPanel Filter Chip modernization.
 
 ### Tasks & Steps:
-1. **Comment Normalization in `Src/incident-generator/Worker.cs`:**
-   - Translate any remaining Turkish inline comments in `Worker.cs` to clean English (matching the convention applied in Phase 5.5 to `useSignalR.ts`), without changing any functional code logic.
+1. **Update `docs/DEVELOPMENT_LOG.md`:**
+   - Under `## 48. Phase 5.23 — Sidebar Active Incidents List, Priority Score Bars & Statistics Reorganization` (or as a Step 4 note):
+     - Document modernizing `FilterPanel` / `FilterCheckboxGroup` by replacing native checkboxes with compact, accessible Filter Chip / Pill buttons.
+     - Document chip variants: default blue (`#2563EB`) for Status/Type and semantic priority badges (`High: #EF4444`, `Medium: #D97706`, `Low: #2563EB`) with active dot indicators.
+     - Note that compact sizing (`padding: 4px 10px`, `font-size: 0.75rem`, `border-radius: 6px`, `gap: 6px`) and `flex-shrink: 0` keep the panel fixed and 100% scrollbar-free.
 
 2. **Update `docs/To-Do-List.txt`:**
-   - Locate the item:
-     `* [ ] *(Opsiyonel / düşük öncelik)* **`incident-generator/Worker.cs` (128 satır) içindeki rastgele olay üretim ve ağırlık matematiğini ayrı bir `IncidentFactory` sınıfına taşı.**`
-   - Remove it from open tasks and add it to `### Tamamlanan Maddeler (Arşiv)` as `[x]`, documenting that `Worker.cs` was evaluated and kept intact under the project's YAGNI policy (clean, 128 lines, single responsibility, no duplication).
-
-3. **Update `docs/DEVELOPMENT_LOG.md`:**
-   - Append a new section under Part 12:
-     - `## 45. Phase 5.20 — Incident Generator Evaluation & Comment Normalization (Worker.cs)`
-     - Document the architectural review of `Src/incident-generator/Worker.cs` (128 lines).
-     - Record the deliberate decision to avoid premature abstraction (`IncidentFactory`) since the worker is concise, cohesive, and has zero code duplication (YAGNI).
-     - Note the comment normalization to English.
+   - Add a note under completed archive `[x]` stating that `FilterPanel` native checkboxes were modernized into compact filter chips with priority color variants — Phase 5.23, §48.
 
 ### Verification:
-- Build generator: `dotnet build Src/incident-generator/SmartCityOps.IncidentGenerator.csproj` (0 errors, 0 warnings).
-- Build backend API: `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` (0 errors, 0 warnings).
-- Run frontend checks: `npm run lint` and `npm run build` in `frontend/`.
+Ensure `npm run lint` and `npm run build` in `frontend/` remain completely green.

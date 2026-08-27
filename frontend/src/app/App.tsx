@@ -182,7 +182,8 @@ export function App() {
       sidePanel={
         <OperationsSidebar
           incidents={incidents}
-          fieldUnits={fieldUnits}
+          selectedIncidentId={selectedIncidentId}
+          onSelectIncident={toggleIncidentSelection}
           priorityFilter={priorityFilter}
           onTogglePriority={togglePriority}
           fieldUnitStatusFilter={fieldUnitStatusFilter}

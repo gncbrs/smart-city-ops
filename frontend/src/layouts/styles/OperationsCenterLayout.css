@@ -34,7 +34,10 @@
   color: #F8FAFC;
   border-left: 1px solid #334155;
   padding: 16px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .operations-center-layout__bottom-bar {

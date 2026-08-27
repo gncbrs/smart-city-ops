@@ -5341,3 +5341,176 @@ project's YAGNI policy.
 
 ---
 
+## 46. Phase 5.21 — Frontend Minor NPM Dependencies Update & Lockfile Refresh
+
+**Scope:** `docs/To-Do-List.txt` carried an optional/maintenance reminder that `npm outdated`
+showed several minor/patch-level updates available for frontend dependencies (`@tanstack/
+react-query`, `axios`, `maplibre-gl`, `vite`, `oxlint`, etc.) — none breaking, none urgent. This
+phase applied them.
+
+**Change:** ran `npm update` in `frontend/`, which bumps dependencies within the semver ranges
+already declared in `package.json` (`^`/`~`). The only package that actually moved was
+`@tanstack/query-core`/`@tanstack/react-query`, from `5.102.6` to `5.102.7` (a patch release) —
+every other dependency (`axios`, `maplibre-gl`, `vite`, `oxlint`, `@microsoft/signalr`, `react`/
+`react-dom`, `typescript`, `@vitejs/plugin-react`, `@types/*`) was already at the newest version
+satisfying its declared range at the time `npm update` ran. `package.json` itself required no
+edits — only `package-lock.json` changed (updated `version`/`resolved`/`integrity` entries for the
+two `@tanstack` packages). No major-version bumps were introduced.
+
+**Verification:** `npm run lint` (oxlint) in `frontend/` — 0 errors (exit code 0); the same
+handful of pre-existing `react(purity)`/`react(refs)`/`react(set-state-in-effect)` warnings from
+prior phases remain, unrelated to this change and already present before the update. `npm run
+build` (`tsc -b && vite build`) in `frontend/` — 0 TypeScript errors, 0 build errors; same chunk
+output/sizes as before (`index` ~372 kB, `maplibre-vendor` ~955 kB — the pre-existing >500 kB
+chunk-size advisory is informational only, from the `maplibre-gl` library itself, and unchanged by
+this phase). `dotnet build Src/SmartCityOps.Api/SmartCityOps.Api.csproj` — 0 warnings, 0 errors
+(backend untouched by this phase; re-verified to confirm no cross-stack regression).
+
+**Outcome:** the "Küçük npm bağımlılık güncellemeleri" item is now `[x]` in `docs/To-Do-List.txt`,
+moved to the completed archive section.
+
+---
+
+## 47. Phase 5.22 — Solution File Platform Build Mapping Fix (SmartCityOps.sln)
+
+**Scope:** the Technical Debt item flagged since §40's audit — `Src/SmartCityOps.sln`'s
+`ProjectConfigurationPlatforms` section had `.ActiveCfg` mappings for `Debug|Any CPU` and
+`Release|Any CPU` on every project, but no corresponding `.Build.0` mappings (only the `x64`
+platform variants had `.Build.0`). Under MSBuild/dotnet CLI semantics, a configuration/platform
+combination is only actually built if a `.Build.0` entry exists for it — `.ActiveCfg` alone just
+maps the combination to another configuration without opting it into the build. Since `dotnet
+build`'s default configuration/platform is `Debug|Any CPU`, and no project had a
+`Debug|Any CPU.Build.0` entry, `dotnet build SmartCityOps.sln` (or plain `dotnet build` from
+`Src/`) silently built zero projects, emitting only a "Geri yüklenecek proje bulunamadı" warning
+with no error — easy to miss.
+
+**Fix:** for all 5 project GUIDs (`SmartCityOps.Domain`, `SmartCityOps.Application`,
+`SmartCityOps.Infrastructure`, `SmartCityOps.Api`, `SmartCityOps.IncidentGenerator`), added
+`{GUID}.Debug|Any CPU.Build.0 = Debug|x64` and `{GUID}.Release|Any CPU.Build.0 = Release|x64`
+lines, matching each project's existing `ActiveCfg` target (every project's `Debug|Any CPU.ActiveCfg`
+and `Release|Any CPU.ActiveCfg` already pointed at `Debug|x64`/`Release|x64`, so the new `.Build.0`
+lines mirror the same target rather than introducing a new configuration). This is a solution-file-only
+change — no `.csproj` file was touched.
+
+**Verification:** `dotnet build SmartCityOps.sln` and plain `dotnet build` (both run from `Src/`)
+now report all 5 projects restored and compiled — `SmartCityOps.Domain`, `SmartCityOps.Application`,
+`SmartCityOps.IncidentGenerator`, `SmartCityOps.Infrastructure`, `SmartCityOps.Api` — with 0
+warnings and 0 errors. This resolves the silent 0-project compilation issue noted in §40 and
+removes the previous workaround of building via implicit project discovery or explicit `.csproj`
+paths only.
+
+**Outcome:** the "`SmartCityOps.sln` — `Debug|Any CPU` konfigürasyonu proje derlemiyor" item is now
+`[x]` in `docs/To-Do-List.txt`, moved to the completed archive section. `CLAUDE.md`'s Commands
+section and "Current status" notes about this limitation were updated accordingly.
+
+---
+
+## 48. Phase 5.23 — Sidebar Active Incidents List, Priority Score Bars & Statistics Reorganization
+
+**Scope:** two related frontend-only UI changes on top of the existing dashboard/sidebar
+structure — no backend/migration change in either step.
+
+**Step 1 — Statistics reorganization.** The 5 summary counters (Active Incidents, High Priority
+Active Incidents, Available/Dispatched/Out of Service Field Units) previously rendered inline
+(no CSS classes at all) by `IncidentsSummary.tsx` and `Dashboard.tsx` in the right sidebar
+(`OperationsSidebar.tsx`) were moved into an "Operational Overview" stat-card grid at the top of
+the Menu's `StatisticsSection.tsx` (`frontend/src/features/dashboard/components/
+StatisticsSection.tsx`), which already received `incidents`/`fieldUnits` as props from
+`MenuSectionRouter.tsx`, so no new data plumbing was needed. A new `frontend/src/features/
+dashboard/styles/StatisticsSection.css` defines the BEM classes (`statistics-section__overview`,
+`__card`, `__card-label`, `__card-value`, `__card--highlight` for the high-priority card) using the
+existing dark palette (`#1E293B` card background, `#F8FAFC` value text, `#3B82F6` highlight). The
+now-dead `Dashboard.tsx` and `IncidentsSummary.tsx` components were deleted (verified via grep: no
+remaining references anywhere in `frontend/src/`); `OperationsSidebar.tsx` and its `App.tsx` call
+site had their `incidents`/`fieldUnits` props removed since nothing in the sidebar needed them
+after this move — clearing the way for Step 2.
+
+**Step 2 — Active Incidents List + priority scoring.** A new pure utility module,
+`frontend/src/features/incidents/lib/incidentPriorityScore.ts`, was added:
+- `getIncidentPriorityScore(incident): number` — deterministic 0-100 integer score. A simple
+  string hash (`hash = hash * 31 + charCode`, unsigned via `>>> 0`) is computed from `incident.id`
+  (there is no `incidentCode` field on `Incident`) and mapped into a range determined by
+  `incident.priority`: Low → `0 + (hash % 31)` (0-30), Medium → `31 + (hash % 40)` (31-70), High →
+  `71 + (hash % 30)` (71-100). Hashing the id rather than storing a score column keeps the score
+  stable across re-renders/refetches without any backend schema change.
+- `getPriorityScoreColor(score): { barColor, textColor }` — High (≥71) `#EF4444`, Medium (≥31)
+  `#F59E0B`, Low (<31) `#3B82F6`.
+- `sortActiveIncidents(incidents): Incident[]` — filters `status !== "Resolved"`, then sorts by
+  priority score descending, tie-breaking on `type` ascending (`localeCompare`).
+
+`frontend/src/features/incidents/components/ActiveIncidentsList.tsx` (+ colocated
+`styles/ActiveIncidentsList.css`) consumes this module to render the sidebar's new active-incidents
+panel: a `"Active Incidents ({count})"` header, a scrollable card list (compact `::-webkit-scrollbar`
+styling, `max-height: 320px`) below `FilterPanel`, and per-card: incident type + priority badge in
+the header, a progress-bar row (`getPriorityScoreColor(score).barColor` driving the fill color,
+width set to `score%`) plus the numeric `score%` badge, and a footer with a status badge (`Open` →
+"Reported", `InProgress` → "In Progress") and the reported time. A selected card
+(`incident.id === selectedIncidentId`) gets a highlighted border/background; clicking a card calls
+`onSelectIncident(incident.id)`. An empty state renders `"No active incidents matching filters."`
+when the filtered/sorted list is empty. `OperationsSidebar.tsx` now takes `incidents`,
+`selectedIncidentId`, `onSelectIncident` in addition to its existing filter props: it applies the
+active `priorityFilter` (when non-empty) to `incidents`, feeds the result through
+`sortActiveIncidents`, and renders `<ActiveIncidentsList />` with that derived list — so the sidebar
+list, the map markers, and marker click-to-select all stay in sync through the same
+`priorityFilter`/`toggleIncidentSelection` state already wired in `App.tsx` (no new selection
+mechanism was introduced; `App.tsx` just passes `incidents`, `selectedIncidentId`, and
+`toggleIncidentSelection` down to `OperationsSidebar`).
+
+**Step 3 — Sidebar scrollbar layout refinement.** Step 2's fixed `max-height: 320px` on
+`.active-incidents-list__items` left the outer side panel free to grow taller than the viewport,
+so `.operations-center-layout__side-panel`'s own `overflow-y: auto`
+(`frontend/src/layouts/styles/OperationsCenterLayout.css`) kicked in and produced a second,
+outer scrollbar alongside the incident list's own compact one. Fixed by making the side panel a
+non-scrolling flex column instead of a scrolling block:
+`.operations-center-layout__side-panel` changed from `overflow-y: auto` to `display: flex;
+flex-direction: column; min-height: 0; overflow: hidden;`, so the panel itself never generates a
+scrollbar. `.active-incidents-list` (`frontend/src/features/incidents/styles/
+ActiveIncidentsList.css`) became a flex column filling the remaining vertical space (`flex: 1;
+min-height: 0`), with its `__header` pinned via `flex-shrink: 0`; `.active-incidents-list__items`
+dropped the fixed `max-height: 320px` in favor of `flex: 1; min-height: 0; overflow-y: auto`, so it
+grows to fill whatever space is left below `FilterPanel` and only it scrolls (keeping its existing
+compact `::-webkit-scrollbar` styling). `FilterPanel`
+(`frontend/src/features/operations-map/styles/FilterPanel.css`) gained `flex-shrink: 0` so it keeps
+its natural height as a fixed sibling in the new flex column instead of being compressed. No
+backend/migration change.
+
+**Step 4 — FilterPanel Filter Chip modernization.** `FilterPanel`'s per-option rendering (delegated
+to `frontend/src/features/operations-map/components/FilterCheckboxGroup.tsx`) was modernized from
+native `<input type="checkbox">` + label text rows into compact, accessible Filter Chip / Pill
+buttons, with zero changes to the underlying selection state or toggle logic
+(`selectedOptions`/`onToggle` props are untouched). Each option still renders a real
+`<input type="checkbox">` for accessibility/semantics, now visually hidden via
+`.filter-chip__input { position: absolute; opacity: 0; pointer-events: none; }` inside a
+`<label className="filter-chip">`, so clicking the chip still natively toggles React state — no new
+click handler was added. `FilterCheckboxGroup` gained an optional `variant?: "default" | "priority"`
+prop: the "Incident Priority" group passes `variant="priority"` from `FilterPanel.tsx`, which adds a
+`filter-chip--priority-{high|medium|low}` modifier class (derived from the option value) so that
+group's selected chips render the semantic priority colors instead of the default blue — High
+`#EF4444`, Medium `#D97706`, Low `#2563EB` — while Field Unit Status/Type keep the default selected
+style, background `#2563EB` / border `#3B82F6`, white text, with a subtle `box-shadow` glow. A
+selected chip also renders a small white `.filter-chip__dot` indicator next to its label.
+Compact sizing (`padding: 4px 10px`, `font-size: 0.75rem`, `border-radius: 6px`) plus
+`.filter-panel__chips { display: flex; flex-wrap: wrap; gap: 6px; }` keeps each section
+(Incident Priority / Field Unit Status / Field Unit Type) wrapping naturally instead of overflowing;
+section labels (`.filter-panel__group-label`) were restyled to the same subtle/compact treatment
+used elsewhere in the sidebar (`font-size: 0.75rem`, uppercase, `letter-spacing: 0.05em`, `#94A3B8`).
+`.filter-panel` keeps its existing `flex-shrink: 0` (set in Step 3 above) so the chip panel still
+sits as a fixed-height sibling above `ActiveIncidentsList` with no outer scrollbar introduced. All
+new styling lives in `frontend/src/features/operations-map/styles/FilterPanel.css`
+(strict BEM, zero inline styles); `FilterCheckboxGroup.css` was trimmed down to just the group/chip
+wrapper layout. No backend/migration change.
+
+**Verification:** `npm run lint` (oxlint) and `npm run build` (`tsc -b && vite build`) both clean —
+0 errors across all four steps (only pre-existing warnings unrelated to these files, e.g. the
+`react(refs)`/`react(set-state-in-effect)` warnings already present before this phase). `dotnet
+build Src/SmartCityOps.sln` unaffected (frontend-only change, 0 warnings/0 errors). No backend or
+migration change.
+
+**Outcome:** `docs/To-Do-List.txt`'s two new items from Steps 1-2 (active incidents list with
+dynamic percentage bars and multi-tier sorting; sidebar summary counters moved into
+`StatisticsSection.tsx`) plus the Step 4 filter-chip modernization item are `[x]`, added to the
+completed archive section. `CLAUDE.md`'s frontend architecture notes were updated to mention
+`ActiveIncidentsList.tsx` and `incidentPriorityScore.ts`.
+
+---
+

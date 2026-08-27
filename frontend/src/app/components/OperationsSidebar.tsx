@@ -1,12 +1,13 @@
 import type { Incident, IncidentPriority } from "../../features/incidents/types";
-import type { FieldUnit, FieldUnitStatus, FieldUnitType } from "../../features/field-units/types";
+import type { FieldUnitStatus, FieldUnitType } from "../../features/field-units/types";
 import { FilterPanel } from "../../features/operations-map/components/FilterPanel";
-import { IncidentsSummary } from "../../features/incidents/components/IncidentsSummary";
-import { Dashboard } from "../../features/dashboard/components/Dashboard";
+import { ActiveIncidentsList } from "../../features/incidents/components/ActiveIncidentsList";
+import { sortActiveIncidents } from "../../features/incidents/lib/incidentPriorityScore";
 
 interface OperationsSidebarProps {
   incidents: Incident[];
-  fieldUnits: FieldUnit[];
+  selectedIncidentId: string | null;
+  onSelectIncident: (id: string) => void;
   priorityFilter: IncidentPriority[];
   onTogglePriority: (priority: IncidentPriority) => void;
   fieldUnitStatusFilter: FieldUnitStatus[];
@@ -17,7 +18,8 @@ interface OperationsSidebarProps {
 
 export function OperationsSidebar({
   incidents,
-  fieldUnits,
+  selectedIncidentId,
+  onSelectIncident,
   priorityFilter,
   onTogglePriority,
   fieldUnitStatusFilter,
@@ -25,6 +27,12 @@ export function OperationsSidebar({
   fieldUnitTypeFilter,
   onToggleFieldUnitType,
 }: OperationsSidebarProps) {
+  const filteredIncidents =
+    priorityFilter.length > 0
+      ? incidents.filter((incident) => priorityFilter.includes(incident.priority))
+      : incidents;
+  const activeIncidents = sortActiveIncidents(filteredIncidents);
+
   return (
     <>
       <FilterPanel
@@ -36,11 +44,11 @@ export function OperationsSidebar({
         onToggleFieldUnitType={onToggleFieldUnitType}
       />
 
-      <IncidentsSummary
-        count={incidents.filter((incident) => incident.status !== "Resolved").length}
+      <ActiveIncidentsList
+        incidents={activeIncidents}
+        selectedIncidentId={selectedIncidentId}
+        onSelectIncident={onSelectIncident}
       />
-
-      <Dashboard incidents={incidents} fieldUnits={fieldUnits} />
     </>
   );
 }

@@ -38,22 +38,7 @@ NOT: Test altyapısını en son kuracağım şuanda herhangi bir acelesi yok, bu
 
   ### 3. Öncelik — Kod Temizliği & Teknik Borçlar (Technical Debt)
 
-* [ ] **`SmartCityOps.sln` — `Debug|Any CPU` konfigürasyonu proje derlemiyor:**
-  `Src/SmartCityOps.sln`'in `ProjectConfigurationPlatforms` bölümünde her proje için
-  `Debug|Any CPU.ActiveCfg = Debug|x64` satırı var ama karşılık gelen
-  `Debug|Any CPU.Build.0 = Debug|x64` satırı yok (yalnızca `Debug|x64.Build.0` var) — bu yüzden
-  `dotnet build SmartCityOps.sln` (varsayılan konfigürasyon `Debug|Any CPU` olduğunda) hiçbir
-  projeyi derlemiyor ("Geri yüklenecek proje bulunamadı" uyarısı), doğrulama şu an yalnızca
-  doğrudan `.csproj` referanslarıyla yapılabiliyor (bkz. `docs/DEVELOPMENT_LOG.md` Part 12 §38).
-  Her proje GUID'i için eksik `Debug|Any CPU.Build.0` / `Release|Any CPU.Build.0` satırlarını
-  `Debug|x64` / `Release|x64`'e eşleyerek ekle, ya da `dotnet build` çağrılarını
-  `-p:Platform=x64` ile standardize et.
-
-* [ ] *(Opsiyonel / bakım)* **Küçük npm bağımlılık güncellemeleri:** `npm outdated` şu an
-  `@tanstack/react-query` (5.101.4→5.102.6), `axios` (1.19.0→1.20.0), `maplibre-gl`
-  (6.3.0→6.6.0), `vite` (8.2.1→8.2.2), `oxlint` (1.78.0→1.80.0) gibi minör/patch güncellemeler
-  gösteriyor — hiçbiri kırıcı değil, acil değil, uygun bir zamanda `npm update` ile toplu
-  güncellenebilir.
+  (Tüm öncelikli fonksiyonel maddeler tamamlandı)
 
 ---
 
@@ -105,3 +90,24 @@ NOT: Test altyapısını en son kuracağım şuanda herhangi bir acelesi yok, bu
   değerini `oldTask.Status = Reassigned` ile aynı anda set ediyor, `OperationsReplayService` devir
   anını `AssignedAt` yaklaşıklamasına gerek kalmadan `ReassignedAt`'e göre kesin olarak yeniden
   kuruyor — Phase 5.18, §43.
+* [x] *(Opsiyonel / bakım)* **Küçük npm bağımlılık güncellemeleri:** `frontend/` içinde
+  `npm update` çalıştırıldı, bağımlılıklar semver aralıkları içinde güncellendi (`@tanstack/
+  react-query`/`@tanstack/query-core` 5.102.6→5.102.7 patch bump; diğer paketler zaten
+  aralıklarının en güncel sürümündeydi), `package-lock.json` temiz güncellendi, `npm run lint`
+  (0 hata) ve `npm run build` (`tsc -b && vite build`, 0 hata) ile doğrulandı — Phase 5.21, §46.
+* [x] **`SmartCityOps.sln` — `Debug|Any CPU` konfigürasyonu proje derlemiyor:** `Src/SmartCityOps.sln`'in
+  `ProjectConfigurationPlatforms` bölümünde 5 proje GUID'inin tamamı için eksik olan
+  `Debug|Any CPU.Build.0` / `Release|Any CPU.Build.0` satırları, mevcut `ActiveCfg` eşlemeleriyle
+  uyumlu şekilde (`Debug|x64` / `Release|x64`) eklendi — artık `Src/` içinde standart
+  `dotnet build` / `dotnet build SmartCityOps.sln` çağrısı sorunsuz şekilde 5 projeyi de derliyor
+  (0 uyarı, 0 hata) — Phase 5.22, §47.
+* [x] Sidebar'a dinamik yüzde barları (%0-30 Düşük, %31-70 Orta, %71-100 Yüksek) ve çok katmanlı
+  sıralama (skor azalan → tip artan) ile aktif olaylar listesi eklendi
+  (`incidentPriorityScore.ts`, `ActiveIncidentsList.tsx`) — Phase 5.23, §48.
+* [x] Sidebar özet sayaçları Menu > Statistics bölümüne (`StatisticsSection.tsx`) koyu tema kart
+  düzeniyle taşındı — Phase 5.23, §48.
+* [x] `FilterPanel` native checkbox'ları, seçim state/toggle mantığına dokunulmadan kompakt filter
+  chip / pill butonlarına dönüştürüldü — varsayılan (Status/Type) `#2563EB` mavi, Incident Priority
+  için semantik renk varyantları (High `#EF4444`, Medium `#D97706`, Low `#2563EB`) ve aktif nokta
+  göstergesi eklendi; `flex-wrap`/`flex-shrink: 0` ile panel dış scrollbar üretmeden kompakt kalıyor
+  — Phase 5.23, §48.
