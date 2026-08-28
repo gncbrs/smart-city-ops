@@ -4,7 +4,7 @@
   padding: 4px 0;
   max-height: 220px;
   overflow-y: auto;
-  border: 1px solid rgba(128, 128, 128, 0.3);
+  border: 1px solid var(--color-wash-border);
   border-radius: 4px;
 }
 
@@ -14,13 +14,13 @@
   gap: 2px;
   padding: 6px 10px 6px 16px;
   font-size: 0.85rem;
-  border-left: 2px solid rgba(37, 99, 235, 0.4);
+  border-left: 2px solid var(--color-accent-blue-line);
   margin-left: 8px;
   position: relative;
 }
 
 .timeline__item:not(:last-child) {
-  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+  border-bottom: 1px solid var(--color-wash-light);
 }
 
 .timeline__item::before {
@@ -31,11 +31,11 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #2563eb;
+  background: var(--color-accent-blue);
 }
 
 .timeline__time {
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 

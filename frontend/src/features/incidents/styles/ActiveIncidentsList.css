@@ -7,7 +7,7 @@
 }
 
 .active-incidents-list__header {
-  color: #f8fafc;
+  color: var(--color-text-primary);
   font-size: 0.85rem;
   font-weight: 600;
   margin: 0 0 8px;
@@ -15,10 +15,10 @@
 }
 
 .active-incidents-list__empty {
-  color: #94a3b8;
+  color: var(--color-text-muted);
   font-size: 0.8rem;
   padding: 12px;
-  background: #1e293b;
+  background: var(--color-surface-panel);
   border-radius: 15px;
   text-align: center;
 }
@@ -44,7 +44,7 @@
 }
 
 .active-incidents-list__items::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--color-border-subtle);
   border-radius: 3px;
 }
 
@@ -58,8 +58,8 @@
   flex-direction: column;
   gap: 8px;
   text-align: left;
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 15px;
   padding: 10px 12px;
   cursor: pointer;
@@ -69,12 +69,12 @@
 }
 
 .active-incidents-list__card:hover {
-  border-color: #64748b;
+  border-color: var(--color-border-muted);
 }
 
 .active-incidents-list__card--selected {
-  border-color: #3b82f6;
-  background: #24334a;
+  border-color: var(--color-accent-blue-subtle);
+  background: var(--color-surface-card-selected);
 }
 
 .active-incidents-list__card-header {
@@ -85,7 +85,7 @@
 }
 
 .active-incidents-list__type {
-  color: #f8fafc;
+  color: var(--color-text-primary);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -101,25 +101,25 @@
 }
 
 .active-incidents-list__priority-badge--high {
-  color: #e20b0b;
-  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-priority-high);
+  background: var(--color-priority-high-bg);
 }
 
 .active-incidents-list__priority-badge--medium {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-priority-medium);
+  background: var(--color-priority-medium-bg);
 }
 
 .active-incidents-list__priority-badge--low {
-  color: #2eee41;
-  background: rgba(59, 130, 246, 0.15);
+  color: var(--color-priority-low);
+  background: var(--color-priority-low-bg);
 }
 
 .active-incidents-list__card-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   font-size: 0.7rem;
 }
 

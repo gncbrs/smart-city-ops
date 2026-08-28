@@ -18,7 +18,7 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(128, 128, 128, 0.15);
+  background: var(--color-wash-light);
   color: inherit;
   font-size: 0.75rem;
   line-height: 1;
@@ -26,5 +26,5 @@
 }
 
 .field-unit-panel__close:hover {
-  background: rgba(128, 128, 128, 0.3);
+  background: var(--color-wash-border);
 }

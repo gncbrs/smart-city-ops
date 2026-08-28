@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Marker, type Map as MapLibreMap } from "maplibre-gl";
 import type { Incident } from "../../incidents/types";
+import { APP_COLORS } from "../../../shared/constants/colors";
 
 interface UseIncidentMarkersParams {
   map: MapLibreMap | null;
@@ -10,12 +11,12 @@ interface UseIncidentMarkersParams {
 }
 
 const priorityColors: Record<string, string> = {
-  High: "#e20b0b",    
-  Medium: "#f59e0b",  
-  Low: "#2eee41",     
+  High: APP_COLORS.priority.high,
+  Medium: APP_COLORS.priority.medium,
+  Low: APP_COLORS.priority.low,
 };
 
-const DEFAULT_MARKER_COLOR = "#6b7280"; //bilinmeyen bir priority gelirse
+const DEFAULT_MARKER_COLOR = APP_COLORS.priority.unknown;
 const HIGH_PRIORITY_SCALE = 1.4;
 const DEFAULT_SCALE = 1;
 const SELECTED_MARKER_CLASS = "incident-marker--selected";

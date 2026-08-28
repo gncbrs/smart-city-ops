@@ -136,7 +136,15 @@ Overview" stat-card grid at the top of the Menu's `features/dashboard/components
 StatisticsSection.tsx`.
 
 Styling is plain CSS with BEM naming, one stylesheet per component, colocated under each feature's
-`styles/` folder — no CSS-in-JS, no Tailwind.
+`styles/` folder — no CSS-in-JS, no Tailwind. Colors are centralized rather than hardcoded per
+stylesheet: `frontend/src/index.css` defines a `:root` set of CSS custom properties (Tailwind Slate
+surfaces/text plus semantic priority/zone/wash tokens, e.g. `--color-surface-panel`,
+`--color-priority-high`, `--color-zone-restricted-fill`) that every stylesheet consumes via
+`var(--color-...)`, and `frontend/src/shared/constants/colors.ts` exports a matching `APP_COLORS`
+TypeScript object for the few places a CSS variable can't reach — MapLibre GL paint expressions and
+`Marker({ color })` calls, which need literal color strings (see Phase 5.25 below). Any new
+component should draw its colors from one of these two sources rather than hardcoding a hex/rgba
+literal.
 
 Map: MapLibre GL JS against the OpenFreeMap `liberty` style, encapsulated in
 `features/operations-map` (`useMapInstance` owns the map lifecycle; `useIncidentMarkers` /
@@ -417,6 +425,20 @@ now renders only type/priority badge/status badge/reported time per card, the co
 `getPriorityScoreColor`/`PriorityScoreColor` were removed from `incidentPriorityScore.ts`. Sort
 order and filtering (`sortActiveIncidents`, `getIncidentPriorityScore`) are unchanged.
 `npm run lint`/`npm run build` clean; no backend/migration change.
+
+Phase 5.25 (`docs/DEVELOPMENT_LOG.md`, Part 12 §50) standardized the frontend's color palette:
+~45 hardcoded color literals across 21 stylesheets and 5 MapLibre layer hooks (26 files) were
+migrated to the centralized `:root` tokens / `APP_COLORS` constant described in the "Frontend"
+section above, in three steps — Step 1.1 introduced the token set itself plus fixed
+`ActiveIncidentsList.css` (Low Priority badge was rendering neon-green text on a blue-tinted
+background instead of green-on-green) and `FilterPanel.css`; Step 1.2 tokenized the remaining 15
+stylesheets (layout shell, shared buttons/table/timeline, menu overlay, incident/field-unit panels,
+task buttons, dashboard, recommendations, restricted zones, replay control bar); Step 1.3 connected
+`OperationsMap.css` and the 5 MapLibre layer hooks (`useIncidentMarkers.ts`,
+`useFieldUnitMarkers.ts`, `useDispatchedRouteLayers.ts`, `useOperationalZoneLayers.ts`,
+`useRestrictedZoneLayers.ts`) to `APP_COLORS`, fixing a High Priority color divergence between map
+markers (`#e20b0b`) and UI chips (`#ef4444`). Pure color-literal substitution — zero layout/behavior
+change, `npm run lint`/`npm run build` clean throughout.
 
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, and the
 still-open `OutOfService` transition timestamping gap (see "Known open items" above).

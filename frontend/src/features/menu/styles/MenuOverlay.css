@@ -9,14 +9,14 @@
 }
 
 .menu-overlay__content {
-  background: #1E293B;
+  background: var(--color-surface-panel);
   border-radius: 15px;
   padding: 24px;
   min-width: 400px;
   max-width: 80vw;
   max-height: 80vh;
   overflow-y: auto;
-  color: #F8FAFC;
+  color: var(--color-text-primary);
 }
 
 @media (max-width: 480px) {

@@ -5557,3 +5557,83 @@ section).
 
 ---
 
+## 50. Phase 5.25 — Design Tokens, Centralized Color System & Palette Standardization
+
+**Motivation:** An audit of the frontend surfaced ~45 hardcoded color literals spread across 21
+stylesheets and 5 MapLibre layer hooks (26 files total), with casing inconsistencies (`#1E293B` vs
+`#1e293b`) and genuine semantic mismatches — not just style drift. Two concrete bugs stood out: the
+Active Incidents Low Priority badge rendered neon-green text (`#2eee41`) on a blue-tinted background
+(`rgba(59, 130, 246, 0.15)`, i.e. the Medium/brand-blue wash) instead of a coherent green-on-green
+badge, and High Priority used two different reds depending on surface — `#e20b0b` on incident map
+markers (`useIncidentMarkers.ts`) versus `#ef4444` on the Active Incidents Low priority chips
+(`FilterPanel.css`) and `.active-incidents-list__priority-badge--high` — so the same severity read as
+two visually distinct colors depending on where an operator looked. With no central source of truth,
+every new component risked repeating one of these divergences. Phase 5.25 fixes both bugs as a
+byproduct of introducing a single Tailwind Slate + Semantic Colors token system that all present and
+future styling must draw from.
+
+**Solution — four steps:**
+
+- **Step 1.1 — Token foundation.** Added a `:root` block of CSS custom properties to
+  `frontend/src/index.css`, grouped into Slate Surfaces & Backgrounds, Text Hierarchy, Brand/Primary
+  Action Blue, Priority & Status Semantics, Map Layer Semantics, and Neutral Washes (e.g.
+  `--color-bg-base`, `--color-surface-card`, `--color-text-primary`, `--color-accent-blue`,
+  `--color-priority-high`/`-medium`/`-low` plus their `-bg` tint variants,
+  `--color-zone-operational-fill`/`-text`, `--color-zone-restricted-fill`/`-text`,
+  `--color-wash-light`/`-medium`/`-border`, `--color-scrim`). Created
+  `frontend/src/shared/constants/colors.ts` exporting a matching `APP_COLORS` TypeScript object
+  (`brand`, `priority`, `zones`, `neutral` groups) for the places CSS variables can't reach — inline
+  MapLibre GL paint expressions and `Marker({ color })` calls, which need real color strings, not
+  `var(...)`. Migrated `frontend/src/features/incidents/styles/ActiveIncidentsList.css` and
+  `frontend/src/features/operations-map/styles/FilterPanel.css` first, as the two files containing
+  the known bugs: the Low Priority badge now uses `var(--color-priority-low)` /
+  `var(--color-priority-low-bg)` (green-on-green, matching High/Medium's own-color-tinted-background
+  pattern), and `.filter-chip--priority-low.filter-chip--selected` now uses
+  `var(--color-priority-low)` instead of the brand blue it had been mistakenly sharing with the
+  generic "selected" state.
+- **Step 1.2 — Full stylesheet tokenization.** Migrated the remaining 15 stylesheets from hardcoded
+  hex/rgba literals to `var(--color-...)`: layout shell
+  (`layouts/styles/OperationsCenterLayout.css`), shared components
+  (`shared/styles/buttons.css`, `HistoryTable.css`, `Timeline.css`), overlays
+  (`features/menu/styles/MenuButton.css`, `MenuOverlay.css`), selection panels
+  (`features/incidents/styles/IncidentPanel.css`, `features/field-units/styles/FieldUnitPanel.css`),
+  task actions (`features/operational-tasks/styles/ReassignTaskButton.css` —
+  `AssignTaskButton.css` had no hardcoded colors and was left untouched), dashboard
+  (`features/dashboard/styles/StatisticsSection.css`), recommendations
+  (`features/field-unit-recommendations/styles/RecommendedUnitsSection.css`), and restricted
+  zones/replay (`features/restricted-zones/styles/RestrictedZonesSection.css`,
+  `CoordinatePickerBanner.css`, `features/operations-replay/styles/ReplayControlBar.css`). Scoped
+  deliberately to the mapping rules given per file — generic `rgba(0, 0, 0, ...)` shadow/backdrop
+  blacks (not part of the token palette) and the still-untouched MapLibre-adjacent
+  `FilterCheckboxGroup.css`/`OperationsMap.css` (reserved for Step 1.3) were left as-is rather than
+  guessed at.
+- **Step 1.3 — MapLibre layer hooks.** Connected `OperationsMap.css`'s selected-marker glow filters
+  and 5 MapLibre GL layer hooks to `APP_COLORS`, since `var(--color-...)` cannot be read inside
+  MapLibre paint-property objects or the `maplibre-gl` `Marker` constructor:
+  `useIncidentMarkers.ts`'s `priorityColors` map now reads `APP_COLORS.priority.high/medium/low`
+  (fixing the `#e20b0b` → `#ef4444` marker/badge divergence and `#2eee41` → `#10b981` Low Priority
+  mismatch described above) with `APP_COLORS.priority.unknown` as the fallback;
+  `useFieldUnitMarkers.ts` and `useDispatchedRouteLayers.ts` both now use
+  `APP_COLORS.brand.blue` for the unit marker and dispatched-route line respectively;
+  `useOperationalZoneLayers.ts` and `useRestrictedZoneLayers.ts` now source their fill/text/halo
+  colors from `APP_COLORS.zones.*` and `APP_COLORS.neutral.white`. All MapLibre filter/layer
+  configuration, layout properties, and add/update/teardown lifecycle logic were left completely
+  untouched — only the color literal arguments changed.
+
+**Verification:** `npm run lint` (oxlint) and `npm run build` (`tsc -b && vite build`) ran clean
+after every step — 0 new errors or warnings (the same small set of pre-existing, unrelated
+`react(refs)`/`react(set-state-in-effect)`/`react(purity)` warnings from before this phase persisted
+unchanged throughout). No component markup, MapLibre configuration, layout, or behavior changed —
+this was a pure color-literal-to-token substitution across all three steps, confirmed file-by-file
+against the mapping rules before each verification pass. No backend/migration change
+(frontend-only).
+
+**Outcome:** All ~45 previously hardcoded color values across the 26 target files now resolve
+through exactly two sources of truth — `:root` custom properties in `frontend/src/index.css` for
+CSS, and `APP_COLORS` in `frontend/src/shared/constants/colors.ts` for MapLibre/TypeScript — with
+the Low Priority badge and High Priority marker/chip color mismatches resolved as part of the same
+pass. Any future component should consume one of these two sources rather than reintroducing a
+hardcoded literal.
+
+---
+

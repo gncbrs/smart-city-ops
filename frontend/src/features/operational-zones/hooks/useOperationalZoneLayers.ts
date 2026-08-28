@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { OperationalZone } from "../types";
 import { buildZoneFeatureCollection } from "../lib/buildZoneGeoJson";
+import { APP_COLORS } from "../../../shared/constants/colors";
 
 interface UseOperationalZoneLayersParams {
   map: MapLibreMap | null;
@@ -32,7 +33,7 @@ export function useOperationalZoneLayers({ map, zones }: UseOperationalZoneLayer
         type: "fill",
         source: ZONE_SOURCE_ID,
         paint: {
-          "fill-color": "#7c3aed",
+          "fill-color": APP_COLORS.zones.operationalFill,
           "fill-opacity": ["interpolate", ["linear"], ["get", "weight"], 8, 0.08, 30, 0.3],
         },
       });
@@ -47,8 +48,8 @@ export function useOperationalZoneLayers({ map, zones }: UseOperationalZoneLayer
           "text-font": ["Noto Sans Regular"],
         },
         paint: {
-          "text-color": "#4c1d95",
-          "text-halo-color": "#ffffff",
+          "text-color": APP_COLORS.zones.operationalText,
+          "text-halo-color": APP_COLORS.neutral.white,
           "text-halo-width": 1,
         },
       });

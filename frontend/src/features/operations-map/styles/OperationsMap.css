@@ -4,9 +4,9 @@
 }
 
 .incident-marker--selected {
-  filter: drop-shadow(0 0 4px #1d4ed8) drop-shadow(0 0 8px #1d4ed8);
+  filter: drop-shadow(0 0 4px var(--color-accent-blue-hover)) drop-shadow(0 0 8px var(--color-accent-blue-hover));
 }
 
 .field-unit-marker--selected {
-  filter: drop-shadow(0 0 4px #f59e0b) drop-shadow(0 0 8px #f59e0b);
+  filter: drop-shadow(0 0 4px var(--color-priority-medium)) drop-shadow(0 0 8px var(--color-priority-medium));
 }

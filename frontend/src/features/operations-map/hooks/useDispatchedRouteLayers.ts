@@ -4,6 +4,7 @@ import type { FeatureCollection, LineString } from "geojson";
 import type { OperationalTask } from "../../operational-tasks/types";
 import type { Incident } from "../../incidents/types";
 import { getTravelProgress, isInFlightTask } from "../../operational-tasks/lib/geoInterpolation";
+import { APP_COLORS } from "../../../shared/constants/colors";
 
 interface UseDispatchedRouteLayersParams {
   map: MapLibreMap | null;
@@ -77,7 +78,7 @@ export function useDispatchedRouteLayers({ map, operationalTasks, incidents }: U
         type: "line",
         source: ROUTE_SOURCE_ID,
         paint: {
-          "line-color": "#2563eb",
+          "line-color": APP_COLORS.brand.blue,
           "line-width": 2,
           "line-dasharray": [2, 2],
           "line-opacity": 0.6,

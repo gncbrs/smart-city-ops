@@ -9,8 +9,8 @@
 .reassign-task-button select {
   padding: 8px 12px;
   border-radius: 15px;
-  background: #3b82f6;
-  color: #f8fafc;
+  background: var(--color-accent-blue-subtle);
+  color: var(--color-text-primary);
   font-weight: 600;
   border: none;
 }

@@ -1,7 +1,7 @@
 .history-table__wrapper {
   max-height: 220px;
   overflow-y: auto;
-  border: 1px solid rgba(128, 128, 128, 0.3);
+  border: 1px solid var(--color-wash-border);
   border-radius: 4px;
 }
 
@@ -15,7 +15,7 @@
 .history-table td {
   padding: 4px 8px;
   text-align: left;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+  border-bottom: 1px solid var(--color-wash-border);
 }
 
 .history-table__link {

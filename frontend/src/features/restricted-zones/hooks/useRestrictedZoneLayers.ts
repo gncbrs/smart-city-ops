@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { RestrictedZone } from "../types";
 import { buildRestrictedZoneFeatureCollection } from "../lib/buildRestrictedZoneGeoJson";
+import { APP_COLORS } from "../../../shared/constants/colors";
 
 interface UseRestrictedZoneLayersParams {
   map: MapLibreMap | null;
@@ -36,7 +37,7 @@ export function useRestrictedZoneLayers({ map, zones }: UseRestrictedZoneLayersP
         type: "fill",
         source: ZONE_SOURCE_ID,
         paint: {
-          "fill-color": "#dc2626",
+          "fill-color": APP_COLORS.zones.restrictedFill,
           "fill-opacity": 0.15,
         },
       });
@@ -46,7 +47,7 @@ export function useRestrictedZoneLayers({ map, zones }: UseRestrictedZoneLayersP
         type: "line",
         source: ZONE_SOURCE_ID,
         paint: {
-          "line-color": "#dc2626",
+          "line-color": APP_COLORS.zones.restrictedFill,
           "line-width": 2,
           "line-dasharray": [2, 2],
         },
@@ -62,8 +63,8 @@ export function useRestrictedZoneLayers({ map, zones }: UseRestrictedZoneLayersP
           "text-font": ["Noto Sans Regular"],
         },
         paint: {
-          "text-color": "#7f1d1d",
-          "text-halo-color": "#ffffff",
+          "text-color": APP_COLORS.zones.restrictedText,
+          "text-halo-color": APP_COLORS.neutral.white,
           "text-halo-width": 1,
         },
       });

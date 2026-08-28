@@ -4,6 +4,7 @@ import type { GeoLocation } from "../../../shared/types/common";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
 import { getCurrentPosition, getTravelProgress, isInFlightTask, type InFlightOperationalTask } from "../../operational-tasks/lib/geoInterpolation";
+import { APP_COLORS } from "../../../shared/constants/colors";
 
 interface UseFieldUnitMarkersParams {
   map: MapLibreMap | null;
@@ -77,7 +78,7 @@ export function useFieldUnitMarkers({
       let marker = markers.get(fieldUnit.id);
 
       if (!marker) {
-        marker = new Marker({ color: "#2563eb" }).setLngLat([fieldUnit.longitude, fieldUnit.latitude]).addTo(map);
+        marker = new Marker({ color: APP_COLORS.brand.blue }).setLngLat([fieldUnit.longitude, fieldUnit.latitude]).addTo(map);
         marker.getElement().addEventListener("click", (event) => {
           event.stopPropagation();
           const latest = fieldUnitsByIdRef.current.get(fieldUnit.id) ?? fieldUnit;
