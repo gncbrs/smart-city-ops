@@ -14,4 +14,5 @@ public class OperationalTask : EntityBase
     public double? OriginLatitude { get; set; }
     public double? OriginLongitude { get; set; }
     public int? EstimatedEtaSeconds { get; set; }
+    public string? RouteGeometry { get; set; }
 }

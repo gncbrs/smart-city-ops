@@ -10,5 +10,6 @@ public record OperationalTaskDto(
     DateTimeOffset? ReassignedAt,
     double? OriginLatitude,
     double? OriginLongitude,
-    int? EstimatedEtaSeconds
+    int? EstimatedEtaSeconds,
+    string? RouteGeometry
 );

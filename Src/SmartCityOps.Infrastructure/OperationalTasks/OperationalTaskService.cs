@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmartCityOps.Application.Common.DomainEvents;
-using SmartCityOps.Application.FieldUnitRecommendations;
+using SmartCityOps.Application.Common.Routing;
 using SmartCityOps.Application.OperationalTasks;
 using SmartCityOps.Application.OperationalTasks.AssignmentRules;
 using SmartCityOps.Application.OperationalTasks.Events;
@@ -17,18 +17,18 @@ public class OperationalTaskService : IOperationalTaskService
     private readonly ApplicationDbContext _dbContext;
     private readonly IDomainEventDispatcher _domainEventDispatcher;
     private readonly ITaskAssignmentRulePipeline _rulePipeline;
-    private readonly IEtaEstimator _etaEstimator;
+    private readonly IRoutingService _routingService;
 
     public OperationalTaskService(
         ApplicationDbContext dbContext,
         IDomainEventDispatcher domainEventDispatcher,
         ITaskAssignmentRulePipeline rulePipeline,
-        IEtaEstimator etaEstimator)
+        IRoutingService routingService)
     {
         _dbContext = dbContext;
         _domainEventDispatcher = domainEventDispatcher;
         _rulePipeline = rulePipeline;
-        _etaEstimator = etaEstimator;
+        _routingService = routingService;
     }
 
     public async Task<IReadOnlyList<OperationalTaskDto>> GetAllAsync(CancellationToken cancellationToken)
@@ -45,7 +45,8 @@ public class OperationalTaskService : IOperationalTaskService
                 t.ReassignedAt,
                 t.OriginLatitude,
                 t.OriginLongitude,
-                t.EstimatedEtaSeconds))
+                t.EstimatedEtaSeconds,
+                t.RouteGeometry))
             .ToListAsync(cancellationToken);
     }
 
@@ -154,7 +155,8 @@ public class OperationalTaskService : IOperationalTaskService
     {
         var originLatitude = fieldUnit.Latitude;
         var originLongitude = fieldUnit.Longitude;
-        var estimatedEta = _etaEstimator.EstimateEta(originLatitude, originLongitude, incident.Latitude, incident.Longitude);
+        var routingResult = await _routingService.GetDrivingRouteAsync(
+            originLatitude, originLongitude, incident.Latitude, incident.Longitude, cancellationToken);
 
         var task = new OperationalTask
         {
@@ -166,7 +168,8 @@ public class OperationalTaskService : IOperationalTaskService
             CompletedAt = null,
             OriginLatitude = originLatitude,
             OriginLongitude = originLongitude,
-            EstimatedEtaSeconds = (int)Math.Round(estimatedEta.TotalSeconds)
+            EstimatedEtaSeconds = routingResult.DurationSeconds,
+            RouteGeometry = routingResult.GeoJsonCoordinates
         };
 
         fieldUnit.Status = FieldUnitStatus.Dispatched;
@@ -209,5 +212,6 @@ public class OperationalTaskService : IOperationalTaskService
             task.ReassignedAt,
             task.OriginLatitude,
             task.OriginLongitude,
-            task.EstimatedEtaSeconds);
+            task.EstimatedEtaSeconds,
+            task.RouteGeometry);
 }

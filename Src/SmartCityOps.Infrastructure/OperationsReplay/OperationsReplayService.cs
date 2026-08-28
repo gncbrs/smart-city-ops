@@ -84,7 +84,8 @@ public class OperationsReplayService : IOperationsReplayService
                 t.ReassignedAt,
                 t.OriginLatitude,
                 t.OriginLongitude,
-                t.EstimatedEtaSeconds))
+                t.EstimatedEtaSeconds,
+                t.RouteGeometry))
             .ToList();
 
         return new OperationsSnapshotDto(timestamp, incidentDtos, fieldUnitDtos, activeTaskDtos);

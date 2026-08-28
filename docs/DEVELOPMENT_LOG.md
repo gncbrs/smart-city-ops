@@ -5637,3 +5637,102 @@ hardcoded literal.
 
 ---
 
+## 51. Phase 5.26 — OSRM Real Road-Network Navigation & Route Geometry Integration
+
+**Motivation:** Field units had always moved between their origin and an incident along a Euclidean
+straight line — a fine visual approximation early on, but increasingly at odds with the project's
+premise of a realistic Ankara operations simulation: a marker cutting diagonally across city blocks,
+ignoring the actual street grid, undercuts the "real navigation" read the map is meant to give an
+operator. Phase 5.26 replaces that straight-line interpolation with genuine road-following
+navigation — the backend now asks an actual routing engine (OSRM, Open Source Routing Machine) for a
+real driving route between a field unit's origin and the incident, persists that route's polyline,
+and the frontend animates the marker and draws the dispatched-route line along the exact road
+geometry instead of a synthetic line.
+
+**Solution — three steps plus a live-verification bug fix:**
+
+- **Step 1.1 — `IRoutingService` abstraction and OSRM client.** Added `RouteGeometryResult`
+  (`GeoJsonCoordinates: string`, `DurationSeconds: int`, `DistanceMeters: double`) and interface
+  `IRoutingService` (`GetDrivingRouteAsync(originLat, originLng, destinationLat, destinationLng,
+  cancellationToken)`) to `Src/SmartCityOps.Application/Common/Routing/`, following the same
+  DTO-plus-interface-per-feature pattern as every other Application folder. Implemented
+  `OsrmRoutingService` in `Src/SmartCityOps.Infrastructure/Common/Routing/` as a Typed Client
+  (`HttpClient` + `ILogger<OsrmRoutingService>` injected via constructor): it queries
+  `https://router.project-osrm.org/route/v1/driving/{originLng},{originLat};
+  {destinationLng},{destinationLat}?overview=full&geometries=geojson` (OSRM expects
+  longitude,latitude, the reverse of the rest of the codebase's lat/lng convention), parses
+  `routes[0].geometry.coordinates`/`duration`/`distance` from the JSON response via
+  `System.Text.Json`, and falls back to a 2-point straight-line GeoJSON string plus a
+  `GeoCalculator.CalculateDistanceKm`-based duration at a fallback 40 km/h average speed if the
+  request fails or exceeds its timeout. Registered in
+  `Src/SmartCityOps.Infrastructure/DependencyInjection.cs` via
+  `services.AddHttpClient<IRoutingService, OsrmRoutingService>(client => { client.Timeout =
+  TimeSpan.FromSeconds(3); ... })`, giving the whole call a hard 3-second ceiling before falling back.
+- **Step 1.2 — Persisting route geometry on `OperationalTask`.** Added a nullable
+  `RouteGeometry` (`string?`) column to the `OperationalTask` domain entity and a matching
+  `RouteGeometry` parameter to `OperationalTaskDto`. `OperationalTaskService` now injects
+  `IRoutingService` and, inside the shared `AssignFieldUnitAsync` helper (used by both
+  `CreateAsync`/dispatch and `ReassignAsync`), calls `_routingService.GetDrivingRouteAsync(...)`
+  before constructing the new `OperationalTask`, setting `EstimatedEtaSeconds =
+  routingResult.DurationSeconds` and `RouteGeometry = routingResult.GeoJsonCoordinates` — replacing
+  the previous `IEtaEstimator`-based straight-line ETA estimate for this method entirely (the
+  `IEtaEstimator`/`HaversineEtaEstimator` service itself is unchanged and still used elsewhere, e.g.
+  `FieldUnitRecommendationService`). Both `OperationalTaskService.ToDto`/`GetAllAsync`'s LINQ
+  projection and `OperationsReplayService`'s `activeTaskDtos` projection now map `t.RouteGeometry`
+  into `OperationalTaskDto`, so replay snapshots carry the same road geometry as live data. Migration
+  `AddOperationalTaskRouteGeometry` (a single nullable `text` column, `ALTER TABLE
+  "OperationalTasks" ADD "RouteGeometry" text;`) was generated via `dotnet ef migrations add` and
+  applied via `dotnet ef database update` from `Src/`.
+- **Step 1.3 — Frontend polyline traversal and rendering.** Added `routeGeometry?: string | null` to
+  the `OperationalTask` frontend type
+  (`frontend/src/features/operational-tasks/types.ts`). Rewrote `getCurrentPosition` in
+  `frontend/src/features/operational-tasks/lib/geoInterpolation.ts`: a new `parseRouteGeometry` safely
+  `JSON.parse`s `task.routeGeometry` into a `GeoLocation[]` (returning `null` on any malformed
+  entry so the caller falls back cleanly), a new `haversineDistance` helper computes segment lengths,
+  and a new `interpolateAlongPolyline(points, progress)` walks the cumulative segment-distance table
+  to find which `[pA, pB]` segment contains `progress * totalDistance` and linearly interpolates
+  within just that segment — so the marker follows the actual road polyline's turns rather than
+  cutting through blocks. `getCurrentPosition` uses this path when `routeGeometry` parses to 2+
+  points, and falls back to the pre-existing 2-point `interpolatePosition` (origin→destination lerp)
+  otherwise, preserving behavior for legacy tasks created before this migration.
+  `frontend/src/features/operations-map/hooks/useDispatchedRouteLayers.ts`'s `buildFeatureCollection`
+  gained a matching `parseRouteGeometryPositions` (same validation, returning GeoJSON `Position[]`)
+  and now uses the parsed road polyline as the dispatched-route `LineString`'s coordinates when
+  present, falling back to the previous 2-point `[[originLng, originLat], [incidentLng, incidentLat]]`
+  line otherwise — so the dashed route overlay and the animated marker now trace the identical path.
+- **Live Verification & Bug Fix.** An initial live test showed field units still moving in straight
+  lines — `OsrmRoutingService` was silently hitting its catch block and returning the fallback on
+  every call. Root cause was two-fold: OSRM's public demo server rejects requests with no
+  `User-Agent` header (returning an error the code was catching and swallowing without enough detail
+  to diagnose), and interpolated request/fallback coordinate strings needed to be guaranteed
+  culture-invariant (a Turkish-locale decimal separator of `,` instead of `.` — e.g. `39,925` instead
+  of `39.925` — would make OSRM return `400 Bad Request`) rather than relying only on
+  `string.Create(CultureInfo.InvariantCulture, $"...")`. Fixed by explicitly formatting every
+  coordinate via `FormattableString.Invariant($"...")` /
+  `value.ToString(CultureInfo.InvariantCulture)` in both the request URL and the fallback GeoJSON
+  string, adding `client.DefaultRequestHeaders.UserAgent.ParseAdd("SmartCityOps-OperationsCenter/1.0")`
+  to the `AddHttpClient` registration, switching coordinate extraction to
+  `JsonSerializer.Serialize(route.GetProperty("geometry").GetProperty("coordinates"))`, and logging
+  full failure detail (request URL, HTTP status code, response body, or the exception) at
+  `LogLevel.Warning` so a silent fallback is now visible in the API console. Re-verified live: started
+  the API, fetched a real `Open` incident and `Available` field unit via `GET /api/incidents` /
+  `GET /api/field-units`, then `POST /api/operational-tasks` with that pair — the response's
+  `routeGeometry` contained roughly 330 real coordinate points tracing actual Merkez/Çankaya streets,
+  confirming OSRM requests now succeed end-to-end instead of falling back to a 2-point line.
+
+**Verification:** `dotnet build Src/SmartCityOps.sln` clean throughout all three backend steps and
+the live-verification fix (0 warnings, 0 errors); `npm run lint` and `npm run build` clean in
+`frontend/` after Step 1.3 (0 type errors; only the same pre-existing, unrelated
+`react(refs)`/`react(set-state-in-effect)`/`react(purity)` warnings from before this phase, plus the
+pre-existing MapLibre vendor chunk-size notice). Migration `AddOperationalTaskRouteGeometry` applied
+to the local Postgres database. No test/debug code left in the tree; the API process started for live
+verification was stopped afterward.
+
+**Outcome:** Field units now travel to incidents along the same real road network OSRM would route an
+actual vehicle over, both in the animated marker position and the dashed route overlay, with a
+transparent Haversine-based straight-line fallback (logged, not silent) if OSRM is unreachable or
+times out. Legacy tasks created before this migration (`RouteGeometry IS NULL`) continue to render
+and animate via the original 2-point interpolation, so no backfill was required.
+
+---
+

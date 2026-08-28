@@ -53,13 +53,19 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
 - **`SmartCityOps.Application`** — one folder per feature (`Incidents`, `FieldUnits`,
   `OperationalTasks`, `OperationalZones`, `FieldUnitLocationHistories`, `FieldUnitRecommendations`,
   `RestrictedZones`, `OperationsReplay`, plus `Common`), each holding DTOs (records) and a service
-  interface (`I*Service`). No implementations here.
+  interface (`I*Service`). No implementations here. `Common/Routing/` holds `IRoutingService` and
+  `RouteGeometryResult` (`GeoJsonCoordinates`, `DurationSeconds`, `DistanceMeters`).
 - **`SmartCityOps.Infrastructure`** — EF Core (`ApplicationDbContext`, Npgsql), entity
   configurations (`Persistence/Configurations`), migrations (`Persistence/Migrations`), and the
   service implementations, mirrored per feature folder. `DependencyInjection.AddInfrastructure`
   wires DbContext + all `I*Service → *Service` registrations. Also owns the SignalR hub
   (`Hubs/OperationsHub.cs`) and the domain-event-to-SignalR handler
-  (`Hubs/SignalROperationsNotificationHandler.cs`).
+  (`Hubs/SignalROperationsNotificationHandler.cs`). `Common/Routing/OsrmRoutingService.cs`
+  implements `IRoutingService` as a Typed `HttpClient` against the public OSRM driving-routing API
+  (3s timeout, culture-invariant coordinate formatting, Haversine straight-line fallback at 40 km/h
+  if OSRM is unreachable/errors); task creation (`OperationalTaskService.AssignFieldUnitAsync`)
+  calls it to fetch a real driving route and persists the GeoJSON polyline on
+  `OperationalTask.RouteGeometry` — see `docs/DEVELOPMENT_LOG.md` Part 12 §51.
 - **`SmartCityOps.Api`** — controllers (one per feature, thin — inject the service interface and
   return DTOs), `Program.cs`, `DependencyInjection.AddApiServices` (CORS policy
   `FrontendCorsPolicy` from `Cors:AllowedOrigins` config, Swagger), and
@@ -439,6 +445,28 @@ task buttons, dashboard, recommendations, restricted zones, replay control bar);
 `useRestrictedZoneLayers.ts`) to `APP_COLORS`, fixing a High Priority color divergence between map
 markers (`#e20b0b`) and UI chips (`#ef4444`). Pure color-literal substitution — zero layout/behavior
 change, `npm run lint`/`npm run build` clean throughout.
+
+Phase 5.26 (`docs/DEVELOPMENT_LOG.md`, Part 12 §51) replaced field-unit travel's Euclidean
+straight-line interpolation with real road-network navigation via OSRM (Open Source Routing
+Machine). Backend: `IRoutingService`/`RouteGeometryResult` (Application) and `OsrmRoutingService`
+(Infrastructure, a Typed `HttpClient` with a 3s timeout, culture-invariant coordinate formatting, a
+required `User-Agent` header, and a Haversine 40 km/h straight-line fallback if OSRM is unreachable)
+are called from `OperationalTaskService.AssignFieldUnitAsync` on every dispatch/reassign; the
+resulting GeoJSON polyline and real driving duration are persisted on the new nullable
+`OperationalTask.RouteGeometry` column (migration `AddOperationalTaskRouteGeometry`) and
+`EstimatedEtaSeconds`, and flow through to `OperationsReplayService` snapshots. This superseded the
+inline `IEtaEstimator` straight-line ETA estimate for this one call site (that service is unchanged
+and still used elsewhere, e.g. `FieldUnitRecommendationService`). Frontend:
+`geoInterpolation.ts`'s `getCurrentPosition` now parses `task.routeGeometry` and interpolates along
+the exact polyline segment matching current travel progress (`interpolateAlongPolyline` +
+`haversineDistance`), and `useDispatchedRouteLayers.ts` renders that same polyline as the
+dispatched-route line — both fall back to the original 2-point origin→destination line for legacy
+tasks with no `routeGeometry`. A live-verification pass caught and fixed a real bug: OSRM's public
+server was silently rejecting every request (missing `User-Agent`, and a latent Turkish-locale
+decimal-comma risk in coordinate formatting), so every route was silently falling back to a straight
+line; re-verified live afterward with `routeGeometry` returning ~330 real coordinate points along
+Ankara streets. `dotnet build`/`npm run lint`/`npm run build` all clean; no test/debug code left in
+the tree.
 
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, and the
 still-open `OutOfService` transition timestamping gap (see "Known open items" above).

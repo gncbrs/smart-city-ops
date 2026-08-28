@@ -7,6 +7,69 @@ Bu liste önceki iki ayrı/örtüşen listenin (Turkish "1-4 Öncelik" + "Master
 birleştirilmiş, tamamlanmış maddeleri `[x]`'e çevrilmiş ve kod tabanına karşı doğrulanmış halidir.
 Zaten tamamlanmış maddeler referans için en altta "Tamamlanan Maddeler (Arşiv)" bölümünde tutulur.
 
+İşte Clean Architecture ve Single Source of Truth prensipleri doğrultusunda, frontend'den backend'e taşınması veya backend seviyesinde tamamlanması gereken tüm teknik maddelerin önceliklendirilmiş listesi:
+
+**1. Operasyonel İstatistikler Servisi (Backend Aggregation)**
+
+* **Mevcut Durum:** Ortalama çözüm süresi, olay tipi dağılımları ve saha birimi iş yükü metrikleri frontend tarafında array döngüleriyle hesaplanıyor.
+
+
+* **Yapılacak İş:** Backend'de `GET /api/operations/statistics` endpoint'i açılarak hesaplamaların doğrudan PostgreSQL aggregate sorguları (`AVG`, `COUNT`, `GROUP BY`) üzerinden yapılması ve hazır DTO olarak dönmesi.
+
+
+* **Öncelik:** Yüksek
+
+**2. Olay & Birim Zaman Çizelgesi Servisi (Audit Timeline API)**
+
+* **Mevcut Durum:** Olayın geçmiş kronolojisi (`Reported`, `Assigned`, `Arrived`, `Completed`, `Resolved`), frontend tarafında 4 farklı kaynaktan gelen diziler taranarak ve `Date.now()` kıyaslamalarıyla suni olarak birleştiriliyor.
+
+
+* **Yapılacak İş:** `GET /api/incidents/{id}/timeline` ve `GET /api/field-units/{id}/movement-history` endpoint'leri oluşturularak sıralı ve birleştirilmiş audit log kronolojisinin doğrudan backend'den sunulması.
+
+
+* **Öncelik:** Yüksek
+
+**3. Olay Öncelik Skoru & Sıralama (Backend Domain Logic)**
+
+* **Mevcut Durum:** Aktif olayların listelenmesindeki öncelik skoru, frontend tarafında `incident.id` hash'lenerek üretiliyor ve sıralama client-side yapılıyor.
+
+
+* **Yapılacak İş:** Öncelik skorunun backend seviyesinde bir iş kuralı/kolon haline getirilmesi; listeleme uç noktasına sıralama ve sayfalama (pagination) desteği eklenmesi.
+
+
+* **Öncelik:** Orta
+
+**4. "Ready to Resolve" (Çözüme Hazır) İş Kuralının Backend'e Taşınması**
+
+* **Mevcut Durum:** Bir olaya bağlı tüm görevlerin bitip bitmediği kontrolü React tarafında `assignedIncidentIds` Set'i ile hesaplanıyor.
+
+
+* **Yapılacak İş:** `IncidentDto` veya ilgili servise `IsReadyToResolve: bool` alanının eklenerek bu iş kuralı kontrolünün backend tarafından sağlanması.
+
+
+* **Öncelik:** Orta
+
+**5. Saha Birimi `OutOfService` (Servis Dışı) Yaşam Döngüsü & Audit Tablosu**
+
+* **Mevcut Durum:** Birimler yalnızca seed data ile `OutOfService` oluyor; manuel durum geçişi endpoint'i ve durum geçmişi tablosu bulunmuyor. Bu durum Operations Replay'de zaman-değişmezlik yaklaşıklamasına neden oluyor.
+
+
+* **Yapılacak İş:** `PATCH /api/field-units/{id}/status` ucu ile `FieldUnitStatusHistory` tablosunun eklenmesi; Replay servisinin bu zaman damgalarını kullanarak kesin geçmiş oluşturması.
+
+
+* **Öncelik:** Orta
+
+**6. Öneri Motoruna OSRM Matrix/Table API Entegrasyonu**
+
+* **Mevcut Durum:** Görev atamasında gerçek OSRM yol ağı kullanılırken, birim öneri motoru (`FieldUnitRecommendationService`) hâlâ kuş uçuşu Haversine mesafesini sabit 40 km/h hıza bölerek tahmini süre üretiyor.
+
+
+* **Yapılacak İş:** Öneri motorunun en uygun adayları seçerken OSRM Table API kullanarak gerçek yol sürüş sürelerine göre puanlama yapması.
+
+
+* **Öncelik:** Düşük / İleri Düzey
+
+
 ---
 
 ### 1. Öncelik — Eksik İşlevler & Fonksiyonel Geliştirmeler

@@ -27,6 +27,8 @@ using SmartCityOps.Infrastructure.RestrictedZones;
 using SmartCityOps.Application.RestrictedZones.Events;
 using SmartCityOps.Application.OperationsReplay;
 using SmartCityOps.Infrastructure.OperationsReplay;
+using SmartCityOps.Application.Common.Routing;
+using SmartCityOps.Infrastructure.Common.Routing;
 
 namespace SmartCityOps.Infrastructure;
 
@@ -52,6 +54,12 @@ public static class DependencyInjection
         services.AddScoped<IOperationalZoneService, OperationalZoneService>();
         services.AddScoped<IFieldUnitLocationHistoryService, FieldUnitLocationHistoryService>();
         services.AddScoped<IOperationsReplayService, OperationsReplayService>();
+
+        services.AddHttpClient<IRoutingService, OsrmRoutingService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(3);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SmartCityOps-OperationsCenter/1.0");
+        });
 
         services.AddScoped<IEtaEstimator, HaversineEtaEstimator>();
         services.AddScoped<IFieldUnitScoringRule, DistanceScoreRule>();

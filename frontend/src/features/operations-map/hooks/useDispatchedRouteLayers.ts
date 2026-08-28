@@ -1,10 +1,36 @@
 import { useEffect, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import type { FeatureCollection, LineString } from "geojson";
+import type { FeatureCollection, LineString, Position } from "geojson";
 import type { OperationalTask } from "../../operational-tasks/types";
 import type { Incident } from "../../incidents/types";
 import { getTravelProgress, isInFlightTask } from "../../operational-tasks/lib/geoInterpolation";
 import { APP_COLORS } from "../../../shared/constants/colors";
+
+function parseRouteGeometryPositions(routeGeometry: string | null | undefined): Position[] | null {
+  if (!routeGeometry) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(routeGeometry);
+    if (!Array.isArray(parsed) || parsed.length < 2) return null;
+
+    const positions: Position[] = [];
+    for (const entry of parsed) {
+      if (
+        !Array.isArray(entry) ||
+        entry.length < 2 ||
+        typeof entry[0] !== "number" ||
+        typeof entry[1] !== "number"
+      ) {
+        return null;
+      }
+      positions.push([entry[0], entry[1]]);
+    }
+
+    return positions;
+  } catch {
+    return null;
+  }
+}
 
 interface UseDispatchedRouteLayersParams {
   map: MapLibreMap | null;
@@ -34,16 +60,20 @@ function buildFeatureCollection(
     const progress = getTravelProgress(new Date(task.assignedAt).getTime(), task.estimatedEtaSeconds, now);
     if (progress >= 1) return [];
 
+    const routeCoordinates =
+      parseRouteGeometryPositions(task.routeGeometry) ??
+      [
+        [task.originLongitude, task.originLatitude],
+        [incident.longitude, incident.latitude],
+      ];
+
     return [
       {
         type: "Feature" as const,
         properties: { taskId: task.id },
         geometry: {
           type: "LineString" as const,
-          coordinates: [
-            [task.originLongitude, task.originLatitude],
-            [incident.longitude, incident.latitude],
-          ],
+          coordinates: routeCoordinates,
         },
       },
     ];

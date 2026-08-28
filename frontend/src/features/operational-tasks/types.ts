@@ -11,4 +11,5 @@ export interface OperationalTask {
   originLatitude: number | null;
   originLongitude: number | null;
   estimatedEtaSeconds: number | null;
+  routeGeometry?: string | null;
 }
