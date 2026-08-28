@@ -16,6 +16,9 @@ export function useSignalRConnection() {
       queryClient.invalidateQueries({ queryKey: ["field-unit-location-histories"] });
       queryClient.invalidateQueries({ queryKey: ["field-unit-recommendations"] });
       queryClient.invalidateQueries({ queryKey: ["restricted-zones"] });
+      queryClient.invalidateQueries({ queryKey: ["operational-statistics"] });
+      queryClient.invalidateQueries({ queryKey: ["incident-timeline"] });
+      queryClient.invalidateQueries({ queryKey: ["field-unit-movement-history"] });
     };
 
     // 1. Register the listener

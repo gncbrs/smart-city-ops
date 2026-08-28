@@ -16,6 +16,7 @@ using SmartCityOps.Application.OperationalZones;
 using SmartCityOps.Infrastructure.OperationalZones;
 using SmartCityOps.Application.Common.DomainEvents;
 using SmartCityOps.Infrastructure.Common.DomainEvents;
+using SmartCityOps.Application.FieldUnits.Events;
 using SmartCityOps.Application.Incidents.Events;
 using SmartCityOps.Application.OperationalTasks.Events;
 using SmartCityOps.Infrastructure.Hubs;
@@ -29,6 +30,8 @@ using SmartCityOps.Application.OperationsReplay;
 using SmartCityOps.Infrastructure.OperationsReplay;
 using SmartCityOps.Application.Common.Routing;
 using SmartCityOps.Infrastructure.Common.Routing;
+using SmartCityOps.Application.Dashboard;
+using SmartCityOps.Infrastructure.Dashboard;
 
 namespace SmartCityOps.Infrastructure;
 
@@ -54,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IOperationalZoneService, OperationalZoneService>();
         services.AddScoped<IFieldUnitLocationHistoryService, FieldUnitLocationHistoryService>();
         services.AddScoped<IOperationsReplayService, OperationsReplayService>();
+        services.AddScoped<IOperationalStatisticsService, OperationalStatisticsService>();
 
         services.AddHttpClient<IRoutingService, OsrmRoutingService>(client =>
         {
@@ -76,6 +80,7 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventHandler<RestrictedZoneCreatedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<RestrictedZoneUpdatedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<RestrictedZoneDeletedEvent>, SignalROperationsNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<FieldUnitUpdatedEvent>, SignalROperationsNotificationHandler>();
 
         return services;
     }

@@ -1,6 +1,7 @@
 import type { FieldUnit } from "../types";
 import type { OperationalTask } from "../../operational-tasks/types";
 import { useCompleteTask } from "../../operational-tasks/hooks/useCompleteTask";
+import { useUpdateFieldUnitStatus } from "../hooks/useUpdateFieldUnitStatus";
 import { ReassignTaskButton } from "../../operational-tasks/components/ReassignTaskButton";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
 import "../styles/FieldUnitPanel.css";
@@ -28,6 +29,7 @@ export function FieldUnitPanel({
   readOnly = false,
 }: FieldUnitPanelProps) {
   const { mutate, isPending, isError } = useCompleteTask();
+  const { mutate: mutateStatus, isPending: isStatusUpdating } = useUpdateFieldUnitStatus();
 
   if (!fieldUnit) {
     return <p>Select a field unit on the map to see details here.</p>;
@@ -36,6 +38,10 @@ export function FieldUnitPanel({
   const handleComplete = () => {
     if (!activeTask) return;
     mutate(activeTask.id, { onSuccess: onCompleted });
+  };
+
+  const handleSetStatus = (status: "Available" | "OutOfService") => {
+    mutateStatus({ id: fieldUnit.id, status });
   };
 
   return (
@@ -60,6 +66,16 @@ export function FieldUnitPanel({
         {!readOnly && fieldUnit.status === "Dispatched" && activeTask && (
           <button onClick={handleComplete} disabled={isPending} className="app-button">
             {isPending ? "Completing..." : "Complete Task"}
+          </button>
+        )}
+        {!readOnly && fieldUnit.status === "Available" && (
+          <button onClick={() => handleSetStatus("OutOfService")} disabled={isStatusUpdating} className="app-button">
+            {isStatusUpdating ? "Updating..." : "Set Out of Service"}
+          </button>
+        )}
+        {!readOnly && fieldUnit.status === "OutOfService" && (
+          <button onClick={() => handleSetStatus("Available")} disabled={isStatusUpdating} className="app-button">
+            {isStatusUpdating ? "Updating..." : "Set Available"}
           </button>
         )}
       </div>

@@ -1,46 +1,44 @@
-import type { Incident } from "../../incidents/types";
-import type { FieldUnit } from "../../field-units/types";
-import type { OperationalTask } from "../../operational-tasks/types";
-import {
-  buildIncidentsByTypeRows,
-  computeAverageResolutionMs,
-  buildFieldUnitWorkloadRows,
-} from "../lib/buildOperationalStatistics";
-import { HistoryTable } from "../../../shared/components/HistoryTable";
-import { formatDuration } from "../../../shared/lib/formatDuration";
+import type { OperationalStatistics } from "../types";
+import { HistoryTable, type HistoryTableRow } from "../../../shared/components/HistoryTable";
+import { formatEnumLabel } from "../../../shared/lib/formatLabel";
 import "../styles/StatisticsSection.css";
 
 interface StatisticsSectionProps {
-  incidents: Incident[];
-  fieldUnits: FieldUnit[];
-  operationalTasks: OperationalTask[];
-  onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
+  statistics: OperationalStatistics | undefined;
+  onSelectFieldUnit: (id: string) => void;
 }
 
-export function StatisticsSection({
-  incidents,
-  fieldUnits,
-  operationalTasks,
-  onSelectFieldUnit,
-}: StatisticsSectionProps) {
-  const incidentsByTypeRows = buildIncidentsByTypeRows(incidents);
-  const averageResolutionMs = computeAverageResolutionMs(incidents);
-  const fieldUnitWorkloadRows = buildFieldUnitWorkloadRows(fieldUnits, operationalTasks, onSelectFieldUnit);
+function formatAverageResolutionMinutes(minutes: number | null): string {
+  return minutes !== null ? `${minutes} min` : "N/A";
+}
 
-  const activeIncidentsCount = incidents.filter((incident) => incident.status !== "Resolved").length;
-  const highPriorityActiveCount = incidents.filter(
-    (incident) => incident.priority === "High" && incident.status !== "Resolved"
-  ).length;
-  const availableFieldUnitsCount = fieldUnits.filter((unit) => unit.status === "Available").length;
-  const dispatchedFieldUnitsCount = fieldUnits.filter((unit) => unit.status === "Dispatched").length;
-  const outOfServiceFieldUnitsCount = fieldUnits.filter((unit) => unit.status === "OutOfService").length;
+export function StatisticsSection({ statistics, onSelectFieldUnit }: StatisticsSectionProps) {
+  if (!statistics) {
+    return <p>Loading statistics...</p>;
+  }
+
+  const incidentsByTypeRows: HistoryTableRow[] = statistics.incidentsByType.map((entry) => ({
+    id: entry.type,
+    cells: [{ label: formatEnumLabel(entry.type) }, { label: String(entry.count) }],
+  }));
+
+  const fieldUnitWorkloadRows: HistoryTableRow[] = statistics.fieldUnitWorkload.map((entry) => ({
+    id: entry.fieldUnitId,
+    cells: [
+      {
+        label: `${formatEnumLabel(entry.unitType)} (${entry.unitCode})`,
+        onClick: () => onSelectFieldUnit(entry.fieldUnitId),
+      },
+      { label: String(entry.completedTaskCount) },
+    ],
+  }));
 
   const overviewCards = [
-    { label: "Active Incidents", value: activeIncidentsCount },
-    { label: "High Priority Active Incidents", value: highPriorityActiveCount, highlight: true },
-    { label: "Available Field Units", value: availableFieldUnitsCount },
-    { label: "Dispatched Field Units", value: dispatchedFieldUnitsCount },
-    { label: "Out of Service Field Units", value: outOfServiceFieldUnitsCount },
+    { label: "Active Incidents", value: statistics.activeIncidentsCount },
+    { label: "High Priority Active Incidents", value: statistics.highPriorityActiveIncidentsCount, highlight: true },
+    { label: "Available Field Units", value: statistics.availableFieldUnitsCount },
+    { label: "Dispatched Field Units", value: statistics.dispatchedFieldUnitsCount },
+    { label: "Out of Service Field Units", value: statistics.outOfServiceFieldUnitsCount },
   ];
 
   return (
@@ -70,7 +68,7 @@ export function StatisticsSection({
       />
 
       <h3>Average Resolution Time</h3>
-      <p>{averageResolutionMs !== null ? formatDuration(averageResolutionMs) : "N/A"}</p>
+      <p>{formatAverageResolutionMinutes(statistics.averageResolutionMinutes)}</p>
 
       <h3>Field Unit Workload</h3>
       <HistoryTable

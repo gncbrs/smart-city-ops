@@ -1,5 +1,5 @@
 import { httpClient } from "../../../shared/lib/httpClient";
-import type { Incident } from "../types";
+import type { Incident, IncidentTimelineEvent } from "../types";
 
 export async function fetchIncidents(): Promise<Incident[]> {
   const response = await httpClient.get<Incident[]>("/incidents");
@@ -15,5 +15,10 @@ export async function fetchIncidents(): Promise<Incident[]> {
 
 export async function resolveIncident(id: string): Promise<Incident> {
   const response = await httpClient.post<Incident>(`/incidents/${id}/resolve`);
+  return response.data;
+}
+
+export async function fetchIncidentTimeline(incidentId: string): Promise<IncidentTimelineEvent[]> {
+  const response = await httpClient.get<IncidentTimelineEvent[]>(`/incidents/${incidentId}/timeline`);
   return response.data;
 }

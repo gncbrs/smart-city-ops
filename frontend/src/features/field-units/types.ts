@@ -10,3 +10,13 @@ export interface FieldUnit extends GeoLocation {
   type: FieldUnitType;
   status: FieldUnitStatus;
 }
+
+export interface FieldUnitMovementRecord {
+  id: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  incidentId?: string | null;
+  incidentType?: string | null;
+  incidentCode?: string | null;
+}

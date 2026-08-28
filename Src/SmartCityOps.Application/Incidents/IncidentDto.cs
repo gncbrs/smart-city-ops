@@ -9,5 +9,7 @@ public record IncidentDto(
     double Latitude,
     double Longitude,
     string Description,
-    DateTimeOffset? ResolvedAt
+    DateTimeOffset? ResolvedAt,
+    int PriorityScore,
+    bool IsReadyToResolve
 );

@@ -1,82 +1,26 @@
 import type { Incident } from "../types";
-import type { FieldUnit } from "../../field-units/types";
-import type { OperationalTask } from "../../operational-tasks/types";
-import { getFieldUnitLabel } from "../../operational-tasks/lib/describeTask";
+import { useIncidentTimeline } from "../hooks/useIncidentTimeline";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
 import { Timeline, type TimelineEvent } from "../../../shared/components/Timeline";
 
 interface IncidentTimelineSectionProps {
-  incident: Incident;
-  fieldUnits: FieldUnit[];
-  operationalTasks: OperationalTask[];
-  onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
+  incident: Incident | null;
+  onSelectFieldUnit: (fieldUnitId: string) => void;
 }
 
-export function IncidentTimelineSection({
-  incident,
-  fieldUnits,
-  operationalTasks,
-  onSelectFieldUnit,
-}: IncidentTimelineSectionProps) {
-  const incidentTasks = operationalTasks.filter((task) => task.incidentId === incident.id);
+export function IncidentTimelineSection({ incident, onSelectFieldUnit }: IncidentTimelineSectionProps) {
+  const { data: events = [] } = useIncidentTimeline(incident?.id);
 
-  const timelineEvents: TimelineEvent[] = [
-    { id: "reported", timestamp: incident.reportedAt, label: "Incident reported" },
-  ];
-
-  incidentTasks.forEach((task) => {
-    const fieldUnit = fieldUnits.find((unit) => unit.id === task.fieldUnitId);
-    const unitLabel = getFieldUnitLabel(fieldUnit);
-    const onClick = fieldUnit ? () => onSelectFieldUnit(fieldUnit) : undefined;
-
-    timelineEvents.push({
-      id: `${task.id}-assigned`,
-      timestamp: task.assignedAt,
-      label: `${unitLabel} assigned`,
-      onClick,
-    });
-
-    if (task.estimatedEtaSeconds != null) {
-      const calculatedArrivalAt = new Date(
-        new Date(task.assignedAt).getTime() + task.estimatedEtaSeconds * 1000
-      );
-      const hasArrived =
-        Date.now() >= calculatedArrivalAt.getTime() ||
-        task.status === "Completed" ||
-        incident.status === "Resolved";
-
-      if (hasArrived) {
-        const arrivalAt =
-          task.completedAt && new Date(task.completedAt).getTime() < calculatedArrivalAt.getTime()
-            ? task.completedAt
-            : calculatedArrivalAt.toISOString();
-
-        timelineEvents.push({
-          id: `${task.id}-arrived`,
-          timestamp: arrivalAt,
-          label: `${unitLabel} arrived at scene`,
-          onClick,
-        });
-      }
-    }
-
-    if (task.completedAt) {
-      timelineEvents.push({
-        id: `${task.id}-completed`,
-        timestamp: task.completedAt,
-        label: `${unitLabel} completed task`,
-        onClick,
-      });
-    }
-  });
-
-  if (incident.status === "Resolved" && incident.resolvedAt) {
-    timelineEvents.push({
-      id: "resolved",
-      timestamp: incident.resolvedAt,
-      label: "Incident resolved",
-    });
+  if (!incident) {
+    return <p>No incident selected.</p>;
   }
+
+  const timelineEvents: TimelineEvent[] = events.map((event) => ({
+    id: event.id,
+    timestamp: event.timestamp,
+    label: event.description,
+    onClick: event.fieldUnitId ? () => onSelectFieldUnit(event.fieldUnitId!) : undefined,
+  }));
 
   return (
     <div>

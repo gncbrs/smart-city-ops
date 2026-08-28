@@ -1,8 +1,8 @@
 import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
-import type { FieldUnitLocationHistory } from "../../field-unit-location-histories/types";
 import type { RestrictedZone } from "../../restricted-zones/types";
+import type { OperationalStatistics } from "../../dashboard/types";
 import { MenuButton } from "./MenuButton";
 import { MenuOverlay } from "./MenuOverlay";
 import { MenuSectionRouter } from "./MenuSectionRouter";
@@ -24,8 +24,8 @@ interface MenuProps {
   operationalTasks: OperationalTask[];
   timelineIncident: Incident | null;
   movementHistoryFieldUnit: FieldUnit | null;
-  locationHistory: FieldUnitLocationHistory[];
   restrictedZones: RestrictedZone[];
+  statistics: OperationalStatistics | undefined;
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
   isPickingCoordinates: boolean;
@@ -43,8 +43,8 @@ export function Menu({
   operationalTasks,
   timelineIncident,
   movementHistoryFieldUnit,
-  locationHistory,
   restrictedZones,
+  statistics,
   onSelectIncident,
   onSelectFieldUnit,
   isPickingCoordinates,
@@ -85,8 +85,8 @@ export function Menu({
           operationalTasks={operationalTasks}
           timelineIncident={timelineIncident}
           movementHistoryFieldUnit={movementHistoryFieldUnit}
-          locationHistory={locationHistory}
           restrictedZones={restrictedZones}
+          statistics={statistics}
           onSelectIncident={handleSelectIncident}
           onSelectFieldUnit={handleSelectFieldUnit}
           isPickingCoordinates={isPickingCoordinates}

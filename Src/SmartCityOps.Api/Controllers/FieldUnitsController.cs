@@ -20,4 +20,21 @@ public class FieldUnitsController : ControllerBase
         var fieldUnits = await fieldUnitService.GetAllAsync(cancellationToken);
         return Ok(fieldUnits);
     }
+
+    [HttpGet("{id:guid}/movement-history")]
+    public async Task<ActionResult<IReadOnlyList<FieldUnitMovementRecordDto>>> GetMovementHistory(Guid id, CancellationToken cancellationToken)
+    {
+        var history = await fieldUnitService.GetMovementHistoryAsync(id, cancellationToken);
+        return Ok(history);
+    }
+
+    [HttpPatch("{id:guid}/status")]
+    public async Task<ActionResult<FieldUnitDto>> UpdateStatus(
+        Guid id,
+        [FromBody] UpdateFieldUnitStatusDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await fieldUnitService.UpdateStatusAsync(id, dto, cancellationToken);
+        return Ok(result);
+    }
 }

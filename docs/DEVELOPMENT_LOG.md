@@ -5736,3 +5736,368 @@ and animate via the original 2-point interpolation, so no backfill was required.
 
 ---
 
+## 52. Phase 5.27 — Backend Operational Statistics Aggregation & Single Source of Truth Migration
+
+**Motivation:** `StatisticsSection.tsx` computed every operational metric — Overview counts (active
+incidents, high-priority active incidents, available/dispatched/out-of-service field units),
+Incidents by Type grouping, Average Resolution Time, and Field Unit Workload — client-side, via plain
+JavaScript array loops in `frontend/src/features/dashboard/lib/buildOperationalStatistics.ts` run
+against the full `incidents`/`fieldUnits`/`operationalTasks` React Query caches. This duplicated logic
+the backend already had every fact needed to compute once, and meant every browser tab re-ran the
+same `O(n)` aggregations client-side as incident/task volume grew, rather than pushing that work down
+to a single SQL aggregation. Phase 5.27 moves all of it to a dedicated backend aggregation service,
+restoring Single Source of Truth for these metrics and keeping the client a thin renderer of
+server-computed numbers.
+
+**Solution — three steps plus a live-verification bug fix:**
+
+- **Step 1.1 — Application layer contracts.** Created
+  `Src/SmartCityOps.Application/Dashboard/` with `IncidentTypeCountDto` (`Type: string`, `Count:
+  int`), `FieldUnitWorkloadDto` (`FieldUnitId: Guid`, `UnitCode: string`, `UnitType: string`,
+  `CompletedTaskCount: int`), `OperationalStatisticsDto` (the five overview counts,
+  `AverageResolutionMinutes: double?`, `IncidentsByType: IReadOnlyList<IncidentTypeCountDto>`,
+  `FieldUnitWorkload: IReadOnlyList<FieldUnitWorkloadDto>`), and `IOperationalStatisticsService`
+  (`GetStatisticsAsync(CancellationToken)`) — following the same DTO-plus-interface-per-feature
+  pattern as every other Application folder; no implementation here, matching the layering rule.
+- **Step 1.2 — Infrastructure implementation and endpoint.** Implemented `OperationalStatisticsService`
+  in `Src/SmartCityOps.Infrastructure/Dashboard/`, injecting `ApplicationDbContext` and computing all
+  five overview counts via `CountAsync` predicates against `Incidents`/`FieldUnits`,
+  `AverageResolutionMinutes` by materializing `(ReportedAt, ResolvedAt)` pairs for resolved incidents
+  and averaging `TotalMinutes` in memory (rounded to 1 decimal, `null` if none resolved),
+  `IncidentsByType` via a `GroupBy(i => i.Type)` SQL aggregation, and `FieldUnitWorkload` by grouping
+  `Completed` `OperationalTasks` by `FieldUnitId` into a dictionary, then joining against all
+  `FieldUnits` (`AsNoTracking`) ordered by `CompletedTaskCount` descending then `UnitCode` ascending.
+  Registered `services.AddScoped<IOperationalStatisticsService, OperationalStatisticsService>();` in
+  `Src/SmartCityOps.Infrastructure/DependencyInjection.cs`, and exposed it via a new, thin
+  `OperationalStatisticsController` (`[Route("api/operations/statistics")]`, single `GetStatistics`
+  `HttpGet` action) in `Src/SmartCityOps.Api/Controllers/`.
+- **Step 1.3 — Frontend wiring and cleanup.** Added `frontend/src/features/dashboard/types.ts`
+  (`IncidentTypeCount`, `FieldUnitWorkload`, `OperationalStatistics`, camelCase mirrors of the backend
+  DTOs), `api/statisticsApi.ts` (`fetchOperationalStatistics` wrapping `httpClient.get<OperationalStatistics>("/operations/statistics")`),
+  and `hooks/useOperationalStatistics.ts` (`useQuery({ queryKey: ["operational-statistics"], queryFn:
+  fetchOperationalStatistics })`). `frontend/src/shared/hooks/useSignalR.ts`'s
+  `handleOperationsUpdated` now also invalidates `["operational-statistics"]`, so the stat cards stay
+  live across the same `OperationsUpdated` SignalR event as every other query key (see "Real-time
+  updates (SignalR)" in `CLAUDE.md`). `useOperationsData.ts` now calls `useOperationalStatistics` and
+  exposes `statistics` alongside its other query results. `StatisticsSection.tsx` was rewritten to
+  accept `statistics: OperationalStatistics | undefined` and `onSelectFieldUnit: (id: string) => void`
+  instead of raw `incidents`/`fieldUnits`/`operationalTasks` arrays, rendering the overview cards,
+  `HistoryTable`s for `incidentsByType`/`fieldUnitWorkload`, and the formatted average resolution
+  minutes directly from the backend payload — all client-side loop logic is gone.
+  `MenuSectionRouter.tsx`/`Menu.tsx`/`App.tsx` now thread a `statistics` prop down from
+  `useOperationsData`'s output; since `StatisticsSection`'s new `onSelectFieldUnit` is id-based but
+  the rest of the menu tree still passes full `FieldUnit` objects (needed by
+  `CompletedTasksSection`/`IncidentTimelineSection`/etc.), `MenuSectionRouter` adapts at the call site
+  by looking the `FieldUnit` up from its existing `fieldUnits` prop before invoking the
+  `FieldUnit`-based callback, rather than changing that shared prop's signature everywhere.
+  `frontend/src/features/dashboard/lib/buildOperationalStatistics.ts` was deleted after confirming via
+  a repo-wide grep that no file still imported it.
+- **Live Verification & Bug Fix.** The first live request to `GET /api/operations/statistics` failed
+  with `409 Conflict`: `DomainExceptionHandler` maps `InvalidOperationException` to 409, and EF Core
+  threw exactly that for the `IncidentsByType` query, because `g.Key.ToString()` inside a `GroupBy(...)
+  .Select(...)` projection cannot be translated to SQL by Npgsql/EF Core ("The LINQ expression ...
+  could not be translated"). Fixed by splitting the query into a SQL-translatable projection
+  (`GroupBy(i => i.Type).Select(g => new { Type = g.Key, Count = g.Count() })`, materialized via
+  `ToListAsync`) and only calling `.ToString()` on the already-materialized enum values afterward, in
+  memory, before mapping to `IncidentTypeCountDto` and sorting by count descending; `AsNoTracking()`
+  was also added to the other read-only queries in the service for consistency. Re-verified live:
+  started the API against the existing local Postgres instance and confirmed `GET
+  http://localhost:5080/api/operations/statistics` returns `200 OK` with the full aggregated payload
+  (overview counts, `incidentsByType`, `fieldUnitWorkload` all populated from real seed/simulated
+  data), with the EF Core SQL logs showing the `GROUP BY "Type"` query executing successfully. The API
+  process started for verification was stopped afterward.
+
+**Verification:** `dotnet build Src/SmartCityOps.sln` clean throughout (0 warnings, 0 errors, both
+before and after the live-verification fix); `npm run lint` (oxlint) and `npm run build` (`tsc -b &&
+vite build`) clean in `frontend/` (0 type errors; only the same pre-existing, unrelated
+`react(refs)`/`react(set-state-in-effect)`/`react(purity)` warnings and MapLibre vendor chunk-size
+notice from before this phase). No test/debug code left in the tree.
+
+**Outcome:** `GET /api/operations/statistics` is now the single source of truth for every metric
+`StatisticsSection.tsx` renders — Overview counts, Incidents by Type, Average Resolution Time, and
+Field Unit Workload are all computed once, server-side, via SQL aggregation and EF Core `Count`/
+`GroupBy` queries instead of being recomputed from scratch in every browser tab. The endpoint stays
+live via the existing coarse-grained `OperationsUpdated` SignalR invalidation pattern, so no polling
+or manual refresh is needed. One pre-existing data anomaly was observed but intentionally left
+untouched as out of scope: `averageResolutionMinutes` currently returns an implausibly large value
+against local seed data, pointing to `ReportedAt`/`ResolvedAt` timestamps far apart in the seed —
+a data issue, not a computation bug in this service.
+
+---
+
+## 53. Phase 5.28 — Server-Side Incident Timeline & Field Unit Movement History Aggregations
+
+**Motivation:** `IncidentTimelineSection.tsx` and `FieldUnitMovementHistorySection.tsx` assembled
+their chronological event lists client-side, looping over and cross-referencing multiple React
+Query caches (`incidents`, `fieldUnits`, `operationalTasks`, `locationHistory`) on every render.
+The timeline's "arrived at scene" event in particular relied on a simulated `Date.now()` comparison
+against `task.assignedAt + estimatedEtaSeconds` computed in the browser, rather than a single
+authoritative calculation. Following the same Single Source of Truth migration pattern as Phase
+5.27 (`operational-statistics`, §52 above), Phase 5.28 moves both aggregations to dedicated backend
+endpoints, establishing one authoritative source for these operational audit trails instead of
+recomputing them from raw arrays in every browser tab.
+
+**Solution — three steps:**
+
+- **Step 2.1 — Application layer contracts.** Created `IncidentTimelineEventDto` (`Id: string`,
+  `Timestamp: DateTimeOffset`, `Description: string`, `FieldUnitId: string?`) in
+  `SmartCityOps.Application.Incidents` and `FieldUnitMovementRecordDto` (`Id: Guid`, `Timestamp:
+  DateTimeOffset`, `Latitude/Longitude: double`, `IncidentId: Guid?`, `IncidentType: string?`,
+  `IncidentCode: string?`) in `SmartCityOps.Application.FieldUnits`. Added
+  `Task<IReadOnlyList<IncidentTimelineEventDto>> GetTimelineAsync(Guid incidentId, CancellationToken
+  cancellationToken = default)` to `IIncidentService` and `Task<IReadOnlyList<FieldUnitMovementRecordDto>>
+  GetMovementHistoryAsync(Guid fieldUnitId, CancellationToken cancellationToken = default)` to
+  `IFieldUnitService` — following the same DTO-plus-interface-per-feature pattern as every other
+  Application folder. Since adding these interface members immediately broke the existing
+  `IncidentService`/`FieldUnitService` implementations, both got temporary `NotImplementedException`
+  stub methods in this step so `dotnet build Src/SmartCityOps.sln` stayed green (0 warnings, 0
+  errors) ahead of Step 2.2's real implementation.
+- **Step 2.2 — Infrastructure implementation and endpoints.** Implemented
+  `IncidentService.GetTimelineAsync` (`Src/SmartCityOps.Infrastructure/Incidents/IncidentService.cs`):
+  loads the incident (`AsNoTracking`, `KeyNotFoundException` if missing) and all of its
+  `OperationalTasks`, resolves a `FieldUnitId → FieldUnit` dictionary for unit labels, then builds
+  the chronological event list — a "reported" event, then per task an "assigned" event, an "arrived
+  at scene" event (only once `now >= assignedAt + estimatedEtaSeconds`, or the task/incident is
+  already completed/resolved, with the effective arrival timestamp clamped to `task.CompletedAt` if
+  that happened earlier than the calculated ETA arrival), and a "completed" event if the task has a
+  `CompletedAt` — followed by a "resolved" event if the incident itself is resolved, all sorted
+  ascending by `Timestamp`. Implemented `FieldUnitService.GetMovementHistoryAsync`
+  (`Src/SmartCityOps.Infrastructure/FieldUnits/FieldUnitService.cs`): confirms the field unit exists
+  (`KeyNotFoundException` otherwise), then runs a single query-syntax LINQ `LEFT JOIN` (`join ... into
+  ... from ... DefaultIfEmpty()`) between `FieldUnitLocationHistories` and `Incidents` on
+  `IncidentId`, ordered descending by `RecordedAt`, projecting `IncidentType`/`IncidentCode` as
+  `null` when no incident is joined. Exposed both as thin controller actions:
+  `[HttpGet("{id:guid}/timeline")]` on `IncidentsController` and `[HttpGet("{id:guid}/movement-history")]`
+  on `FieldUnitsController`, each just awaiting the service call and returning `Ok(...)`.
+- **Step 2.3 — Frontend wiring.** Added `IncidentTimelineEvent` to
+  `frontend/src/features/incidents/types.ts` and `fetchIncidentTimeline(incidentId)` to
+  `api/incidentsApi.ts` (`GET /incidents/{id}/timeline`), plus a new
+  `hooks/useIncidentTimeline.ts` (`useQuery({ queryKey: ["incident-timeline", incidentId], enabled:
+  Boolean(incidentId) })`). Mirrored the same shape for field units: `FieldUnitMovementRecord` in
+  `features/field-units/types.ts`, `fetchFieldUnitMovementHistory(fieldUnitId)` in
+  `api/fieldUnitsApi.ts` (`GET /field-units/{id}/movement-history`), and
+  `hooks/useFieldUnitMovementHistory.ts` (`queryKey: ["field-unit-movement-history", fieldUnitId]`).
+  `IncidentTimelineSection.tsx` and `FieldUnitMovementHistorySection.tsx` were both rewritten to drop
+  their `operationalTasks`/`fieldUnits`/`incidents`/`locationHistory` array props entirely, instead
+  taking just `incident: Incident | null`/`fieldUnit: FieldUnit | null` plus an id-based
+  `onSelectFieldUnit(fieldUnitId)`/`onSelectIncident(incidentId)` callback, calling
+  `useIncidentTimeline`/`useFieldUnitMovementHistory` directly and mapping the server response onto
+  `Timeline`'s existing `TimelineEvent[]` shape. `frontend/src/shared/hooks/useSignalR.ts`'s
+  `handleOperationsUpdated` now also invalidates `["incident-timeline"]` and
+  `["field-unit-movement-history"]`, keeping both views live across the same `OperationsUpdated`
+  SignalR event as every other query key. Since both sections became self-fetching, the
+  `locationHistory` prop — previously threaded through `App.tsx` → `Menu.tsx` →
+  `MenuSectionRouter.tsx` solely to feed `FieldUnitMovementHistorySection` — was removed from all
+  three; `MenuSectionRouter.tsx` now adapts the two sections' id-based callbacks to the
+  `Incident`/`FieldUnit`-based callbacks the rest of the menu tree still uses (same lookup-by-id
+  pattern already established for `StatisticsSection` in §52), rather than changing those shared
+  callback signatures everywhere.
+
+**Verification:** `dotnet build Src/SmartCityOps.sln` clean throughout every step (0 warnings, 0
+errors); `npm run lint` (oxlint) and `npm run build` (`tsc -b && vite build`) clean in `frontend/`
+(0 type errors; only the same pre-existing, unrelated `react(refs)`/`react(set-state-in-effect)`
+warnings and MapLibre vendor chunk-size notice from before this phase). No test/debug code left in
+the tree.
+
+**Outcome:** `GET /api/incidents/{id}/timeline` and `GET /api/field-units/{id}/movement-history` are
+now the single source of truth for the Incident Timeline and Field Unit Movement History views —
+both event lists, including the "arrived at scene" ETA-clamping logic, are computed once, server-side,
+instead of being recomputed from raw React Query array props in the browser. Both endpoints stay
+live via the existing coarse-grained `OperationsUpdated` SignalR invalidation pattern, and the
+now-obsolete `locationHistory` prop-drilling chain through `App.tsx`/`Menu.tsx`/`MenuSectionRouter.tsx`
+was removed as part of the same change.
+
+---
+
+## 54. Phase 5.29 — Backend Incident Priority Score Calculation & Server-Side Active Incident Sorting
+
+**Motivation:** `ActiveIncidentsList.tsx` (via `OperationsSidebar.tsx`) sorted active incidents
+client-side using `incidentPriorityScore.ts`, a hash-of-`incident.id` utility that derived a fake
+0–100 "priority score" per incident purely as a deterministic tie-breaker (see Phase 5.24, §49) —
+it had no relationship to how urgent an incident actually was, since the same incident got a
+different score only if its ID happened to hash differently, not because it aged or changed
+priority. Following the same Single Source of Truth migration pattern as Phase 5.27/5.28 (§52–53),
+Phase 5.29 replaces the hash with a real, deterministic triage rule computed once on the backend —
+priority level plus time-since-reported — and has `GET /api/incidents` deliver incidents
+pre-sorted, so the frontend no longer needs any incident-ranking logic of its own.
+
+**Solution — two steps:**
+
+- **Step 3.1 — Application/Infrastructure layers.** Created `IncidentPriorityScoreCalculator`
+  (`Src/SmartCityOps.Application/Incidents/IncidentPriorityScoreCalculator.cs`) as a static
+  `Calculate(IncidentPriority priority, DateTimeOffset reportedAt, DateTimeOffset now)` method: a
+  base score by priority (High = 70, Medium = 40, Low = 10) plus an age bonus of +1 point per
+  minute elapsed since `ReportedAt`, capped at +30, with the total clamped to `[0, 100]`. Added
+  `int PriorityScore` to `IncidentDto`
+  (`Src/SmartCityOps.Application/Incidents/IncidentDto.cs`). `IncidentService`
+  (`Src/SmartCityOps.Infrastructure/Incidents/IncidentService.cs`) now computes it in `ToDto` (which
+  takes a `now` parameter, passed as `DateTimeOffset.UtcNow` from `CreateAsync`/`ResolveAsync`), and
+  `GetAllAsync` was rewritten to materialize incidents with `AsNoTracking()`, map each to a
+  `IncidentDto` via `ToDto`, then sort in memory: non-resolved incidents first (ordered by
+  `PriorityScore` descending, then `ReportedAt` ascending), followed by resolved incidents — the
+  sort had to move to an in-memory `OrderBy`/`ThenByDescending`/`ThenBy` chain after materialization
+  rather than staying in the LINQ-to-SQL query, since `IncidentPriorityScoreCalculator.Calculate`
+  can't be translated to SQL by Npgsql/EF Core. `OperationsReplayService`
+  (`Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs`) was updated to
+  calculate each snapshot incident's `PriorityScore` against the replay `timestamp` rather than
+  `DateTimeOffset.UtcNow`, consistent with how every other field in a snapshot reflects state "as of"
+  that historical instant rather than the present moment.
+- **Step 3.2 — Frontend wiring and cleanup.** Added `priorityScore: number` to the `Incident`
+  interface (`frontend/src/features/incidents/types.ts`). `OperationsSidebar.tsx` no longer imports
+  `sortActiveIncidents` — since `GET /api/incidents` now arrives pre-sorted by the backend rule
+  above, it only filters `filteredIncidents` down to non-resolved incidents (preserving
+  `sortActiveIncidents`'s previous resolved-incident exclusion) and passes that straight to
+  `ActiveIncidentsList` with no re-sort. Confirmed via grep that no other file imported
+  `incidentPriorityScore.ts`, then deleted
+  `frontend/src/features/incidents/lib/incidentPriorityScore.ts` outright.
+
+**Verification:** `dotnet build Src/SmartCityOps.sln` clean (0 warnings, 0 errors); `npm run lint`
+(oxlint) and `npm run build` (`tsc -b && vite build`) clean in `frontend/` (0 type errors; only the
+same pre-existing, unrelated `react(refs)`/`react(set-state-in-effect)` warnings and MapLibre vendor
+chunk-size notice from before this phase). No test/debug code left in the tree.
+
+**Outcome:** Incident triage ranking is now computed exactly once, server-side, from an actual
+business rule (priority level + age) instead of a per-ID hash with no operational meaning; `GET
+/api/incidents` and `GET /api/operations/replay/snapshot` both expose the same authoritative
+`PriorityScore`, and the frontend carries no incident-scoring or incident-sorting logic of its own.
+
+---
+
+## 55. Phase 5.30 — Backend "Ready to Resolve" Incident Eligibility Computation
+
+**Motivation:** `ActiveTasksPanel.tsx`'s "Ready to Resolve" table determined eligibility by
+building a client-side `Set` of incident IDs with an `Assigned` operational task, then filtering
+`InProgress` incidents not in that set — a cross-reference over the full `operationalTasks` array
+recomputed on every render. Following the same Single Source of Truth migration pattern as Phase
+5.27–5.29 (§52–54), this eligibility check moves to the backend so the incident's resolution
+readiness is computed once, server-side, alongside its other lifecycle fields, instead of being
+re-derived from two separate React Query arrays in the frontend.
+
+**Solution — four steps:**
+
+- **Step 4.1 — Application layer.** Added `bool IsReadyToResolve` to `IncidentDto`
+  (`Src/SmartCityOps.Application/Incidents/IncidentDto.cs`), as the final positional field after
+  `PriorityScore`.
+- **Step 4.2 — `IncidentService`.** `GetAllAsync`
+  (`Src/SmartCityOps.Infrastructure/Incidents/IncidentService.cs`) now runs one extra query —
+  `_dbContext.OperationalTasks.AsNoTracking().Where(t => t.Status != OperationalTaskStatus.Completed).Select(t => t.IncidentId)`,
+  materialized and collected into a `HashSet<Guid>` — and a new private
+  `IsReadyToResolve(Incident, HashSet<Guid>)` helper projects
+  `incident.Status != IncidentStatus.Resolved && !activeTaskIncidentIds.Contains(incident.Id)` per
+  incident when mapping to `IncidentDto` via `ToDto` (which now also takes an `isReadyToResolve`
+  parameter). `CreateAsync` passes `isReadyToResolve: true` (a brand-new incident has zero tasks,
+  so it's trivially ready), and `ResolveAsync` passes `isReadyToResolve: false` (a just-resolved
+  incident is never eligible to resolve again).
+- **Step 4.3 — `OperationsReplayService`.** The inline predicate that filtered `tasksAssignedByThen`
+  down to `activeTaskDtos` (Reassigned-status tasks active until their `ReassignedAt`, other
+  statuses active until their `CompletedAt`) was extracted into a shared private
+  `IsTaskActiveAt(OperationalTask, DateTimeOffset)` helper, used both to build `activeTaskDtos` and
+  a new `incidentIdsWithActiveTasksAt` `HashSet<Guid>`. Each snapshot `IncidentDto`'s
+  `IsReadyToResolve` is then `resolvedAt is null && !incidentIdsWithActiveTasksAt.Contains(incident.Id)`,
+  evaluated against the replay `timestamp` rather than the present moment — consistent with every
+  other snapshot field.
+- **Step 4.4 — Frontend.** Added `isReadyToResolve: boolean` to the `Incident` interface
+  (`frontend/src/features/incidents/types.ts`). `ActiveTasksPanel.tsx` no longer builds an
+  `assignedIncidentIds` `Set` from `operationalTasks`; its "Ready to Resolve" filter is now
+  `incident.status === "InProgress" && incident.isReadyToResolve`, reading the backend's field
+  directly (the `InProgress` status check was kept as-is, preserving the panel's prior scope of
+  only surfacing incidents that had actually been dispatched, not brand-new `Open` ones).
+
+**Verification:** `dotnet build Src/SmartCityOps.sln` clean (0 warnings, 0 errors); `npm run lint`
+(oxlint) and `npm run build` (`tsc -b && vite build`) clean in `frontend/` (0 type errors; only the
+same pre-existing, unrelated `react(refs)`/`react(set-state-in-effect)` warnings and MapLibre vendor
+chunk-size notice from before this phase). No test/debug code left in the tree.
+
+**Outcome:** Incident resolution eligibility is now computed exactly once, server-side, from actual
+task state rather than a client-side array cross-reference; `GET /api/incidents` and `GET
+/api/operations/replay/snapshot` both expose the same authoritative `IsReadyToResolve`, and
+`ActiveTasksPanel.tsx` carries no incident/task cross-referencing logic of its own.
+
+---
+
+## 56. Phase 5.31 — Field Unit OutOfService Lifecycle, Status Audit History & Operations Replay Temporal Accuracy
+
+**Motivation:** `OutOfService` had been a seed-only, static field-unit status since the project's
+earliest phases — there was no way to set or clear it at runtime, and `OperationsReplayService`
+(see the removed comment in §25/§40/§43's surrounding code) treated it as time-invariant, always
+showing a unit's *current* `OutOfService` state regardless of the replay timestamp, because no
+transition event was ever recorded. This phase closes that long-standing "Known open items" gap
+(flagged since Part 12 §25): field units can now be toggled `Available ↔ OutOfService` at runtime,
+every transition is persisted as an audit record, and replay reconstructs historical status
+accurately from that audit trail instead of guessing.
+
+**Solution — three steps:**
+
+- **Step 5.1 — Domain, Application & Persistence.** Added `FieldUnitStatusHistory`
+  (`Src/SmartCityOps.Domain/Entities/FieldUnitStatusHistory.cs`), an immutable audit record
+  (`Id`, `FieldUnitId`, `Status`, `ChangedAt`, nullable `Reason`) with a private parameterless
+  constructor plus a public constructor, following the existing entity style. Added
+  `UpdateFieldUnitStatusDto(string Status, string? Reason = null)` to
+  `SmartCityOps.Application.FieldUnits`. `FieldUnitStatusHistoryConfiguration`
+  (`Src/SmartCityOps.Infrastructure/Persistence/Configurations/`) maps the entity to a
+  `FieldUnitStatusHistories` table, stores `Status` as a `varchar(20)` string conversion (matching
+  the rest of the codebase's enum-storage convention), defines a composite
+  `(FieldUnitId, ChangedAt)` index for the replay lookup query, and a cascade-delete FK to
+  `FieldUnits`. `ApplicationDbContext` gained the corresponding `DbSet<FieldUnitStatusHistory>
+  FieldUnitStatusHistories`. Migration `AddFieldUnitStatusHistory`
+  (`20260828133403_AddFieldUnitStatusHistory`) was generated and applied via
+  `dotnet ef database update`.
+- **Step 5.2 — Service, endpoint & replay reconstruction.** `IFieldUnitService` gained
+  `UpdateStatusAsync(Guid id, UpdateFieldUnitStatusDto dto, CancellationToken)`, implemented in
+  `FieldUnitService`
+  (`Src/SmartCityOps.Infrastructure/FieldUnits/FieldUnitService.cs`). Validation rules: a unit
+  currently `Dispatched` cannot have its status changed directly (it must complete or be
+  reassigned off its task first — mirrors the existing task-assignment invariant that only
+  `AssignFieldUnitAsync` may set `Dispatched`), and `Dispatched` cannot be set as a target status
+  through this endpoint at all — only `OperationalTaskService.AssignFieldUnitAsync` may put a unit
+  into `Dispatched`. On an actual status change, the method updates `FieldUnit.Status`, appends a
+  new `FieldUnitStatusHistory` row, saves, and dispatches the existing `FieldUnitUpdatedEvent`
+  through `IDomainEventDispatcher` — reusing `SignalROperationsNotificationHandler`
+  (`Src/SmartCityOps.Infrastructure/Hubs/`) rather than adding a new event type, consistent with
+  the single coarse-grained `OperationsUpdated` SignalR pattern documented in the Architecture
+  section above. A no-op call (target status equals current status) skips the write and event
+  entirely. `FieldUnitsController` exposes this as `PATCH /api/field-units/{id}/status`
+  (`Src/SmartCityOps.Api/Controllers/FieldUnitsController.cs`).
+  `OperationsReplayService`
+  (`Src/SmartCityOps.Infrastructure/OperationsReplay/OperationsReplayService.cs`) was reworked to
+  use `FieldUnitStatusHistories` instead of the old `OutOfService`-is-time-invariant special case:
+  it loads all status-history rows at-or-before the replay `timestamp`, groups by field unit and
+  takes the latest (`.Last()` after an `OrderBy(ChangedAt)`), and combines that with a
+  `fieldUnitIdsWithActiveTaskAt` `HashSet<Guid>` (built from the same `IsTaskActiveAt` helper
+  extracted in §55) to resolve each unit's historical status:
+  `hasActiveTaskAtTimestamp ? Dispatched : (latestStatusHistoryAtOrBefore?.Status ?? Available)` —
+  an active dispatch always wins over a stale status-history row, and a unit with no history at all
+  before the timestamp defaults to `Available`. This replaces the old
+  `latestTaskByFieldUnit`/`BuildFieldUnitReplayDto` switch expression that inferred status purely
+  from task state and short-circuited on the live `fieldUnit.Status == OutOfService` check (which
+  is what made `OutOfService` time-invariant in replay before this phase); `BuildFieldUnitReplayDto`
+  now takes `hasActiveTaskAtTimestamp`/`latestStatusHistoryAtOrBefore` instead of
+  `latestTaskAtOrBefore`/`timestamp`.
+- **Step 5.3 — Frontend.** Added `updateFieldUnitStatus(id, status, reason?)` to
+  `frontend/src/features/field-units/api/fieldUnitsApi.ts` (a `PATCH` via the shared
+  `httpClient`), and `useUpdateFieldUnitStatus`
+  (`frontend/src/features/field-units/hooks/useUpdateFieldUnitStatus.ts`), a React Query mutation
+  hook that invalidates `["field-units"]` and `["operational-statistics"]` on success (no new
+  SignalR query key was needed — the existing `OperationsUpdated` invalidation already covers both
+  keys for changes made by *other* clients; this mutation's own `onSuccess` invalidation covers
+  the immediate local update). `FieldUnitPanel.tsx` gained two conditionally-rendered action
+  buttons next to the existing "Complete Task" button: "Set Out of Service" (shown when
+  `fieldUnit.status === "Available"`) and "Set Available" (shown when
+  `fieldUnit.status === "OutOfService"`), both disabled while the mutation is pending and hidden
+  entirely in `readOnly` mode (replay view), matching the panel's existing `readOnly` convention
+  for the "Complete Task" button and `ReassignTaskButton`.
+
+**Verification:** `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors); `npm run lint`
+(oxlint) and `npm run build` (`tsc -b && vite build`) clean in `frontend/` (0 type errors; only the
+same pre-existing, unrelated `react(refs)`/`react(set-state-in-effect)` warnings and MapLibre
+vendor chunk-size notice from before this phase). No test/debug code left in the tree.
+
+**Outcome:** Field units now have a fully explicit, audited `Available ↔ OutOfService` lifecycle
+transition alongside the existing task-driven `Dispatched` transition; `OperationsReplayService`
+reconstructs historical status from real audit records instead of treating `OutOfService` as
+time-invariant, closing the last remaining item in the "Known open items" list (the `Reassigned`
+hand-off timing gap was already closed in §43, and the "no backend test project" item remains the
+only one still open).
+
+---
+

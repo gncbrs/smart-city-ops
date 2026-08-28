@@ -2,7 +2,6 @@ import type { Incident, IncidentPriority } from "../../features/incidents/types"
 import type { FieldUnitStatus, FieldUnitType } from "../../features/field-units/types";
 import { FilterPanel } from "../../features/operations-map/components/FilterPanel";
 import { ActiveIncidentsList } from "../../features/incidents/components/ActiveIncidentsList";
-import { sortActiveIncidents } from "../../features/incidents/lib/incidentPriorityScore";
 
 interface OperationsSidebarProps {
   incidents: Incident[];
@@ -31,7 +30,7 @@ export function OperationsSidebar({
     priorityFilter.length > 0
       ? incidents.filter((incident) => priorityFilter.includes(incident.priority))
       : incidents;
-  const activeIncidents = sortActiveIncidents(filteredIncidents);
+  const activeIncidents = filteredIncidents.filter((incident) => incident.status !== "Resolved");
 
   return (
     <>

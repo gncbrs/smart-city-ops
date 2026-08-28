@@ -33,25 +33,38 @@ public class OperationsReplayService : IOperationsReplayService
             .GroupBy(t => t.IncidentId)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        var incidentIdsWithActiveTasksAt = tasksAssignedByThen
+            .Where(t => IsTaskActiveAt(t, timestamp))
+            .Select(t => t.IncidentId)
+            .ToHashSet();
+
         var incidentDtos = incidents
-            .Select(i => new IncidentDto(
-                i.Id,
-                i.Type.ToString(),
-                i.Priority.ToString(),
-                ResolveIncidentStatusAt(i, tasksByIncident.GetValueOrDefault(i.Id), timestamp),
-                i.ReportedAt,
-                i.Latitude,
-                i.Longitude,
-                i.Description,
-                i.ResolvedAt.HasValue && i.ResolvedAt <= timestamp ? i.ResolvedAt : null))
+            .Select(i =>
+            {
+                var resolvedAt = i.ResolvedAt.HasValue && i.ResolvedAt <= timestamp ? i.ResolvedAt : null;
+
+                return new IncidentDto(
+                    i.Id,
+                    i.Type.ToString(),
+                    i.Priority.ToString(),
+                    ResolveIncidentStatusAt(i, tasksByIncident.GetValueOrDefault(i.Id), timestamp),
+                    i.ReportedAt,
+                    i.Latitude,
+                    i.Longitude,
+                    i.Description,
+                    resolvedAt,
+                    IncidentPriorityScoreCalculator.Calculate(i.Priority, i.ReportedAt, timestamp),
+                    resolvedAt is null && !incidentIdsWithActiveTasksAt.Contains(i.Id));
+            })
             .ToList();
 
         var fieldUnits = await _dbContext.FieldUnits.AsNoTracking().ToListAsync(cancellationToken);
         var fieldUnitIds = fieldUnits.Select(f => f.Id).ToList();
 
-        var latestTaskByFieldUnit = tasksAssignedByThen
-            .GroupBy(t => t.FieldUnitId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(t => t.AssignedAt).First());
+        var fieldUnitIdsWithActiveTaskAt = tasksAssignedByThen
+            .Where(t => IsTaskActiveAt(t, timestamp))
+            .Select(t => t.FieldUnitId)
+            .ToHashSet();
 
         var locationsAtOrBefore = await _dbContext.FieldUnitLocationHistories
             .AsNoTracking()
@@ -62,18 +75,26 @@ public class OperationsReplayService : IOperationsReplayService
             .GroupBy(h => h.FieldUnitId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.RecordedAt).First());
 
+        var statusHistoriesAtOrBefore = await _dbContext.FieldUnitStatusHistories
+            .AsNoTracking()
+            .Where(h => h.ChangedAt <= timestamp)
+            .OrderBy(h => h.ChangedAt)
+            .ToListAsync(cancellationToken);
+
+        var latestStatusHistoryByFieldUnit = statusHistoriesAtOrBefore
+            .GroupBy(h => h.FieldUnitId)
+            .ToDictionary(g => g.Key, g => g.Last());
+
         var fieldUnitDtos = fieldUnits
             .Select(f => BuildFieldUnitReplayDto(
                 f,
-                latestTaskByFieldUnit.GetValueOrDefault(f.Id),
-                latestLocationByFieldUnit.GetValueOrDefault(f.Id),
-                timestamp))
+                fieldUnitIdsWithActiveTaskAt.Contains(f.Id),
+                latestStatusHistoryByFieldUnit.GetValueOrDefault(f.Id),
+                latestLocationByFieldUnit.GetValueOrDefault(f.Id)))
             .ToList();
 
         var activeTaskDtos = tasksAssignedByThen
-            .Where(t => t.Status == OperationalTaskStatus.Reassigned
-                ? t.AssignedAt <= timestamp && (!t.ReassignedAt.HasValue || t.ReassignedAt.Value > timestamp)
-                : t.CompletedAt is null || t.CompletedAt > timestamp)
+            .Where(t => IsTaskActiveAt(t, timestamp))
             .Select(t => new OperationalTaskDto(
                 t.Id,
                 t.IncidentId,
@@ -146,6 +167,11 @@ public class OperationsReplayService : IOperationsReplayService
         return new ReplayTimeRangeDto(minTimestamp, maxTimestamp);
     }
 
+    private static bool IsTaskActiveAt(OperationalTask task, DateTimeOffset timestamp) =>
+        task.Status == OperationalTaskStatus.Reassigned
+            ? task.AssignedAt <= timestamp && (!task.ReassignedAt.HasValue || task.ReassignedAt.Value > timestamp)
+            : task.CompletedAt is null || task.CompletedAt > timestamp;
+
     private static string ResolveIncidentStatusAt(Incident incident, int tasksAssignedByThenCount, DateTimeOffset timestamp)
     {
         if (incident.ResolvedAt.HasValue && incident.ResolvedAt <= timestamp)
@@ -158,29 +184,18 @@ public class OperationsReplayService : IOperationsReplayService
             : IncidentStatus.Open.ToString();
     }
 
-    // OutOfService is only ever set via seed data with no tracked transition event, so it is
-    // treated as time-invariant here.
     private static FieldUnitReplayDto BuildFieldUnitReplayDto(
         FieldUnit fieldUnit,
-        OperationalTask? latestTaskAtOrBefore,
-        FieldUnitLocationHistory? latestLocationAtOrBefore,
-        DateTimeOffset timestamp)
+        bool hasActiveTaskAtTimestamp,
+        FieldUnitStatusHistory? latestStatusHistoryAtOrBefore,
+        FieldUnitLocationHistory? latestLocationAtOrBefore)
     {
         var latitude = latestLocationAtOrBefore?.Latitude ?? fieldUnit.Latitude;
         var longitude = latestLocationAtOrBefore?.Longitude ?? fieldUnit.Longitude;
 
-        var status = fieldUnit.Status == FieldUnitStatus.OutOfService
-            ? FieldUnitStatus.OutOfService
-            : latestTaskAtOrBefore switch
-            {
-                null => FieldUnitStatus.Available,
-                { Status: OperationalTaskStatus.Reassigned, ReassignedAt: not null } t when t.ReassignedAt <= timestamp
-                    => FieldUnitStatus.Available,
-                { Status: OperationalTaskStatus.Reassigned } => FieldUnitStatus.Dispatched,
-                { Status: OperationalTaskStatus.Completed, CompletedAt: not null } t when t.CompletedAt <= timestamp
-                    => FieldUnitStatus.Available,
-                _ => FieldUnitStatus.Dispatched
-            };
+        var status = hasActiveTaskAtTimestamp
+            ? FieldUnitStatus.Dispatched
+            : latestStatusHistoryAtOrBefore?.Status ?? FieldUnitStatus.Available;
 
         return new FieldUnitReplayDto(
             fieldUnit.Id,

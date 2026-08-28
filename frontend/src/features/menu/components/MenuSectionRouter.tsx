@@ -1,8 +1,8 @@
 import type { Incident } from "../../incidents/types";
 import type { FieldUnit } from "../../field-units/types";
 import type { OperationalTask } from "../../operational-tasks/types";
-import type { FieldUnitLocationHistory } from "../../field-unit-location-histories/types";
 import type { RestrictedZone } from "../../restricted-zones/types";
+import type { OperationalStatistics } from "../../dashboard/types";
 import { CompletedTasksSection } from "../../dashboard/components/CompletedTasksSection";
 import { StatisticsSection } from "../../dashboard/components/StatisticsSection";
 import { IncidentTimelineSection } from "../../incidents/components/IncidentTimelineSection";
@@ -26,8 +26,8 @@ interface MenuSectionRouterProps {
   operationalTasks: OperationalTask[];
   timelineIncident: Incident | null;
   movementHistoryFieldUnit: FieldUnit | null;
-  locationHistory: FieldUnitLocationHistory[];
   restrictedZones: RestrictedZone[];
+  statistics: OperationalStatistics | undefined;
   onSelectIncident: (incident: Incident) => void;
   onSelectFieldUnit: (fieldUnit: FieldUnit) => void;
   isPickingCoordinates: boolean;
@@ -45,8 +45,8 @@ export function MenuSectionRouter({
   operationalTasks,
   timelineIncident,
   movementHistoryFieldUnit,
-  locationHistory,
   restrictedZones,
+  statistics,
   onSelectIncident,
   onSelectFieldUnit,
   isPickingCoordinates,
@@ -84,36 +84,39 @@ export function MenuSectionRouter({
 
       {view === "statistics" && (
         <StatisticsSection
-          incidents={incidents}
-          fieldUnits={fieldUnits}
-          operationalTasks={operationalTasks}
-          onSelectFieldUnit={onSelectFieldUnit}
+          statistics={statistics}
+          onSelectFieldUnit={(id) => {
+            const fieldUnit = fieldUnits.find((unit) => unit.id === id);
+            if (fieldUnit) {
+              onSelectFieldUnit(fieldUnit);
+            }
+          }}
         />
       )}
 
-      {view === "timeline" &&
-        (timelineIncident ? (
-          <IncidentTimelineSection
-            incident={timelineIncident}
-            fieldUnits={fieldUnits}
-            operationalTasks={operationalTasks}
-            onSelectFieldUnit={onSelectFieldUnit}
-          />
-        ) : (
-          <p>No incident selected.</p>
-        ))}
+      {view === "timeline" && (
+        <IncidentTimelineSection
+          incident={timelineIncident}
+          onSelectFieldUnit={(fieldUnitId) => {
+            const fieldUnit = fieldUnits.find((unit) => unit.id === fieldUnitId);
+            if (fieldUnit) {
+              onSelectFieldUnit(fieldUnit);
+            }
+          }}
+        />
+      )}
 
-      {view === "movement-history" &&
-        (movementHistoryFieldUnit ? (
-          <FieldUnitMovementHistorySection
-            fieldUnit={movementHistoryFieldUnit}
-            incidents={incidents}
-            locationHistory={locationHistory}
-            onSelectIncident={onSelectIncident}
-          />
-        ) : (
-          <p>No field unit selected.</p>
-        ))}
+      {view === "movement-history" && (
+        <FieldUnitMovementHistorySection
+          fieldUnit={movementHistoryFieldUnit}
+          onSelectIncident={(incidentId) => {
+            const incident = incidents.find((candidate) => candidate.id === incidentId);
+            if (incident) {
+              onSelectIncident(incident);
+            }
+          }}
+        />
+      )}
 
       {view === "restricted-zones" && (
         <RestrictedZonesSection

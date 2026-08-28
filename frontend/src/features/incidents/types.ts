@@ -21,4 +21,13 @@ export interface Incident extends GeoLocation {
   reportedAt: string;
   resolvedAt: string | null;
   description: string;
+  priorityScore: number;
+  isReadyToResolve: boolean;
+}
+
+export interface IncidentTimelineEvent {
+  id: string;
+  timestamp: string;
+  description: string;
+  fieldUnitId?: string | null;
 }

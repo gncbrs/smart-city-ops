@@ -21,19 +21,25 @@ public class IncidentService : IIncidentService
 
     public async Task<IReadOnlyList<IncidentDto>> GetAllAsync(CancellationToken cancellationToken)
     {
-        return await _dbContext.Incidents
+        var incidents = await _dbContext.Incidents
             .AsNoTracking()
-            .Select(i => new IncidentDto(
-                i.Id,
-                i.Type.ToString(),
-                i.Priority.ToString(),
-                i.Status.ToString(),
-                i.ReportedAt,
-                i.Latitude,
-                i.Longitude,
-                i.Description,
-                i.ResolvedAt))
             .ToListAsync(cancellationToken);
+
+        var incidentIdsWithActiveTasks = (await _dbContext.OperationalTasks
+            .AsNoTracking()
+            .Where(t => t.Status != OperationalTaskStatus.Completed)
+            .Select(t => t.IncidentId)
+            .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        var now = DateTimeOffset.UtcNow;
+
+        return incidents
+            .Select(i => ToDto(i, now, IsReadyToResolve(i, incidentIdsWithActiveTasks)))
+            .OrderBy(dto => dto.Status == IncidentStatus.Resolved.ToString() ? 1 : 0)
+            .ThenByDescending(dto => dto.PriorityScore)
+            .ThenBy(dto => dto.ReportedAt)
+            .ToList();
     }
 
     public async Task<IncidentDto> CreateAsync(CreateIncidentDto dto, CancellationToken cancellationToken)
@@ -55,7 +61,7 @@ public class IncidentService : IIncidentService
         await _dbContext.SaveChangesAsync(cancellationToken);
         await _domainEventDispatcher.DispatchAsync(new IncidentCreatedEvent(incident.Id), cancellationToken);
 
-        return ToDto(incident);
+        return ToDto(incident, DateTimeOffset.UtcNow, isReadyToResolve: true);
     }
 
     public async Task<IncidentDto> ResolveAsync(Guid id, CancellationToken cancellationToken)
@@ -96,10 +102,74 @@ public class IncidentService : IIncidentService
         await _dbContext.SaveChangesAsync(cancellationToken);
         await _domainEventDispatcher.DispatchAsync(new IncidentResolvedEvent(incident.Id), cancellationToken);
 
-        return ToDto(incident);
+        return ToDto(incident, DateTimeOffset.UtcNow, isReadyToResolve: false);
     }
 
-    private static IncidentDto ToDto(Incident incident) =>
+    public async Task<IReadOnlyList<IncidentTimelineEventDto>> GetTimelineAsync(Guid incidentId, CancellationToken cancellationToken = default)
+    {
+        var incident = await _dbContext.Incidents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Id == incidentId, cancellationToken)
+            ?? throw new KeyNotFoundException("Incident bulunamadı.");
+
+        var tasks = await _dbContext.OperationalTasks
+            .AsNoTracking()
+            .Where(t => t.IncidentId == incidentId)
+            .ToListAsync(cancellationToken);
+
+        var fieldUnitIds = tasks.Select(t => t.FieldUnitId).Distinct().ToList();
+        var fieldUnits = await _dbContext.FieldUnits
+            .AsNoTracking()
+            .Where(f => fieldUnitIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, cancellationToken);
+
+        var events = new List<IncidentTimelineEventDto>
+        {
+            new($"{incident.Id}-reported", incident.ReportedAt, "Incident reported")
+        };
+
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var task in tasks)
+        {
+            var unitLabel = fieldUnits.TryGetValue(task.FieldUnitId, out var unit)
+                ? $"{unit.Type} ({unit.UnitCode})"
+                : "Unknown unit";
+
+            events.Add(new IncidentTimelineEventDto($"{task.Id}-assigned", task.AssignedAt, $"{unitLabel} assigned to incident", task.FieldUnitId.ToString()));
+
+            if (task.EstimatedEtaSeconds.HasValue)
+            {
+                var calculatedArrival = task.AssignedAt.AddSeconds(task.EstimatedEtaSeconds.Value);
+
+                if (now >= calculatedArrival || task.CompletedAt != null || incident.ResolvedAt != null)
+                {
+                    var effectiveArrival = task.CompletedAt.HasValue && task.CompletedAt.Value < calculatedArrival
+                        ? task.CompletedAt.Value
+                        : calculatedArrival;
+
+                    events.Add(new IncidentTimelineEventDto($"{task.Id}-arrived", effectiveArrival, $"{unitLabel} arrived at scene", task.FieldUnitId.ToString()));
+                }
+            }
+
+            if (task.CompletedAt.HasValue)
+            {
+                events.Add(new IncidentTimelineEventDto($"{task.Id}-completed", task.CompletedAt.Value, $"{unitLabel} completed task", task.FieldUnitId.ToString()));
+            }
+        }
+
+        if (incident.ResolvedAt.HasValue)
+        {
+            events.Add(new IncidentTimelineEventDto($"{incident.Id}-resolved", incident.ResolvedAt.Value, "Incident resolved"));
+        }
+
+        return events.OrderBy(e => e.Timestamp).ToList();
+    }
+
+    private static bool IsReadyToResolve(Incident incident, HashSet<Guid> incidentIdsWithActiveTasks) =>
+        incident.Status != IncidentStatus.Resolved && !incidentIdsWithActiveTasks.Contains(incident.Id);
+
+    private static IncidentDto ToDto(Incident incident, DateTimeOffset now, bool isReadyToResolve) =>
         new(
             incident.Id,
             incident.Type.ToString(),
@@ -109,5 +179,7 @@ public class IncidentService : IIncidentService
             incident.Latitude,
             incident.Longitude,
             incident.Description,
-            incident.ResolvedAt);
+            incident.ResolvedAt,
+            IncidentPriorityScoreCalculator.Calculate(incident.Priority, incident.ReportedAt, now),
+            isReadyToResolve);
 }

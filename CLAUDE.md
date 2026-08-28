@@ -49,12 +49,29 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
 `Api → Infrastructure → Application → Domain`
 
 - **`SmartCityOps.Domain`** — plain entities (`Incident`, `FieldUnit`, `OperationalTask`,
-  `FieldUnitLocationHistory`) and enums. No framework dependencies.
+  `FieldUnitLocationHistory`, `FieldUnitStatusHistory`) and enums. No framework dependencies.
 - **`SmartCityOps.Application`** — one folder per feature (`Incidents`, `FieldUnits`,
   `OperationalTasks`, `OperationalZones`, `FieldUnitLocationHistories`, `FieldUnitRecommendations`,
-  `RestrictedZones`, `OperationsReplay`, plus `Common`), each holding DTOs (records) and a service
-  interface (`I*Service`). No implementations here. `Common/Routing/` holds `IRoutingService` and
-  `RouteGeometryResult` (`GeoJsonCoordinates`, `DurationSeconds`, `DistanceMeters`).
+  `RestrictedZones`, `OperationsReplay`, `Dashboard`, plus `Common`), each holding DTOs (records) and
+  a service interface (`I*Service`). No implementations here. `Common/Routing/` holds
+  `IRoutingService` and `RouteGeometryResult` (`GeoJsonCoordinates`, `DurationSeconds`,
+  `DistanceMeters`). `Dashboard/` holds `IOperationalStatisticsService`
+  (`GetStatisticsAsync`, exposed via `GET /api/operations/statistics`) and its DTOs
+  (`OperationalStatisticsDto`, `IncidentTypeCountDto`, `FieldUnitWorkloadDto`) — see
+  `docs/DEVELOPMENT_LOG.md` Part 12 §52. `IIncidentService` also exposes `GetTimelineAsync`
+  (backing `GET /api/incidents/{id}/timeline`) and `IFieldUnitService` exposes
+  `GetMovementHistoryAsync` (backing `GET /api/field-units/{id}/movement-history`) — see
+  `docs/DEVELOPMENT_LOG.md` Part 12 §53. `IFieldUnitService` also exposes
+  `UpdateStatusAsync` (backing `PATCH /api/field-units/{id}/status`), which persists each
+  `Available ↔ OutOfService` transition as a `FieldUnitStatusHistory` audit row — see
+  `docs/DEVELOPMENT_LOG.md` Part 12 §56. `Incidents/` also holds the static
+  `IncidentPriorityScoreCalculator` (base score by `IncidentPriority` + an age bonus of up to +30
+  for minutes since `ReportedAt`, clamped 0–100), whose result is exposed on `IncidentDto` as
+  `PriorityScore` — see `docs/DEVELOPMENT_LOG.md` Part 12 §54. `IncidentDto` also exposes
+  `bool IsReadyToResolve` (`true` when the incident is not `Resolved` and has no operational tasks
+  outside `OperationalTaskStatus.Completed`), computed by `IncidentService.GetAllAsync`/
+  `CreateAsync`/`ResolveAsync` and, for historical snapshots, by `OperationsReplayService` against
+  the replay timestamp — see `docs/DEVELOPMENT_LOG.md` Part 12 §55.
 - **`SmartCityOps.Infrastructure`** — EF Core (`ApplicationDbContext`, Npgsql), entity
   configurations (`Persistence/Configurations`), migrations (`Persistence/Migrations`), and the
   service implementations, mirrored per feature folder. `DependencyInjection.AddInfrastructure`
@@ -270,13 +287,15 @@ resolved by Phase 5.14, see §36-37):
   `HasData(...)` and the `SeedRestrictedZones` migration, so `RestrictedZoneAssignmentRule` has
   real data to evaluate against out-of-the-box after `dotnet ef database update` — no longer
   dependent on an operator first creating a zone via `POST /api/restricted-zones`.
-- Replay reconstructs `OutOfService` transitions approximately, since they aren't timestamped in the
-  DB (`FieldUnit`/`FieldUnitStatusHistory` has no `LastStatusChangedAt`-equivalent for this
-  transition); a real event-sourcing/audit-log table would be needed to fix this precisely.
-  `Reassigned` hand-off moments, previously also approximated (via the new task's `AssignedAt`), are
-  now explicit: `OperationalTask` has a dedicated nullable `ReassignedAt` column, set by
-  `OperationalTaskService.ReassignAsync` at the same instant as the new task's `AssignedAt`, and
-  `OperationsReplayService` resolves field-unit availability and historical active tasks against
+- ~~Replay reconstructs `OutOfService` transitions approximately, since they aren't timestamped in
+  the DB~~ — **resolved by Phase 5.31** (`docs/DEVELOPMENT_LOG.md` Part 12 §56): field units now
+  have an explicit, audited `Available ↔ OutOfService` lifecycle transition via
+  `PATCH /api/field-units/{id}/status`, and `OperationsReplayService` reconstructs historical status
+  from the `FieldUnitStatusHistories` audit table instead of treating `OutOfService` as
+  time-invariant. `Reassigned` hand-off moments, previously also approximated (via the new task's
+  `AssignedAt`), are now explicit: `OperationalTask` has a dedicated nullable `ReassignedAt` column,
+  set by `OperationalTaskService.ReassignAsync` at the same instant as the new task's `AssignedAt`,
+  and `OperationsReplayService` resolves field-unit availability and historical active tasks against
   that exact timestamp instead of approximating (Phase 5.18, `docs/DEVELOPMENT_LOG.md` Part 12 §43).
   Restricted zones and operational zones are still treated as time-invariant in replay (always shown
   as their current state).
@@ -468,5 +487,63 @@ line; re-verified live afterward with `routeGeometry` returning ~330 real coordi
 Ankara streets. `dotnet build`/`npm run lint`/`npm run build` all clean; no test/debug code left in
 the tree.
 
-Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, and the
-still-open `OutOfService` transition timestamping gap (see "Known open items" above).
+Phase 5.27 (`docs/DEVELOPMENT_LOG.md`, Part 12 §52) migrated operational metrics — Overview counts,
+Incidents by Type, Average Resolution Time, and Field Unit Workload, previously computed client-side
+in `buildOperationalStatistics.ts` — to a dedicated backend aggregation service,
+`IOperationalStatisticsService`/`OperationalStatisticsService`, exposed via `GET
+/api/operations/statistics` and consumed by `StatisticsSection.tsx` through a new
+`useOperationalStatistics` React Query hook kept live by the existing `OperationsUpdated` SignalR
+invalidation pattern (`["operational-statistics"]` added alongside the other six query keys). A live
+test caught and fixed a real bug: `g.Key.ToString()` inside a `GroupBy(...).Select(...)` LINQ
+projection can't be translated to SQL by Npgsql/EF Core, which threw an `InvalidOperationException`
+that `DomainExceptionHandler` maps to `409 Conflict` — fixed by materializing the grouped result first
+and only calling `.ToString()` in memory afterward. `buildOperationalStatistics.ts` was deleted after
+confirming no remaining imports. `dotnet build`/`npm run lint`/`npm run build` all clean.
+
+Phase 5.28 (`docs/DEVELOPMENT_LOG.md`, Part 12 §53) migrated Incident Timeline and Field Unit
+Movement History assembly — previously client-side array loops over `incidents`/`fieldUnits`/
+`operationalTasks`/`locationHistory`, including a simulated `Date.now()` arrival calculation — to
+dedicated backend endpoints, `GET /api/incidents/{id}/timeline` and `GET
+/api/field-units/{id}/movement-history` (`IIncidentService.GetTimelineAsync`/
+`IFieldUnitService.GetMovementHistoryAsync`, see "Backend" above). `IncidentTimelineSection.tsx` and
+`FieldUnitMovementHistorySection.tsx` now fetch their own data via `useIncidentTimeline`/
+`useFieldUnitMovementHistory` React Query hooks instead of receiving raw arrays as props, and the
+now-obsolete `locationHistory` prop-drilling chain through `App.tsx`/`Menu.tsx`/
+`MenuSectionRouter.tsx` was removed. `useSignalR.ts`'s invalidation list grew accordingly
+(`["incident-timeline"]`, `["field-unit-movement-history"]`).
+
+Phase 5.29 (`docs/DEVELOPMENT_LOG.md`, Part 12 §54) migrated incident triage scoring and active
+incident sorting — previously a client-side hash-of-`incident.id` in the now-deleted
+`incidentPriorityScore.ts` — to the backend: `IncidentPriorityScoreCalculator` (see "Backend" above)
+computes a real base-priority-plus-age score, exposed as `IncidentDto.PriorityScore` and returned
+pre-sorted (non-resolved incidents by `PriorityScore` descending then `ReportedAt` ascending,
+resolved last) from `GET /api/incidents`; `OperationsReplayService` computes the same score against
+the replay timestamp for snapshots. `OperationsSidebar.tsx` no longer sorts incidents itself — it
+only filters out resolved incidents and passes the backend's order straight through to
+`ActiveIncidentsList`. `dotnet build`/`npm run lint`/`npm run build` all clean.
+
+Phase 5.30 (`docs/DEVELOPMENT_LOG.md`, Part 12 §55) migrated "Ready to Resolve" incident
+eligibility — previously a client-side `Set` cross-reference between `operationalTasks` and
+`incidents` in `ActiveTasksPanel.tsx` — to the backend: `IncidentDto.IsReadyToResolve` (see
+"Backend" above) is computed by `IncidentService.GetAllAsync`/`CreateAsync`/`ResolveAsync` and, for
+historical snapshots, by `OperationsReplayService` via a shared `IsTaskActiveAt` helper evaluated
+against the replay timestamp. `ActiveTasksPanel.tsx` now filters its "Ready to Resolve" table
+directly on `incident.isReadyToResolve` instead of building its own incident/task cross-reference.
+`dotnet build`/`npm run lint`/`npm run build` all clean.
+
+Phase 5.31 (`docs/DEVELOPMENT_LOG.md`, Part 12 §56) closed the last remaining "Known open items" gap
+above: field units gained an explicit, audited `Available ↔ OutOfService` lifecycle transition.
+`FieldUnitStatusHistory` (Domain) records every transition; `FieldUnitService.UpdateStatusAsync`
+(backing the new `PATCH /api/field-units/{id}/status`) validates that a `Dispatched` unit can't be
+changed directly and that `Dispatched` can't be set through this endpoint (only task assignment may
+do that), writes the audit row, and dispatches the existing `FieldUnitUpdatedEvent` through the same
+SignalR pattern as every other mutation. `OperationsReplayService` now derives each field unit's
+historical status from `FieldUnitStatusHistories` (latest row at-or-before the replay timestamp,
+overridden by an active dispatch) instead of the old time-invariant `OutOfService` special case.
+`FieldUnitPanel.tsx` gained "Set Out of Service"/"Set Available" action buttons (hidden in
+replay/`readOnly` mode) wired through a new `useUpdateFieldUnitStatus` React Query mutation hook.
+Migration `AddFieldUnitStatusHistory` applied; `dotnet build`/`npm run lint`/`npm run build` all
+clean.
+
+Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project (the only
+remaining open item — see "Known open items" above).

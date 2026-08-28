@@ -20,12 +20,8 @@ export function ActiveTasksPanel({
   onSelectIncident,
   onSelectFieldUnit,
 }: ActiveTasksPanelProps) {
-  const assignedIncidentIds = new Set(
-    operationalTasks.filter((task) => task.status === "Assigned").map((task) => task.incidentId)
-  );
-
   const readyToResolveRows: HistoryTableRow[] = incidents
-    .filter((incident) => incident.status === "InProgress" && !assignedIncidentIds.has(incident.id))
+    .filter((incident) => incident.status === "InProgress" && incident.isReadyToResolve)
     .map((incident) => ({
       id: incident.id,
       cells: [{ label: getIncidentLabel(incident), onClick: () => onSelectIncident(incident) }],

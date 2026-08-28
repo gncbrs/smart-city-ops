@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using SmartCityOps.Application.Common.DomainEvents;
+using SmartCityOps.Application.FieldUnits.Events;
 using SmartCityOps.Application.Incidents.Events;
 using SmartCityOps.Application.OperationalTasks.Events;
 using SmartCityOps.Application.RestrictedZones.Events;
@@ -14,7 +15,8 @@ public class SignalROperationsNotificationHandler :
     IDomainEventHandler<IncidentResolvedEvent>,
     IDomainEventHandler<RestrictedZoneCreatedEvent>,
     IDomainEventHandler<RestrictedZoneUpdatedEvent>,
-    IDomainEventHandler<RestrictedZoneDeletedEvent>
+    IDomainEventHandler<RestrictedZoneDeletedEvent>,
+    IDomainEventHandler<FieldUnitUpdatedEvent>
 {
     private readonly IHubContext<OperationsHub> _hubContext;
 
@@ -45,6 +47,9 @@ public class SignalROperationsNotificationHandler :
         NotifyAsync(cancellationToken);
 
     public Task HandleAsync(RestrictedZoneDeletedEvent domainEvent, CancellationToken cancellationToken) =>
+        NotifyAsync(cancellationToken);
+
+    public Task HandleAsync(FieldUnitUpdatedEvent domainEvent, CancellationToken cancellationToken) =>
         NotifyAsync(cancellationToken);
 
     private Task NotifyAsync(CancellationToken cancellationToken) =>

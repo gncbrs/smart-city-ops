@@ -37,7 +37,7 @@ export function App() {
   useSignalRConnection();
 
   const liveData = useOperationsData();
-  const { zones, locationHistory } = liveData;
+  const { zones, statistics } = liveData;
 
   const {
     selectedIncidentId,
@@ -161,8 +161,8 @@ export function App() {
           operationalTasks={liveData.operationalTasks}
           timelineIncident={selectedIncident}
           movementHistoryFieldUnit={selectedFieldUnit}
-          locationHistory={locationHistory}
           restrictedZones={restrictedZones}
+          statistics={statistics}
           onSelectIncident={(incident) => {
             selectIncident(incident.id);
             setMenuView("closed");

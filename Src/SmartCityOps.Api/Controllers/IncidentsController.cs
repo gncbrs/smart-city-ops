@@ -53,4 +53,11 @@ public class IncidentsController : ControllerBase
         var recommendations = await _fieldUnitRecommendationService.GetRecommendationsAsync(id, cancellationToken);
         return Ok(recommendations);
     }
+
+    [HttpGet("{id:guid}/timeline")]
+    public async Task<ActionResult<IReadOnlyList<IncidentTimelineEventDto>>> GetTimeline(Guid id, CancellationToken cancellationToken)
+    {
+        var timeline = await _incidentService.GetTimelineAsync(id, cancellationToken);
+        return Ok(timeline);
+    }
 }
