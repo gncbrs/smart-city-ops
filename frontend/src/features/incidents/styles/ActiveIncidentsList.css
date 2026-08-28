@@ -19,7 +19,7 @@
   font-size: 0.8rem;
   padding: 12px;
   background: #1e293b;
-  border-radius: 8px;
+  border-radius: 15px;
   text-align: center;
 }
 
@@ -60,7 +60,7 @@
   text-align: left;
   background: #1e293b;
   border: 1px solid #334155;
-  border-radius: 8px;
+  border-radius: 15px;
   padding: 10px 12px;
   cursor: pointer;
   transition: border-color 0.15s ease, background-color 0.15s ease;
@@ -113,34 +113,6 @@
 .active-incidents-list__priority-badge--low {
   color: #2eee41;
   background: rgba(59, 130, 246, 0.15);
-}
-
-.active-incidents-list__score-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.active-incidents-list__progress-track {
-  flex: 1;
-  height: 6px;
-  border-radius: 999px;
-  background: #334155;
-  overflow: hidden;
-}
-
-.active-incidents-list__progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.3s ease;
-}
-
-.active-incidents-list__score-badge {
-  color: #f8fafc;
-  font-size: 0.7rem;
-  font-weight: 600;
-  min-width: 30px;
-  text-align: right;
 }
 
 .active-incidents-list__card-footer {

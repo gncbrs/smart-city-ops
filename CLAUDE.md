@@ -124,14 +124,16 @@ field unit movement history) routed via `MenuSectionRouter`.
 The sidebar (`app/components/OperationsSidebar.tsx`) renders `FilterPanel` plus
 `features/incidents/components/ActiveIncidentsList.tsx` — a scrollable card list of non-resolved
 incidents, filtered by the active priority filter and sorted via `sortActiveIncidents` (priority
-score descending, then `type` ascending). Each card shows a deterministic priority-score bar/badge
-computed by `features/incidents/lib/incidentPriorityScore.ts`: `getIncidentPriorityScore` hashes
-`incident.id` into a 0-100 score bucketed by `priority` (Low 0-30 / Medium 31-70 / High 71-100, no
-backend schema change needed since the score is derived, not stored), and `getPriorityScoreColor`
-maps a score to its bar/text color. The 5 summary counters that used to live in the sidebar
-(Active Incidents, High Priority Active Incidents, Available/Dispatched/Out of Service Field
-Units) were moved into an "Operational Overview" stat-card grid at the top of the Menu's
-`features/dashboard/components/StatisticsSection.tsx`.
+score descending, then `type` ascending). Each card displays the incident type label, priority
+badge, status badge, and reported time — no progress/percentage bar (removed in Phase 5.24, see
+below). The sort order is still driven by `features/incidents/lib/incidentPriorityScore.ts`'s
+`getIncidentPriorityScore`, which hashes `incident.id` into a 0-100 score bucketed by `priority`
+(Low 0-30 / Medium 31-70 / High 71-100, no backend schema change needed since the score is derived,
+not stored) purely as a deterministic tie-breaker within each priority tier; it is not rendered
+anywhere. The 5 summary counters that used to live in the sidebar (Active Incidents, High Priority
+Active Incidents, Available/Dispatched/Out of Service Field Units) were moved into an "Operational
+Overview" stat-card grid at the top of the Menu's `features/dashboard/components/
+StatisticsSection.tsx`.
 
 Styling is plain CSS with BEM naming, one stylesheet per component, colocated under each feature's
 `styles/` folder — no CSS-in-JS, no Tailwind.
@@ -401,6 +403,20 @@ added for all 5 project GUIDs (`SmartCityOps.Domain`, `SmartCityOps.Application`
 warnings, 0 errors) under the default `Debug|Any CPU` configuration — no `-p:Platform=x64` or
 explicit `.csproj` path is needed anymore. `docs/To-Do-List.txt`'s "`SmartCityOps.sln` — `Debug|Any
 CPU` konfigürasyonu proje derlemiyor" item is now `[x]`, moved to the completed archive section.
+
+Phase 5.23 (`docs/DEVELOPMENT_LOG.md`, Part 12 §48) reorganized the sidebar: the 5 summary counters
+moved into an "Operational Overview" stat-card grid in the Menu's `StatisticsSection.tsx`, and a new
+`ActiveIncidentsList.tsx` + `incidentPriorityScore.ts` (see "Frontend" section above) rendered a
+scrollable, sorted card list of active incidents in their place, originally with a deterministic
+progress-bar/percentage badge per card. `FilterPanel`'s checkbox rows were also modernized into
+compact filter-chip buttons with priority-colored selected states. Phase 5.24
+(`docs/DEVELOPMENT_LOG.md`, Part 12 §49) removed that progress-bar/percentage badge as misleading on
+an operations dashboard (the score is a derived hash, not a real signal): `ActiveIncidentsList.tsx`
+now renders only type/priority badge/status badge/reported time per card, the corresponding
+`.active-incidents-list__score-*` CSS rules were deleted, and the now-unused
+`getPriorityScoreColor`/`PriorityScoreColor` were removed from `incidentPriorityScore.ts`. Sort
+order and filtering (`sortActiveIncidents`, `getIncidentPriorityScore`) are unchanged.
+`npm run lint`/`npm run build` clean; no backend/migration change.
 
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project, and the
 still-open `OutOfService` transition timestamping gap (see "Known open items" above).

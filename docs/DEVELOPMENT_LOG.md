@@ -5512,5 +5512,48 @@ dynamic percentage bars and multi-tier sorting; sidebar summary counters moved i
 completed archive section. `CLAUDE.md`'s frontend architecture notes were updated to mention
 `ActiveIncidentsList.tsx` and `incidentPriorityScore.ts`.
 
+## 49. Phase 5.24 — Active Incidents Card UI Simplification & Progress Bar Removal
+
+**Motivation:** Phase 5.23 (§48 above) gave each Active Incidents card a progress-bar row — a
+`getPriorityScoreColor`-tinted fill plus a numeric `score%` badge — driven by the deterministic
+hash-based score from `incidentPriorityScore.ts`. On review, that score is artificial (hashed from
+`incident.id`, not backed by any real operational signal), and rendering it as a percentage next to
+a real priority badge read as misleading on an operations dashboard meant to reflect genuine field
+data. Phase 5.24 removes the bar/percentage while leaving the score-driven sort order — which is
+still a reasonable deterministic tie-breaker within each priority tier — untouched.
+
+**Changes:**
+- `frontend/src/features/incidents/components/ActiveIncidentsList.tsx`: removed the
+  `active-incidents-list__score-row` block (progress track + fill + percentage badge) from each
+  card, along with the now-unused `getPriorityScoreColor` import and its per-card `score`/`barColor`
+  destructuring. Each card now renders only the header (incident type label + priority badge) and
+  the footer (status badge + reported time), with nothing in between. `getIncidentPriorityScore`
+  is no longer imported here — it's only needed by `sortActiveIncidents`, which callers (
+  `OperationsSidebar.tsx`) already invoke directly.
+- `frontend/src/features/incidents/styles/ActiveIncidentsList.css`: removed
+  `.active-incidents-list__score-row`, `.active-incidents-list__progress-track`,
+  `.active-incidents-list__progress-fill`, and `.active-incidents-list__score-badge`. The card's
+  existing `gap: 8px` flex-column spacing (`.active-incidents-list__card`) now sits directly between
+  header and footer with no extra rule needed, keeping cards compact. Dark palette
+  (`#1E293B` card background, `#334155` border, `#F8FAFC` text) and strict BEM naming are unchanged.
+- `frontend/src/features/incidents/lib/incidentPriorityScore.ts`: removed the now-unused
+  `getPriorityScoreColor` function and its `PriorityScoreColor` interface (verified via grep: no
+  remaining references anywhere in `frontend/src/` — the identically-named `getPriorityScoreColor`/
+  score-bar classes in `features/field-unit-recommendations` are a separate, unrelated module and
+  were left untouched). `getIncidentPriorityScore` and `sortActiveIncidents` are unchanged — sort
+  order (priority score descending, then `type` ascending) and the `status !== "Resolved"` filter
+  are byte-for-byte identical to Phase 5.23.
+
+**Verification:** `npm run lint` (oxlint) and `npm run build` (`tsc -b && vite build`) both clean —
+0 new errors/warnings (the handful of pre-existing `react(refs)`/`react(set-state-in-effect)`/
+`react(purity)` warnings surfaced are unrelated to these three files and predate this phase).
+Confirmed via grep that no other component imports `getPriorityScoreColor` or the removed CSS
+classes from the incidents feature. No backend/migration change (frontend-only).
+
+**Outcome:** Active Incidents cards now show incident type, priority badge, status badge, and
+reported time only — no progress bar or percentage — while sort/filter behavior is unchanged.
+`CLAUDE.md`'s sidebar/`ActiveIncidentsList` description was updated to match (see "Current status"
+section).
+
 ---
 

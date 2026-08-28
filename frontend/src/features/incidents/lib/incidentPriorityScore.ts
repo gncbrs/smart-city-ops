@@ -21,21 +21,6 @@ export function getIncidentPriorityScore(incident: Incident): number {
   }
 }
 
-export interface PriorityScoreColor {
-  barColor: string;
-  textColor: string;
-}
-
-export function getPriorityScoreColor(score: number): PriorityScoreColor {
-  if (score >= 71) {
-    return { barColor: "#e20b0b", textColor: "#e20b0b" };
-  }
-  if (score >= 31) {
-    return { barColor: "#f59e0b", textColor: "#f59e0b" };
-  }
-  return { barColor: "#2eee41", textColor: "#2eee41" };
-}
-
 export function sortActiveIncidents(incidents: Incident[]): Incident[] {
   return incidents
     .filter((incident) => incident.status !== "Resolved")

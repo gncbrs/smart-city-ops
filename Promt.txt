@@ -1,14 +1,14 @@
-Update `docs/DEVELOPMENT_LOG.md` and `docs/To-Do-List.txt` to record the FilterPanel Filter Chip modernization.
+Task: Update docs/DEVELOPMENT_LOG.md and CLAUDE.md to document Phase 5.24 (Active Incidents Card UI Simplification & Percentage Bar Removal).
 
-### Tasks & Steps:
-1. **Update `docs/DEVELOPMENT_LOG.md`:**
-   - Under `## 48. Phase 5.23 — Sidebar Active Incidents List, Priority Score Bars & Statistics Reorganization` (or as a Step 4 note):
-     - Document modernizing `FilterPanel` / `FilterCheckboxGroup` by replacing native checkboxes with compact, accessible Filter Chip / Pill buttons.
-     - Document chip variants: default blue (`#2563EB`) for Status/Type and semantic priority badges (`High: #EF4444`, `Medium: #D97706`, `Low: #2563EB`) with active dot indicators.
-     - Note that compact sizing (`padding: 4px 10px`, `font-size: 0.75rem`, `border-radius: 6px`, `gap: 6px`) and `flex-shrink: 0` keep the panel fixed and 100% scrollbar-free.
+Context:
+In Phase 5.24, we removed the artificial percentage progress bar and percentage value from the Active Incidents cards in the sidebar (`ActiveIncidentsList.tsx`, `ActiveIncidentsList.css`, and `incidentPriorityScore.ts`) while keeping the underlying sorting logic (`sortActiveIncidents`, `getIncidentPriorityScore`) and filtering intact.
 
-2. **Update `docs/To-Do-List.txt`:**
-   - Add a note under completed archive `[x]` stating that `FilterPanel` native checkboxes were modernized into compact filter chips with priority color variants — Phase 5.23, §48.
-
-### Verification:
-Ensure `npm run lint` and `npm run build` in `frontend/` remain completely green.
+Requirements:
+1. Update `docs/DEVELOPMENT_LOG.md`:
+   - Under the Table of Contents, ensure Part 12 links or section references stay consistent.
+   - At the end of Part 12, add section `## 49. Phase 5.24 — Active Incidents Card UI Simplification & Progress Bar Removal`.
+   - Detail the motivation (removing artificial progress/percentage bars from operational incident cards for a realistic, clean look), the changes made (`ActiveIncidentsList.tsx` JSX simplification, removal of `.active-incidents-list__score-*` CSS rules, removal of unused `getPriorityScoreColor` and `PriorityScoreColor` interface from `incidentPriorityScore.ts`), and confirm that sorting/filtering and build checks (`npm run lint`, `npm run build`) are 100% clean.
+2. Update `CLAUDE.md`:
+   - In the Frontend architecture section / Active Incidents description, update the wording to reflect that active incident cards display the incident type, priority badge, status badge, and reported time, sorted deterministically via `sortActiveIncidents`, without rendering a progress/percentage bar.
+3. Verification:
+   - Ensure markdown formatting is intact, no trailing broken links, and files are saved cleanly.

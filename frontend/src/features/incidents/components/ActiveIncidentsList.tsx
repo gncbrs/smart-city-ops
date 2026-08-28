@@ -1,5 +1,4 @@
 import type { Incident, IncidentStatus } from "../types";
-import { getIncidentPriorityScore, getPriorityScoreColor } from "../lib/incidentPriorityScore";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
 import "../styles/ActiveIncidentsList.css";
 
@@ -25,13 +24,16 @@ export function ActiveIncidentsList({ incidents, selectedIncidentId, onSelectInc
       ) : (
         <ul className="active-incidents-list__items">
           {incidents.map((incident) => {
-            const score = getIncidentPriorityScore(incident);
-            const { barColor } = getPriorityScoreColor(score);
             const isSelected = incident.id === selectedIncidentId;
-            const reportedTime = new Date(incident.reportedAt).toLocaleTimeString([], {
+            const reportedDate = new Date(incident.reportedAt);
+            const reportedTime = `${reportedDate.toLocaleDateString([], {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).replace(/\//g, ".")} ${reportedDate.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
-            });
+            })}`;
 
             return (
               <li key={incident.id} className="active-incidents-list__item">
@@ -50,16 +52,6 @@ export function ActiveIncidentsList({ incidents, selectedIncidentId, onSelectInc
                     >
                       {incident.priority}
                     </span>
-                  </div>
-
-                  <div className="active-incidents-list__score-row">
-                    <div className="active-incidents-list__progress-track">
-                      <div
-                        className="active-incidents-list__progress-fill"
-                        style={{ width: `${score}%`, backgroundColor: barColor }}
-                      />
-                    </div>
-                    <span className="active-incidents-list__score-badge">{score}%</span>
                   </div>
 
                   <div className="active-incidents-list__card-footer">
