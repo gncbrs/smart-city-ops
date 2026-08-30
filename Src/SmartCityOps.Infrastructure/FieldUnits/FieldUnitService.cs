@@ -4,6 +4,7 @@ using SmartCityOps.Application.FieldUnits;
 using SmartCityOps.Application.FieldUnits.Events;
 using SmartCityOps.Domain.Entities;
 using SmartCityOps.Domain.Enums;
+using SmartCityOps.Domain.Exceptions;
 using SmartCityOps.Infrastructure.Persistence;
 
 namespace SmartCityOps.Infrastructure.FieldUnits;
@@ -44,24 +45,35 @@ public class FieldUnitService : IFieldUnitService
             throw new KeyNotFoundException("Field unit bulunamadı.");
         }
 
-        var history = await (
+        var rawHistory = await (
             from lh in _dbContext.FieldUnitLocationHistories.AsNoTracking()
             where lh.FieldUnitId == fieldUnitId
             join inc in _dbContext.Incidents.AsNoTracking() on lh.IncidentId equals inc.Id into incJoin
             from inc in incJoin.DefaultIfEmpty()
             orderby lh.RecordedAt descending
-            select new FieldUnitMovementRecordDto(
+            select new
+            {
                 lh.Id,
                 lh.RecordedAt,
                 lh.Latitude,
                 lh.Longitude,
                 lh.IncidentId,
-                inc != null ? inc.Type.ToString() : null,
-                inc != null ? inc.IncidentCode : null
-            )
+                IncidentType = (IncidentType?)(inc == null ? null : inc.Type),
+                inc.IncidentCode
+            }
         ).ToListAsync(cancellationToken);
 
-        return history;
+        return rawHistory
+            .Select(r => new FieldUnitMovementRecordDto(
+                r.Id,
+                r.RecordedAt,
+                r.Latitude,
+                r.Longitude,
+                r.IncidentId,
+                r.IncidentType?.ToString(),
+                r.IncidentCode
+            ))
+            .ToList();
     }
 
     public async Task<FieldUnitDto> UpdateStatusAsync(Guid id, UpdateFieldUnitStatusDto dto, CancellationToken cancellationToken = default)
@@ -77,12 +89,12 @@ public class FieldUnitService : IFieldUnitService
 
         if (unit.Status == FieldUnitStatus.Dispatched)
         {
-            throw new InvalidOperationException("Görevdeki bir birimin durumu doğrudan değiştirilemez.");
+            throw new DomainConflictException("Görevdeki bir birimin durumu doğrudan değiştirilemez.");
         }
 
         if (targetStatus == FieldUnitStatus.Dispatched)
         {
-            throw new InvalidOperationException("Dispatched durumu yalnızca görev ataması ile verilebilir.");
+            throw new DomainConflictException("Dispatched durumu yalnızca görev ataması ile verilebilir.");
         }
 
         if (unit.Status != targetStatus)

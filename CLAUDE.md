@@ -72,9 +72,12 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
   for minutes since `ReportedAt`, clamped 0–100), whose result is exposed on `IncidentDto` as
   `PriorityScore` — see `docs/DEVELOPMENT_LOG.md` Part 12 §54. `IncidentDto` also exposes
   `bool IsReadyToResolve` (`true` when the incident is not `Resolved` and has no operational tasks
-  outside `OperationalTaskStatus.Completed`), computed by `IncidentService.GetAllAsync`/
-  `CreateAsync`/`ResolveAsync` and, for historical snapshots, by `OperationsReplayService` against
-  the replay timestamp — see `docs/DEVELOPMENT_LOG.md` Part 12 §55. `IOperationalTaskService` also
+  with `OperationalTaskStatus.Assigned` — `Completed`, `Reassigned`, and `Cancelled` are all
+  terminal and never block readiness), computed by `IncidentService.GetAllAsync`/`CreateAsync`/
+  `ResolveAsync` and, for historical snapshots, by `OperationsReplayService.IsTaskActiveAt` against
+  the replay timestamp — see `docs/DEVELOPMENT_LOG.md` Part 12 §55. Live and replay share this exact
+  `Assigned`-only definition since Phase 5.35 (§60), which fixed a divergence where the live path
+  had counted `Reassigned`/`Cancelled` tasks as active forever. `IOperationalTaskService` also
   exposes `CancelAsync` (backing `POST /api/operational-tasks/{id}/cancel`), which transitions an
   `Assigned` task to `OperationalTaskStatus.Cancelled`, sets `OperationalTask.CancelledAt`, frees the
   field unit back to `Available`, and reverts the incident to `Open` if no other active task remains
@@ -104,7 +107,14 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
 - **`SmartCityOps.Api`** — controllers (one per feature, thin — inject the service interface and
   return DTOs), `Program.cs`, `DependencyInjection.AddApiServices` (CORS policy
   `FrontendCorsPolicy` from `Cors:AllowedOrigins` config, Swagger), and
-  `ExceptionHandling/DomainExceptionHandler` for centralized error → ProblemDetails mapping.
+  `ExceptionHandling/DomainExceptionHandler` for centralized error → ProblemDetails mapping
+  (`KeyNotFoundException`→404, `ValidationException`→400, `ArgumentException`→400 since Phase 5.35
+  §60, `ResourceConflictException`→409, `DomainConflictException`→409 since Phase 5.36 §61). A bare
+  `InvalidOperationException` is no longer mapped here as of Phase 5.36 — only the purpose-built
+  `DomainConflictException` (`SmartCityOps.Domain.Exceptions`, thrown by services for genuine
+  business-rule conflicts, e.g. `IncidentService.ResolveAsync` on an already-resolved incident or
+  `FieldUnitService.UpdateStatusAsync`'s `Dispatched`-related guards) reaches 409; any other
+  `InvalidOperationException` now falls through to the standard 500 pipeline.
 
 **Incident Generator** (`Src/incident-generator`) — a separate worker service/executable with
 **no project reference** to the Api/Application/Domain projects, by design: it only talks to the
@@ -600,5 +610,38 @@ any) and computes its effective real-time coordinate before building the OSRM `G
 origins list and the Haversine/`IEtaEstimator` fallback path — see "Backend" above. `dotnet build`
 clean (0 warnings, 0 errors); no frontend files touched.
 
+Phase 5.35 (`docs/DEVELOPMENT_LOG.md`, Part 12 §60) fixed the top findings from a full-stack system
+health audit (`docs/SYSTEM_HEALTH_AUDIT.md`): `IncidentService.GetAllAsync`'s `IsReadyToResolve`
+computation had diverged from `OperationsReplayService.IsTaskActiveAt`, counting `Reassigned`/
+`Cancelled` tasks as active forever instead of terminal — fixed by filtering on
+`OperationalTaskStatus.Assigned` only, so live and replay now agree; `DomainExceptionHandler` gained
+an `ArgumentException`→400 mapping (previously an invalid `FieldUnitService.UpdateStatusAsync`
+status string surfaced as a raw 500), with the redundant local try/catch in
+`IncidentsController.Create` removed in favor of the centralized handler; `incident-generator/
+Worker.cs`'s POST loop now catches `Exception` generally (logged as a warning, loop continues) with
+a dedicated no-op branch for a genuine shutdown-triggered `OperationCanceledException`, instead of
+only catching `HttpRequestException` and risking a silent, permanent worker death on any other
+transient failure; and `useCompleteTask.ts`'s cache invalidation list was aligned with
+`useCreateTask.ts`/`useCancelTask.ts` by adding `operational-statistics` and
+`field-unit-location-histories`. `dotnet build SmartCityOps.sln`/`npm run lint`/`npm run build` all
+clean.
+
+Phase 5.36 (`docs/DEVELOPMENT_LOG.md`, Part 12 §61) closed two more `docs/SYSTEM_HEALTH_AUDIT.md`
+findings. `FieldUnitService.GetMovementHistoryAsync` had the same enum-`.ToString()`-inside-a-LINQ-
+projection risk that Phase 5.27 (§52) had already hit and fixed once elsewhere — it now selects into
+an anonymous type with the raw `IncidentType?` enum value, materializes via `.ToListAsync()`, and
+only calls `.ToString()` in a second, in-memory `.Select(...)` into `FieldUnitMovementRecordDto`.
+Separately, a new `DomainConflictException` (`Src/SmartCityOps.Domain/Exceptions/`, inheriting
+`DomainException`) replaces the bare `InvalidOperationException` previously thrown by
+`IncidentService.ResolveAsync` (already-resolved guard) and `FieldUnitService.UpdateStatusAsync`
+(the two `Dispatched`-related guards) for genuine business-rule conflicts; `DomainExceptionHandler`
+now maps `DomainConflictException`→409 instead of the old blanket `InvalidOperationException`→409
+case (removed), so an unrelated runtime/BCL `InvalidOperationException` now correctly falls through
+to the standard 500 pipeline instead of being reported to clients as a misleading 409. `dotnet build
+SmartCityOps.sln` clean (0 warnings, 0 errors); no frontend files touched.
+
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project (the only
-remaining open item — see "Known open items" above).
+remaining open item — see "Known open items" above) and the remaining lower-priority findings in
+`docs/SYSTEM_HEALTH_AUDIT.md` (marker/layer re-render churn in `useIncidentMarkers.ts`/
+`useOperationalZoneLayers.ts`, missing single-resource `GET /{id}` endpoints, and a handful of
+unmigrated color literals).

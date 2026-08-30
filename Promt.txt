@@ -1,20 +1,14 @@
-Task: Document Phase 5.34 (In-Flight Field Unit Dynamic Position Resolution in Recommendation Engine) in docs/DEVELOPMENT_LOG.md and CLAUDE.md.
+Please update `docs/DEVELOPMENT_LOG.md` and `CLAUDE.md` to document the changes completed in Madde 1 and Madde 2 (Phase 5.36).
 
-Context:
-In Phase 5.34, we fixed the in-flight destination illusion where the recommendation engine previously evaluated travelling field units at their destination coordinates rather than their interpolated real-time position along the route.
+Required Changes:
+1. Open `docs/DEVELOPMENT_LOG.md`:
+   - Append a new section under Part 12: `## 61. Phase 5.36 — FieldUnit Movement History Query Projection Safety & DomainConflictException Architecture`.
+   - Document:
+     * Step 1.1: `FieldUnitService.GetMovementHistoryAsync` refactored to materialize raw enum values from PostgreSQL first via `ToListAsync()`, performing `.ToString()` projection in-memory to prevent EF Core/Npgsql SQL translation failures.
+     * Step 2.1 & 2.2: Creation of `DomainConflictException` in `SmartCityOps.Domain.Exceptions`, refactoring `IncidentService.ResolveAsync` and `FieldUnitService.UpdateStatusAsync` to throw `DomainConflictException` instead of generic `InvalidOperationException` for business-rule conflicts, and updating `DomainExceptionHandler` to map `DomainConflictException` to 409 Conflict while removing the broad `InvalidOperationException` -> 409 mapping.
+   - Update the Table of Contents at the top of `docs/DEVELOPMENT_LOG.md` to include Section 61.
+2. Open `CLAUDE.md`:
+   - In "Architecture" -> `SmartCityOps.Api`, update the `DomainExceptionHandler` description to reflect `DomainConflictException` mapping and the removal of `InvalidOperationException`.
+   - In "Current status & known open issues", add a brief summary of Phase 5.36.
 
-Requirements:
-1. Update `docs/DEVELOPMENT_LOG.md`:
-   - At the end of Part 12, add section `## 59. Phase 5.34 — In-Flight Field Unit Dynamic Position Resolution in Recommendation Engine`.
-   - Document the motivation (preventing travelling/dispatched units from being scored as if they had already arrived at their active task's destination, ensuring true distance/ETA scoring across concurrent operations).
-   - Detail the architecture and implementation:
-     - Added `GeoCalculator.GetInFlightPosition` in `SmartCityOps.Application.Common` to compute interpolated coordinates based on origin, destination, assigned time, and estimated travel duration.
-     - Updated `FieldUnitRecommendationService` to resolve effective real-time positions for all in-flight units before issuing batch OSRM Table or Haversine fallback queries.
-   - Confirm verification results: `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors).
-
-2. Update `CLAUDE.md`:
-   - In the Architecture / Backend section, note `GeoCalculator.GetInFlightPosition` and in-flight position resolution in `FieldUnitRecommendationService`.
-   - In the "Current status" section, append a concise summary paragraph for Phase 5.34 referencing `docs/DEVELOPMENT_LOG.md` Part 12 §59.
-
-3. Verification:
-   - Ensure clean markdown hierarchy and preserved document anchors.
+Please provide the diff and verify with `dotnet build Src/SmartCityOps.sln`.

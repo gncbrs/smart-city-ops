@@ -221,6 +221,7 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [30. Phase 5.13 (Step 2/2) — Ankara Operational Zones: Incident Generator Integration & Unification Complete](#30-phase-513-step-22--ankara-operational-zones-incident-generator-integration--unification-complete)
   - [31. App.tsx Orchestration Simplification (Step 1/2) — Extract Derived Selectors](#31-apptsx-orchestration-basitleştirme-adım-12--türetilmiş-selectorların-çıkarılması)
   - [32. App.tsx Orchestration Simplification (Step 2/2) — Extract useReplayAwareData Hook](#32-apptsx-orchestration-basitleştirme-adım-22--usereplayawaredata-hookunun-çıkarılması)
+  - [61. Phase 5.36 — FieldUnit Movement History Query Projection Safety & DomainConflictException Architecture](#61-phase-536--fieldunit-movement-history-query-projection-safety--domainconflictexception-architecture)
 
 
 
@@ -6271,6 +6272,155 @@ were touched by this phase.
 moment of scoring, not where it will eventually end up — closing the last gap between the
 recommendation engine's coordinate model and the animated-travel model the map/timeline have used
 since §26/§51.
+
+---
+
+## 60. Phase 5.35 — System Health Audit Fixes: IsReadyToResolve Invariant, Exception Mapping, Worker Hardening & Frontend Invalidation
+
+**Motivation:** A full-stack, read-only system health audit (`docs/SYSTEM_HEALTH_AUDIT.md`, dated
+2026-08-30) checked every prior phase's claims directly against source rather than trusting this
+log's prose, and surfaced three backend findings plus one frontend finding severe enough to act on
+immediately:
+
+1. **Live-vs-replay SSOT divergence on `IsReadyToResolve`.** `IncidentService.GetAllAsync` built
+   `incidentIdsWithActiveTasks` via `.Where(t => t.Status != OperationalTaskStatus.Completed)` —
+   since `OperationalTaskStatus` also has `Reassigned` and `Cancelled` as terminal states, any
+   incident that ever had a task reassigned or cancelled would count that old task row as "still
+   active" *forever*, permanently blocking `IsReadyToResolve` from ever becoming `true` again even
+   after a replacement task genuinely completed. `OperationsReplayService.IsTaskActiveAt` already
+   had the correct "active-at-a-point-in-time" semantics for the exact same three terminal statuses
+   sitting right next to it in the same codebase — this contradicted the Phase 5.30 (§55) claim that
+   `IsReadyToResolve` had a single backend source of truth, when in fact live and replay computed it
+   with different, inconsistent logic.
+2. **Unmapped `ArgumentException` surfacing as a raw 500.** `FieldUnitService.UpdateStatusAsync`
+   throws `ArgumentException` on an invalid status string, but `DomainExceptionHandler`'s switch had
+   no case for it, so it fell through to ASP.NET's default unhandled-exception pipeline (500)
+   instead of a clean 400 — for what is a garden-variety client input-validation error.
+3. **Incident Generator's POST loop was one exception type away from a silent, permanent death.**
+   `Worker.cs`'s `GenerateAndSendIncidentAsync` only caught `HttpRequestException`; a transient
+   timeout (`TaskCanceledException`), a JSON serialization error, or any other exception from
+   `PostAsJsonAsync` would propagate up through `ExecuteAsync`'s `while` loop and terminate the
+   `BackgroundService` for the rest of the process's lifetime, with nothing to restart it —
+   contradicting the "simulated feed keeps running unattended" design intent.
+4. **`useCompleteTask.ts`'s cache invalidation list drifted from its siblings.** Unlike
+   `useCreateTask.ts` and `useCancelTask.ts` (and `useReassignTask.ts`), it invalidated only
+   `incidents`/`field-units`/`operational-tasks`, omitting `operational-statistics` and
+   `field-unit-location-histories` — so `StatisticsSection` could show stale numbers for a beat
+   after a manual task completion until the next SignalR `OperationsUpdated` broadcast caught up.
+
+**Solution:**
+
+- **Step 9.1 — `IsReadyToResolve` live/replay alignment.**
+  `Src/SmartCityOps.Infrastructure/Incidents/IncidentService.cs`'s `GetAllAsync` filter changed from
+  `.Where(t => t.Status != OperationalTaskStatus.Completed)` to
+  `.Where(t => t.Status == OperationalTaskStatus.Assigned)` — only a task currently in the
+  `Assigned` state blocks its incident from being ready-to-resolve; `Completed`, `Reassigned`, and
+  `Cancelled` are all terminal and no longer counted. This matches `IsTaskActiveAt`'s treatment of
+  the same three terminal statuses in `OperationsReplayService`. `CreateAsync` (hardcodes
+  `isReadyToResolve: true` for a brand-new incident with no tasks yet) and `ResolveAsync` (its own
+  `openTasks` query already filtered on `Status == OperationalTaskStatus.Assigned`) were checked for
+  consistency and needed no changes — both already matched the corrected `Assigned`-only definition.
+- **Step 9.2 — Centralized `ArgumentException` → 400 mapping.**
+  `Src/SmartCityOps.Api/ExceptionHandling/DomainExceptionHandler.cs`'s status-code switch gained
+  `ArgumentException => StatusCodes.Status400BadRequest` alongside the existing `ValidationException`
+  case, so any `ArgumentException` thrown from a service (currently just
+  `FieldUnitService.UpdateStatusAsync`'s invalid-enum guard) now returns a clean 400 with the
+  standard `{ message }` ProblemDetails-style body instead of falling through to a raw 500. The
+  redundant local `try/catch (ArgumentException)` in
+  `Src/SmartCityOps.Api/Controllers/IncidentsController.cs`'s `Create` action (which returned a
+  Turkish-language `BadRequest("Yanlış veya eksik argüman.")` — a one-off patch predating this
+  centralized mapping) was removed, letting that call site's `ArgumentException` flow through the
+  same centralized handler as every other controller, closing the inconsistency the audit flagged.
+- **Step 9.3 — Incident Generator worker hardening.**
+  `Src/incident-generator/Worker.cs`'s `GenerateAndSendIncidentAsync` catch clause was broadened from
+  `catch (HttpRequestException ex)` to two clauses: `catch (OperationCanceledException) when
+  (cancellationToken.IsCancellationRequested)` (an empty branch — a genuine shutdown-triggered
+  cancellation is expected and should let `ExecuteAsync`'s loop condition end the service cleanly,
+  not be logged as a failure), followed by a catch-all `catch (Exception ex)` that logs via
+  `logger.LogWarning(ex, "Failed to send incident to API. Retrying in next cycle...")`. A single
+  transient failure of any kind — timeout, DNS blip, JSON error, connection reset — is now logged
+  and the loop continues to its next `Task.Delay`-gated cycle instead of the process's
+  `BackgroundService` dying silently for good.
+- **Step 9.4 — Frontend invalidation alignment.**
+  `frontend/src/features/operational-tasks/hooks/useCompleteTask.ts`'s `onSuccess` callback gained
+  the same two `queryClient.invalidateQueries` calls (`operational-statistics`,
+  `field-unit-location-histories`) that `useCreateTask.ts`/`useCancelTask.ts` already had, closing
+  the staleness gap the audit's Moderate frontend finding described.
+
+**Verification:** `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors) after Steps 9.1–9.3;
+`npm run lint` and `npm run build` (`tsc -b && vite build`) both clean of new errors after Step 9.4
+(the build's pre-existing chunk-size-warning note and lint's pre-existing `react(set-state-in-effect)`/
+`react(refs)` warnings on unrelated files are unchanged from before this phase, not introduced by
+it).
+
+**Outcome:** All three of the audit's "Top 3 critical priorities" and its one Moderate frontend
+finding are resolved: `IsReadyToResolve` now has a genuine single source of truth shared in spirit
+(same `Assigned`-only definition, independently implemented) between `IncidentService.GetAllAsync`
+and `OperationsReplayService.IsTaskActiveAt`; invalid-status-string requests return 400 instead of
+500; the incident generator can no longer die silently from a transient network hiccup; and the
+"Ready to Resolve" statistics/location-history caches stay fresh immediately after a manual task
+completion. `docs/SYSTEM_HEALTH_AUDIT.md`'s remaining Moderate/Low findings (marker-churn patterns
+in `useIncidentMarkers.ts`/`useOperationalZoneLayers.ts`, the unverified `GetMovementHistoryAsync`
+`.ToString()`-in-projection risk, the `InvalidOperationException`→409 blanket mapping, the missing
+single-resource `GET /{id}` endpoints, remaining color-literal stragglers, and the still-absent
+backend test project) remain open and are unaffected by this phase.
+
+## 61. Phase 5.36 — FieldUnit Movement History Query Projection Safety & DomainConflictException Architecture
+
+**Motivation:** Two of §60's remaining open findings were closed in this phase: the unverified
+`GetMovementHistoryAsync` `.ToString()`-in-projection risk, and the blanket
+`InvalidOperationException`→409 mapping in `DomainExceptionHandler`.
+
+**Solution:**
+
+- **Step 1.1 — `FieldUnitService.GetMovementHistoryAsync` projection safety.**
+  The LINQ query previously projected straight into `FieldUnitMovementRecordDto` inside the
+  `select`, including `inc != null ? inc.Type.ToString() : null` — the same
+  `.ToString()`-inside-a-`GroupBy`/`Select`-translated-to-SQL pattern that Phase 5.27 (§52) had
+  already hit and fixed once in `OperationalStatisticsService` (Npgsql/EF Core can't translate an
+  enum `.ToString()` call into SQL). The query now selects into an anonymous type with the raw
+  `IncidentType?` enum value (`IncidentType?)(inc == null ? null : inc.Type)`) and calls
+  `.ToListAsync()` to materialize rows from PostgreSQL first; a second, in-memory `.Select(...)`
+  then builds the actual `FieldUnitMovementRecordDto` list, calling `.ToString()` on the
+  already-materialized enum value. This was a preventive fix, not a bug fix for an observed
+  failure — the audit had flagged it as unverified risk, and this phase confirms none of the
+  1-15 seed field units' movement history currently exercises the `inc != null` branch with a
+  populated `IncidentType`, so it hadn't surfaced yet in manual testing, but the SQL-translation
+  failure mode is identical to the confirmed §52 bug and was closed the same way rather than left
+  to fail in production later.
+- **Step 2.1 — `DomainConflictException` introduced.**
+  `Src/SmartCityOps.Domain/Exceptions/DomainConflictException.cs` (new) inherits `DomainException`
+  and provides `(string message)` and `(string message, Exception innerException)` constructors;
+  `DomainException` itself gained the matching `(string message, Exception innerException)`
+  protected constructor it was previously missing, needed to support the new subclass's second
+  overload. `IncidentService.ResolveAsync`'s already-resolved guard and
+  `FieldUnitService.UpdateStatusAsync`'s two `Dispatched`-related guards (a `Dispatched` unit's
+  status can't be changed directly; `Dispatched` can't be set through this endpoint) now throw
+  `DomainConflictException` instead of a bare `InvalidOperationException`, so business-rule conflict
+  throws are a distinct, purpose-built type rather than being conflated with the same exception type
+  the .NET runtime/BCL raises for unrelated internal state errors.
+- **Step 2.2 — `DomainExceptionHandler` mapping updated.**
+  `Src/SmartCityOps.Api/ExceptionHandling/DomainExceptionHandler.cs`'s status-code switch gained a
+  `DomainConflictException => StatusCodes.Status409Conflict` case (alongside the pre-existing
+  `ResourceConflictException => 409`) and the blanket `InvalidOperationException =>
+  StatusCodes.Status409Conflict` case was removed entirely. A generic `InvalidOperationException` —
+  one not explicitly thrown by a service as a business-rule conflict, e.g. a genuine runtime/BCL
+  invariant violation — now falls through this handler's `_ => 0` default and reaches ASP.NET's
+  standard unhandled-exception pipeline (500), instead of being silently reported to API clients as
+  a misleading 409 Conflict.
+
+**Verification:** `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors) after all three
+steps; no frontend files touched, so no `npm run lint`/`npm run build` re-run was needed.
+
+**Outcome:** Two more items from `docs/SYSTEM_HEALTH_AUDIT.md`'s remaining findings are resolved:
+`GetMovementHistoryAsync` no longer carries the same enum-`.ToString()`-in-SQL-translation risk that
+already broke `OperationalStatisticsService` once, and 409 Conflict responses are now reserved for
+explicit, purpose-built domain-conflict exception types (`ResourceConflictException`,
+`DomainConflictException`) rather than any `InvalidOperationException` from anywhere in the call
+stack. Remaining open items from `docs/SYSTEM_HEALTH_AUDIT.md` (marker/layer re-render churn in
+`useIncidentMarkers.ts`/`useOperationalZoneLayers.ts`, missing single-resource `GET /{id}`
+endpoints, remaining color-literal stragglers, and the still-absent backend test project) are
+unaffected by this phase.
 
 ---
 

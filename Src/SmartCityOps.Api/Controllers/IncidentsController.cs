@@ -29,15 +29,8 @@ public class IncidentsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<IncidentDto>> Create(CreateIncidentDto dto, CancellationToken cancellationToken)
     {
-        try
-        {
-            var created = await _incidentService.CreateAsync(dto, cancellationToken);
-            return StatusCode(StatusCodes.Status201Created, created);
-        }
-        catch (ArgumentException)
-        {
-            return BadRequest("Yanlış veya eksik argüman.");
-        }
+        var created = await _incidentService.CreateAsync(dto, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, created);
     }
 
     [HttpPost("{id:guid}/resolve")]

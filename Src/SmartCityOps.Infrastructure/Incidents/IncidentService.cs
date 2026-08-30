@@ -4,6 +4,7 @@ using SmartCityOps.Application.Incidents;
 using SmartCityOps.Application.Incidents.Events;
 using SmartCityOps.Domain.Entities;
 using SmartCityOps.Domain.Enums;
+using SmartCityOps.Domain.Exceptions;
 using SmartCityOps.Infrastructure.Persistence;
 
 namespace SmartCityOps.Infrastructure.Incidents;
@@ -27,7 +28,7 @@ public class IncidentService : IIncidentService
 
         var incidentIdsWithActiveTasks = (await _dbContext.OperationalTasks
             .AsNoTracking()
-            .Where(t => t.Status != OperationalTaskStatus.Completed)
+            .Where(t => t.Status == OperationalTaskStatus.Assigned)
             .Select(t => t.IncidentId)
             .ToListAsync(cancellationToken))
             .ToHashSet();
@@ -72,7 +73,7 @@ public class IncidentService : IIncidentService
 
         if (incident.Status == IncidentStatus.Resolved)
         {
-            throw new InvalidOperationException("Bu incident zaten resolved.");
+            throw new DomainConflictException("Bu incident zaten resolved.");
         }
 
         var openTasks = await _dbContext.OperationalTasks

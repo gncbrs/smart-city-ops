@@ -69,9 +69,13 @@ public class Worker : BackgroundService
             }
         }
 
-        catch (HttpRequestException ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            logger.LogError(ex, "API'ye bağlanılamadı...");
+            // Shutdown in progress -- let ExecuteAsync's loop condition end the service cleanly.
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to send incident to API. Retrying in next cycle...");
         }
     }
 

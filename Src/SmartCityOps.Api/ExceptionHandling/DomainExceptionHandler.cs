@@ -14,8 +14,9 @@ public class DomainExceptionHandler : IExceptionHandler
         {
             KeyNotFoundException => StatusCodes.Status404NotFound,
             ValidationException => StatusCodes.Status400BadRequest,
+            ArgumentException => StatusCodes.Status400BadRequest,
             ResourceConflictException => StatusCodes.Status409Conflict,
-            InvalidOperationException => StatusCodes.Status409Conflict,
+            DomainConflictException => StatusCodes.Status409Conflict,
             _ => 0
         };
 
