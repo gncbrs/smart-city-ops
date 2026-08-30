@@ -202,6 +202,7 @@ export function App() {
           onCompleted={clearSelection}
           onAssigned={clearSelection}
           onReassigned={clearSelection}
+          onCancelled={clearSelection}
           onViewMovementHistory={() => setMenuView("movement-history")}
           onClose={deselectFieldUnit}
           readOnly={replay.isReplayMode}

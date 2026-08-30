@@ -18,5 +18,32 @@ public static class GeoCalculator
         return EarthRadiusKm * c;
     }
 
+    public static (double Latitude, double Longitude) GetInFlightPosition(
+        double originLat,
+        double originLng,
+        double destLat,
+        double destLng,
+        DateTimeOffset assignedAt,
+        int estimatedEtaSeconds,
+        DateTimeOffset now)
+    {
+        if (estimatedEtaSeconds <= 0)
+        {
+            return (destLat, destLng);
+        }
+
+        var elapsedSeconds = (now - assignedAt).TotalSeconds;
+        var progress = Math.Clamp(elapsedSeconds / estimatedEtaSeconds, 0.0, 1.0);
+
+        if (progress >= 1.0)
+        {
+            return (destLat, destLng);
+        }
+
+        var lat = originLat + progress * (destLat - originLat);
+        var lng = originLng + progress * (destLng - originLng);
+        return (lat, lng);
+    }
+
     private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180.0;
 }

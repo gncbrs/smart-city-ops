@@ -8,6 +8,7 @@ public record OperationalTaskDto(
     DateTimeOffset AssignedAt,
     DateTimeOffset? CompletedAt,
     DateTimeOffset? ReassignedAt,
+    DateTimeOffset? CancelledAt,
     double? OriginLatitude,
     double? OriginLongitude,
     int? EstimatedEtaSeconds,

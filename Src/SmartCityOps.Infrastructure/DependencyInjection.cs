@@ -59,11 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IOperationsReplayService, OperationsReplayService>();
         services.AddScoped<IOperationalStatisticsService, OperationalStatisticsService>();
 
-        services.AddHttpClient<IRoutingService, OsrmRoutingService>(client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(3);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("SmartCityOps-OperationsCenter/1.0");
-        });
+        services.AddScoped<IRoutingService, OsrmRoutingService>();
 
         services.AddScoped<IEtaEstimator, HaversineEtaEstimator>();
         services.AddScoped<IFieldUnitScoringRule, DistanceScoreRule>();
@@ -75,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventHandler<TaskAssignedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<TaskCompletedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<TaskReassignedEvent>, SignalROperationsNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<TaskCancelledEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<IncidentCreatedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<IncidentResolvedEvent>, SignalROperationsNotificationHandler>();
         services.AddScoped<IDomainEventHandler<RestrictedZoneCreatedEvent>, SignalROperationsNotificationHandler>();

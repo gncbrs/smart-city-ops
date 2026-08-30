@@ -22,3 +22,8 @@ export async function completeOperationalTask(taskId: string): Promise<void> {
 export async function reassignTask(taskId: string, newFieldUnitId: string): Promise<void> {
   await httpClient.post(`/operational-tasks/${taskId}/reassign`, { newFieldUnitId });
 }
+
+export async function cancelOperationalTask(id: string): Promise<OperationalTask> {
+  const response = await httpClient.post<OperationalTask>(`/operational-tasks/${id}/cancel`);
+  return response.data;
+}

@@ -103,6 +103,7 @@ public class OperationsReplayService : IOperationsReplayService
                 t.AssignedAt,
                 null,
                 t.ReassignedAt,
+                null,
                 t.OriginLatitude,
                 t.OriginLongitude,
                 t.EstimatedEtaSeconds,
@@ -143,7 +144,8 @@ public class OperationsReplayService : IOperationsReplayService
                 MinAssignedAt = g.Min(t => (DateTimeOffset?)t.AssignedAt),
                 MaxAssignedAt = g.Max(t => (DateTimeOffset?)t.AssignedAt),
                 MaxCompletedAt = g.Max(t => t.CompletedAt),
-                MaxReassignedAt = g.Max(t => t.ReassignedAt)
+                MaxReassignedAt = g.Max(t => t.ReassignedAt),
+                MaxCancelledAt = g.Max(t => t.CancelledAt)
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -161,16 +163,27 @@ public class OperationsReplayService : IOperationsReplayService
             locationRange?.MaxRecordedAt,
             taskRange?.MaxAssignedAt,
             taskRange?.MaxCompletedAt,
-            taskRange?.MaxReassignedAt
+            taskRange?.MaxReassignedAt,
+            taskRange?.MaxCancelledAt
         }.Max();
 
         return new ReplayTimeRangeDto(minTimestamp, maxTimestamp);
     }
 
-    private static bool IsTaskActiveAt(OperationalTask task, DateTimeOffset timestamp) =>
-        task.Status == OperationalTaskStatus.Reassigned
-            ? task.AssignedAt <= timestamp && (!task.ReassignedAt.HasValue || task.ReassignedAt.Value > timestamp)
-            : task.CompletedAt is null || task.CompletedAt > timestamp;
+    private static bool IsTaskActiveAt(OperationalTask task, DateTimeOffset timestamp)
+    {
+        if (task.Status == OperationalTaskStatus.Reassigned)
+        {
+            return task.AssignedAt <= timestamp && (!task.ReassignedAt.HasValue || task.ReassignedAt.Value > timestamp);
+        }
+
+        if (task.Status == OperationalTaskStatus.Cancelled)
+        {
+            return task.AssignedAt <= timestamp && (!task.CancelledAt.HasValue || task.CancelledAt.Value > timestamp);
+        }
+
+        return task.CompletedAt is null || task.CompletedAt > timestamp;
+    }
 
     private static string ResolveIncidentStatusAt(Incident incident, int tasksAssignedByThenCount, DateTimeOffset timestamp)
     {

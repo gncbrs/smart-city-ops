@@ -1,22 +1,20 @@
-Task: Document Phase 5.31 (Field Unit OutOfService Lifecycle, Status Audit History & Operations Replay Temporal Accuracy) in docs/DEVELOPMENT_LOG.md and CLAUDE.md.
+Task: Document Phase 5.34 (In-Flight Field Unit Dynamic Position Resolution in Recommendation Engine) in docs/DEVELOPMENT_LOG.md and CLAUDE.md.
 
 Context:
-In Phase 5.31, we introduced the explicit `OutOfService` <-> `Available` lifecycle transition for Field Units, persisted status changes in a dedicated `FieldUnitStatusHistory` audit table, exposed `PATCH /api/field-units/{id}/status`, enhanced `OperationsReplayService` to reconstruct historical field unit statuses accurately from audit logs, and added status toggles to `FieldUnitPanel.tsx`.
+In Phase 5.34, we fixed the in-flight destination illusion where the recommendation engine previously evaluated travelling field units at their destination coordinates rather than their interpolated real-time position along the route.
 
 Requirements:
 1. Update `docs/DEVELOPMENT_LOG.md`:
-   - At the end of Part 12, add section `## 56. Phase 5.31 — Field Unit OutOfService Lifecycle, Status Audit History & Operations Replay Temporal Accuracy`.
-   - Document the motivation (removing the long-standing limitation where `OutOfService` was static seed-only and time-invariant in replay, enabling full operational status transitions with audit tracking).
-   - Detail the architecture and implementation steps:
-     - Step 5.1: Created `FieldUnitStatusHistory` entity in `SmartCityOps.Domain.Entities`, `UpdateFieldUnitStatusDto` in `SmartCityOps.Application.FieldUnits`, EF Core entity configuration with composite `(FieldUnitId, ChangedAt)` index and cascade foreign key, generated and applied migration `AddFieldUnitStatusHistory`.
-     - Step 5.2: Implemented `FieldUnitService.UpdateStatusAsync` with validation rules (blocking status changes off `Dispatched` units and preventing setting `Dispatched` directly), writing audit records, dispatching `FieldUnitUpdatedEvent` via SignalR handler, and updating `OperationsReplayService` to derive past unit statuses from `FieldUnitStatusHistories` rather than treating `OutOfService` as time-invariant. Exposed `PATCH /api/field-units/{id}/status`.
-     - Step 5.3: Added frontend API client (`updateFieldUnitStatus`), React Query mutation hook (`useUpdateFieldUnitStatus` invalidating `["field-units"]` and `["operational-statistics"]`), and added status toggle action buttons ("Set Out of Service" / "Set Available") to `FieldUnitPanel.tsx`.
-   - Confirm verification results: `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors), `npm run lint` and `npm run build` clean (0 errors).
+   - At the end of Part 12, add section `## 59. Phase 5.34 — In-Flight Field Unit Dynamic Position Resolution in Recommendation Engine`.
+   - Document the motivation (preventing travelling/dispatched units from being scored as if they had already arrived at their active task's destination, ensuring true distance/ETA scoring across concurrent operations).
+   - Detail the architecture and implementation:
+     - Added `GeoCalculator.GetInFlightPosition` in `SmartCityOps.Application.Common` to compute interpolated coordinates based on origin, destination, assigned time, and estimated travel duration.
+     - Updated `FieldUnitRecommendationService` to resolve effective real-time positions for all in-flight units before issuing batch OSRM Table or Haversine fallback queries.
+   - Confirm verification results: `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors).
 
 2. Update `CLAUDE.md`:
-   - In the Architecture / Backend section, note `FieldUnitStatusHistory` entity and `UpdateStatusAsync` on `IFieldUnitService`.
-   - In the "Known open items" / status section, mark the `OutOfService` transition timestamping gap as resolved.
-   - In the "Current status" section, append a concise summary paragraph for Phase 5.31 referencing `docs/DEVELOPMENT_LOG.md` Part 12 §56.
+   - In the Architecture / Backend section, note `GeoCalculator.GetInFlightPosition` and in-flight position resolution in `FieldUnitRecommendationService`.
+   - In the "Current status" section, append a concise summary paragraph for Phase 5.34 referencing `docs/DEVELOPMENT_LOG.md` Part 12 §59.
 
 3. Verification:
-   - Ensure clean markdown hierarchy, valid formatting, and preserved document anchors.
+   - Ensure clean markdown hierarchy and preserved document anchors.

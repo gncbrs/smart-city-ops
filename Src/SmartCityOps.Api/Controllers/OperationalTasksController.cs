@@ -41,4 +41,11 @@ public class OperationalTasksController : ControllerBase
         var reassigned = await _operationalTaskService.ReassignAsync(id, dto, cancellationToken);
         return Ok(reassigned);
     }
+
+    [HttpPost("{id:guid}/cancel")]
+    public async Task<ActionResult<OperationalTaskDto>> Cancel(Guid id, CancellationToken cancellationToken)
+    {
+        var cancelled = await _operationalTaskService.CancelAsync(id, cancellationToken);
+        return Ok(cancelled);
+    }
 }

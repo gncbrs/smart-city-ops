@@ -1,6 +1,7 @@
 import type { FieldUnit } from "../types";
 import type { OperationalTask } from "../../operational-tasks/types";
 import { useCompleteTask } from "../../operational-tasks/hooks/useCompleteTask";
+import { useCancelTask } from "../../operational-tasks/hooks/useCancelTask";
 import { useUpdateFieldUnitStatus } from "../hooks/useUpdateFieldUnitStatus";
 import { ReassignTaskButton } from "../../operational-tasks/components/ReassignTaskButton";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
@@ -13,6 +14,7 @@ interface FieldUnitPanelProps {
   availableFieldUnitsForReassignment: FieldUnit[];
   onCompleted: () => void;
   onReassigned: () => void;
+  onCancelled: () => void;
   onViewMovementHistory: () => void;
   onClose: () => void;
   readOnly?: boolean;
@@ -24,11 +26,13 @@ export function FieldUnitPanel({
   availableFieldUnitsForReassignment,
   onCompleted,
   onReassigned,
+  onCancelled,
   onViewMovementHistory,
   onClose,
   readOnly = false,
 }: FieldUnitPanelProps) {
   const { mutate, isPending, isError } = useCompleteTask();
+  const { mutate: cancelMutate, isPending: isCancelPending, isError: isCancelError } = useCancelTask();
   const { mutate: mutateStatus, isPending: isStatusUpdating } = useUpdateFieldUnitStatus();
 
   if (!fieldUnit) {
@@ -38,6 +42,11 @@ export function FieldUnitPanel({
   const handleComplete = () => {
     if (!activeTask) return;
     mutate(activeTask.id, { onSuccess: onCompleted });
+  };
+
+  const handleCancel = () => {
+    if (!activeTask) return;
+    cancelMutate(activeTask.id, { onSuccess: onCancelled });
   };
 
   const handleSetStatus = (status: "Available" | "OutOfService") => {
@@ -68,6 +77,11 @@ export function FieldUnitPanel({
             {isPending ? "Completing..." : "Complete Task"}
           </button>
         )}
+        {!readOnly && fieldUnit.status === "Dispatched" && activeTask && (
+          <button onClick={handleCancel} disabled={isCancelPending} className="app-button app-button--outlined">
+            {isCancelPending ? "Cancelling..." : "Cancel Task"}
+          </button>
+        )}
         {!readOnly && fieldUnit.status === "Available" && (
           <button onClick={() => handleSetStatus("OutOfService")} disabled={isStatusUpdating} className="app-button">
             {isStatusUpdating ? "Updating..." : "Set Out of Service"}
@@ -81,6 +95,7 @@ export function FieldUnitPanel({
       </div>
 
       {!readOnly && isError && <p>Failed to complete task. Please try again.</p>}
+      {!readOnly && isCancelError && <p>Failed to cancel task. Please try again.</p>}
 
       {readOnly && <p>Historical snapshot — actions disabled.</p>}
 

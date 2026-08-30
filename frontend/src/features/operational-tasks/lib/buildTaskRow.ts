@@ -65,9 +65,22 @@ export function buildCompletedHistoryRows(
       id: task.id,
       cells: [
         ...buildTaskCells(task, fieldUnits, incidents, onSelectFieldUnit, onSelectIncident),
+        { label: "Completed" },
         { label: new Date(task.completedAt as string).toLocaleString() },
       ],
       timestamp: task.completedAt as string,
+    }));
+
+  const cancelledTaskRows: TaskHistoryRow[] = operationalTasks
+    .filter((task) => task.status === "Cancelled" && task.cancelledAt)
+    .map((task) => ({
+      id: task.id,
+      cells: [
+        ...buildTaskCells(task, fieldUnits, incidents, onSelectFieldUnit, onSelectIncident),
+        { label: "Cancelled" },
+        { label: new Date(task.cancelledAt as string).toLocaleString() },
+      ],
+      timestamp: task.cancelledAt as string,
     }));
 
   const incidentIdsWithTasks = new Set(operationalTasks.map((task) => task.incidentId));
@@ -84,12 +97,13 @@ export function buildCompletedHistoryRows(
       cells: [
         { label: MANUAL_RESOLVE_UNIT_LABEL },
         { label: getIncidentLabel(incident), onClick: () => onSelectIncident(incident) },
+        { label: "Completed" },
         { label: new Date(incident.resolvedAt as string).toLocaleString() },
       ],
       timestamp: incident.resolvedAt as string,
     }));
 
-  return [...completedTaskRows, ...manualResolveRows].sort(
+  return [...completedTaskRows, ...cancelledTaskRows, ...manualResolveRows].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
 }

@@ -1,4 +1,4 @@
-export type OperationalTaskStatus = "Assigned" | "Completed" | "Reassigned";
+export type OperationalTaskStatus = "Assigned" | "Completed" | "Reassigned" | "Cancelled";
 
 export interface OperationalTask {
   id: string;
@@ -8,6 +8,7 @@ export interface OperationalTask {
   assignedAt: string;
   completedAt: string | null;
   reassignedAt?: string | null;
+  cancelledAt?: string | null;
   originLatitude: number | null;
   originLongitude: number | null;
   estimatedEtaSeconds: number | null;

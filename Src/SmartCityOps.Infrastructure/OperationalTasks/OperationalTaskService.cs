@@ -43,6 +43,7 @@ public class OperationalTaskService : IOperationalTaskService
                 t.AssignedAt,
                 t.CompletedAt,
                 t.ReassignedAt,
+                t.CancelledAt,
                 t.OriginLatitude,
                 t.OriginLongitude,
                 t.EstimatedEtaSeconds,
@@ -201,6 +202,44 @@ public class OperationalTaskService : IOperationalTaskService
         return ToDto(task);
     }
 
+    public async Task<OperationalTaskDto> CancelAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var task = await _dbContext.OperationalTasks
+            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("Task bulunamadı.");
+
+        if (task.Status != OperationalTaskStatus.Assigned)
+        {
+            throw new ValidationException("Yalnızca aktif (Assigned) görevler iptal edilebilir.");
+        }
+
+        var incident = await _dbContext.Incidents
+            .FirstOrDefaultAsync(i => i.Id == task.IncidentId, cancellationToken)
+            ?? throw new KeyNotFoundException("Task'a bağlı incident bulunamadı.");
+
+        var fieldUnit = await _dbContext.FieldUnits
+            .FirstOrDefaultAsync(f => f.Id == task.FieldUnitId, cancellationToken)
+            ?? throw new KeyNotFoundException("Task'a bağlı field unit bulunamadı.");
+
+        task.Status = OperationalTaskStatus.Cancelled;
+        task.CancelledAt = DateTimeOffset.UtcNow;
+        fieldUnit.Status = FieldUnitStatus.Available;
+
+        var hasOtherActiveTasks = await _dbContext.OperationalTasks
+            .AnyAsync(t => t.IncidentId == incident.Id && t.Id != task.Id && t.Status == OperationalTaskStatus.Assigned, cancellationToken);
+
+        if (!hasOtherActiveTasks && incident.Status == IncidentStatus.InProgress)
+        {
+            incident.Status = IncidentStatus.Open;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _domainEventDispatcher.DispatchAsync(new TaskCancelledEvent(task.Id, incident.Id, fieldUnit.Id), cancellationToken);
+
+        return ToDto(task);
+    }
+
     private static OperationalTaskDto ToDto(OperationalTask task) =>
         new(
             task.Id,
@@ -210,6 +249,7 @@ public class OperationalTaskService : IOperationalTaskService
             task.AssignedAt,
             task.CompletedAt,
             task.ReassignedAt,
+            task.CancelledAt,
             task.OriginLatitude,
             task.OriginLongitude,
             task.EstimatedEtaSeconds,

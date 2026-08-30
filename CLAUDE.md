@@ -54,8 +54,11 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
   `OperationalTasks`, `OperationalZones`, `FieldUnitLocationHistories`, `FieldUnitRecommendations`,
   `RestrictedZones`, `OperationsReplay`, `Dashboard`, plus `Common`), each holding DTOs (records) and
   a service interface (`I*Service`). No implementations here. `Common/Routing/` holds
-  `IRoutingService` and `RouteGeometryResult` (`GeoJsonCoordinates`, `DurationSeconds`,
-  `DistanceMeters`). `Dashboard/` holds `IOperationalStatisticsService`
+  `IRoutingService` (`GetDrivingRouteAsync` and, since Phase 5.32, `GetDrivingTableAsync` for
+  batch driving durations/distances) and its result records `RouteGeometryResult`
+  (`GeoJsonCoordinates`, `DurationSeconds`, `DistanceMeters`) and `TravelMatrixResult`
+  (`DurationsSeconds`, `DistancesMeters`) — see `docs/DEVELOPMENT_LOG.md` Part 12 §57.
+  `Dashboard/` holds `IOperationalStatisticsService`
   (`GetStatisticsAsync`, exposed via `GET /api/operations/statistics`) and its DTOs
   (`OperationalStatisticsDto`, `IncidentTypeCountDto`, `FieldUnitWorkloadDto`) — see
   `docs/DEVELOPMENT_LOG.md` Part 12 §52. `IIncidentService` also exposes `GetTimelineAsync`
@@ -71,7 +74,11 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
   `bool IsReadyToResolve` (`true` when the incident is not `Resolved` and has no operational tasks
   outside `OperationalTaskStatus.Completed`), computed by `IncidentService.GetAllAsync`/
   `CreateAsync`/`ResolveAsync` and, for historical snapshots, by `OperationsReplayService` against
-  the replay timestamp — see `docs/DEVELOPMENT_LOG.md` Part 12 §55.
+  the replay timestamp — see `docs/DEVELOPMENT_LOG.md` Part 12 §55. `IOperationalTaskService` also
+  exposes `CancelAsync` (backing `POST /api/operational-tasks/{id}/cancel`), which transitions an
+  `Assigned` task to `OperationalTaskStatus.Cancelled`, sets `OperationalTask.CancelledAt`, frees the
+  field unit back to `Available`, and reverts the incident to `Open` if no other active task remains
+  for it — see `docs/DEVELOPMENT_LOG.md` Part 12 §58.
 - **`SmartCityOps.Infrastructure`** — EF Core (`ApplicationDbContext`, Npgsql), entity
   configurations (`Persistence/Configurations`), migrations (`Persistence/Migrations`), and the
   service implementations, mirrored per feature folder. `DependencyInjection.AddInfrastructure`
@@ -83,6 +90,17 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
   if OSRM is unreachable/errors); task creation (`OperationalTaskService.AssignFieldUnitAsync`)
   calls it to fetch a real driving route and persists the GeoJSON polyline on
   `OperationalTask.RouteGeometry` — see `docs/DEVELOPMENT_LOG.md` Part 12 §51.
+  `OsrmRoutingService.GetDrivingTableAsync` additionally queries OSRM's `/table/v1/driving` batch
+  endpoint (same curl/timeout/fallback behavior as above); `FieldUnitRecommendationService`
+  (`FieldUnitRecommendations/`) calls it once per incident with all candidate field units as
+  origins to score recommendations by real driving time/distance instead of Haversine, falling
+  back to `IEtaEstimator`/`GeoCalculator` per unit when OSRM returns `null` — see
+  `docs/DEVELOPMENT_LOG.md` Part 12 §57. Since Phase 5.34, those origins are each unit's *effective*
+  real-time coordinate rather than its stored `Latitude/Longitude`: `GeoCalculator.GetInFlightPosition`
+  (`Common/GeoCalculator.cs`) interpolates a dispatched unit's position along its active task's
+  origin→destination line by elapsed time vs. `EstimatedEtaSeconds`, so a unit still travelling to a
+  first assignment is scored from where it actually is, not from the destination coordinates
+  `AssignFieldUnitAsync` already wrote onto it — see `docs/DEVELOPMENT_LOG.md` Part 12 §59.
 - **`SmartCityOps.Api`** — controllers (one per feature, thin — inject the service interface and
   return DTOs), `Program.cs`, `DependencyInjection.AddApiServices` (CORS policy
   `FrontendCorsPolicy` from `Cors:AllowedOrigins` config, Swagger), and
@@ -544,6 +562,43 @@ overridden by an active dispatch) instead of the old time-invariant `OutOfServic
 replay/`readOnly` mode) wired through a new `useUpdateFieldUnitStatus` React Query mutation hook.
 Migration `AddFieldUnitStatusHistory` applied; `dotnet build`/`npm run lint`/`npm run build` all
 clean.
+
+Phase 5.32 (`docs/DEVELOPMENT_LOG.md`, Part 12 §57) extended the field-unit recommendation engine
+with the same real-driving-time approach Phase 5.26 brought to route geometry: `IRoutingService`
+gained `GetDrivingTableAsync` (batch OSRM `/table/v1/driving` query), implemented in
+`OsrmRoutingService` by reusing the existing curl/timeout infrastructure, returning a new
+`TravelMatrixResult` (`DurationsSeconds`/`DistancesMeters`) or `null` on failure.
+`FieldUnitRecommendationService` now issues one batched table request per incident across all
+candidate field units instead of computing Haversine distance/ETA per unit, falling back to the
+pre-existing `GeoCalculator`/`IEtaEstimator` path per unit whenever OSRM's result is `null` or
+missing that unit's entry. `FieldUnitScoringContext`/`DistanceScoreRule` needed no changes, since
+they already consumed generic `DistanceKm`/`Eta` values regardless of source. `dotnet build`/
+`npm run lint`/`npm run build` all clean; no frontend files touched.
+
+Phase 5.33 (`docs/DEVELOPMENT_LOG.md`, Part 12 §58) added a Cancel/abort task lifecycle transition,
+previously missing alongside `Complete`/`Reassign`: `OperationalTaskStatus.Cancelled` and
+`OperationalTask.CancelledAt` (migration `AddOperationalTaskCancelledAt`) back a new
+`OperationalTaskService.CancelAsync` (`POST /api/operational-tasks/{id}/cancel`), which guards
+`Status == Assigned`, frees the field unit to `Available`, reverts the incident from `InProgress` to
+`Open` when no other active task remains for it, and dispatches a new `TaskCancelledEvent` through
+the existing SignalR pattern. `OperationsReplayService`'s `IsTaskActiveAt`/`GetReplayTimeRangeAsync`
+account for `CancelledAt` the same way they already do for `ReassignedAt`. On the frontend,
+`FieldUnitPanel.tsx` gained a "Cancel Task" button next to "Complete Task" (via a new
+`useCancelTask` mutation hook), and `buildCompletedHistoryRows`/`CompletedTasksSection.tsx` — now
+titled "Task History" — list cancelled tasks alongside completed ones with an explicit status
+column. `dotnet build`/`npm run lint`/`npm run build` all clean.
+
+Phase 5.34 (`docs/DEVELOPMENT_LOG.md`, Part 12 §59) fixed an in-flight destination illusion in the
+recommendation engine: a dispatched field unit's stored `Latitude/Longitude` are already the
+incident coordinates it's travelling *to* (set by `AssignFieldUnitAsync`, §51), so
+`FieldUnitRecommendationService` was previously scoring travelling units as if they'd already
+arrived when ranking recommendations for a different, concurrent incident. `GeoCalculator` gained
+`GetInFlightPosition` (origin/destination linear interpolation by elapsed time vs.
+`EstimatedEtaSeconds`, mirroring the frontend's existing `geoInterpolation.ts` approach), and
+`FieldUnitRecommendationService` now looks up each candidate unit's currently `Assigned` task (if
+any) and computes its effective real-time coordinate before building the OSRM `GetDrivingTableAsync`
+origins list and the Haversine/`IEtaEstimator` fallback path — see "Backend" above. `dotnet build`
+clean (0 warnings, 0 errors); no frontend files touched.
 
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project (the only
 remaining open item — see "Known open items" above).

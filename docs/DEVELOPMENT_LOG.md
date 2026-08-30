@@ -6101,3 +6101,176 @@ only one still open).
 
 ---
 
+## 57. Phase 5.32 — OSRM Table API Integration & Real Driving-Time Field Unit Recommendations
+
+**Motivation:** The field-unit recommendation engine (`GET
+/api/incidents/{id}/recommendations`) scored candidate units using `HaversineEtaEstimator` and
+`DistanceScoreRule` against straight-line (kuş uçuşu) distance and a flat 40 km/h assumed speed —
+the same limitation the routing layer had for single-route geometry before §51's OSRM integration.
+This phase extends that same OSRM integration to the recommendation engine's batch scoring path, so
+recommendations rank candidate units by real road-network driving time and distance instead of an
+idealized straight line, while preserving an automatic Haversine fallback if OSRM is unreachable.
+
+**Solution — two steps:**
+
+- **Step 6.1 — Routing service Table/Matrix API.** Added `TravelMatrixResult(IReadOnlyList<double?>
+  DurationsSeconds, IReadOnlyList<double?> DistancesMeters)` to
+  `SmartCityOps.Application.Common.Routing` (new file `TravelMatrixResult.cs`), and added
+  `GetDrivingTableAsync(IReadOnlyList<(double Latitude, double Longitude)> origins, (double
+  Latitude, double Longitude) destination, CancellationToken)` to `IRoutingService`
+  (`Src/SmartCityOps.Application/Common/Routing/IRoutingService.cs`). `OsrmRoutingService`
+  (`Src/SmartCityOps.Infrastructure/Common/Routing/OsrmRoutingService.cs`) implements it against
+  OSRM's `/table/v1/driving/{coordinates}?sources=...&destinations=...&annotations=duration,distance`
+  endpoint: it builds one coordinate string of all origins followed by the single destination
+  (culture-invariant `lng,lat` pairs, matching §51's `GetDrivingRouteAsync` formatting), sets
+  `sources` to every origin index and `destinations` to the destination's index, and reuses the
+  existing `RunCurlAsync` process-execution helper (see §51's note on why curl is used over
+  `HttpClient` on this host) rather than duplicating it. The response's `durations`/`distances` 2D
+  arrays are read column-`[0]` per origin row (each origin's entry to the one destination) into two
+  parallel `List<double?>`; a non-`"Ok"` response `code` or any exception is caught, logged as a
+  warning, and returns `null` so callers can cleanly fall back to Haversine — the same
+  fail-safe contract `GetDrivingRouteAsync` already established.
+- **Step 6.2 — Recommendation engine consumption.** `FieldUnitScoringContext` and
+  `DistanceScoreRule` already carried/consumed `TimeSpan Eta`/`double DistanceKm` generically (no
+  rule cares where those values came from), so neither needed changes.
+  `FieldUnitRecommendationService`
+  (`Src/SmartCityOps.Infrastructure/FieldUnitRecommendations/FieldUnitRecommendationService.cs`)
+  now takes `IRoutingService` as a constructor dependency alongside the existing
+  `IEtaEstimator`/`ApplicationDbContext`/scoring rules. `GetRecommendationsAsync` collects every
+  candidate field unit's coordinates into one `origins` list and issues a single batched
+  `GetDrivingTableAsync` call against the incident's coordinates (skipped entirely when there are
+  no field units, to avoid an empty-origins OSRM request); per unit, if OSRM returned a non-null
+  duration and distance at that unit's index, `distanceKm`/`eta` are derived from them
+  (`durationSec` → `TimeSpan.FromSeconds`, `distanceMeters` → km rounded to 2 decimals), otherwise
+  the pre-existing `GeoCalculator.CalculateDistanceKm`/`_etaEstimator.EstimateEta` Haversine path
+  runs unchanged. The rest of the method (building `FieldUnitScoringContext`, running scoring rules,
+  computing weighted `TotalScore`, ordering descending) is untouched.
+
+**Verification:** `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors); `npm run lint`
+(oxlint) and `npm run build` (`tsc -b && vite build`) clean in `frontend/` — no frontend files were
+touched by this phase, so these confirm no regression rather than exercising new code. No
+test/debug code left in the tree.
+
+**Outcome:** Field-unit recommendations now rank candidates by real driving time/distance from a
+single OSRM Table batch request per incident, instead of a flat 40 km/h straight-line estimate,
+with the same resilient Haversine fallback pattern already proven in §51's route-geometry
+integration.
+
+---
+
+## 58. Phase 5.33 — Operational Task Cancellation Flow, Status Audit & History Integration
+
+**Motivation:** Operational tasks could previously only reach a terminal state via `Complete` or
+`Reassign` — there was no way to abort a mistakenly assigned task or stand a unit down from a task
+that no longer needed to run, short of waiting for it to finish or handing it off to another unit.
+This phase adds a genuine `Cancel`/abort lifecycle transition, freeing the assigned field unit
+immediately and reopening the incident when no other active task remains for it, while keeping
+`OperationsReplayService` and the frontend history view consistent with the new terminal state.
+
+**Solution — two steps:**
+
+- **Step 7.1 — Backend domain, service & replay.** Added `Cancelled = 3` to
+  `OperationalTaskStatus` (`Src/SmartCityOps.Domain/Enums/OperationalTaskStatus.cs`) and a nullable
+  `DateTimeOffset? CancelledAt` to `OperationalTask`
+  (`Src/SmartCityOps.Domain/Entities/OperationalTask.cs`), mirrored on `OperationalTaskDto`.
+  `IOperationalTaskService` gained `CancelAsync(Guid id, CancellationToken)`, implemented in
+  `OperationalTaskService`
+  (`Src/SmartCityOps.Infrastructure/OperationalTasks/OperationalTaskService.cs`): it loads the task,
+  throws `ValidationException` unless `Status == Assigned` (the same "only an active task can
+  transition" invariant `CompleteAsync`/`ReassignAsync` already enforce), then sets
+  `Status = Cancelled`/`CancelledAt = UtcNow`, frees the field unit back to `Available`, and — if no
+  *other* `Assigned` task remains for the incident — reverts the incident from `InProgress` back to
+  `Open`, before saving and dispatching a new `TaskCancelledEvent(TaskId, IncidentId, FieldUnitId)`
+  through the existing `IDomainEventDispatcher`/`SignalROperationsNotificationHandler` pattern (both
+  registered in `DependencyInjection.cs`, following the same wiring as `TaskAssignedEvent`/
+  `TaskCompletedEvent`/`TaskReassignedEvent`). `OperationalTasksController` exposes this as `POST
+  /api/operational-tasks/{id}/cancel`. `OperationsReplayService`'s `IsTaskActiveAt` helper gained a
+  `Cancelled` branch mirroring the existing `Reassigned` one — active while
+  `AssignedAt <= timestamp && (!CancelledAt.HasValue || CancelledAt.Value > timestamp)` — and
+  `GetReplayTimeRangeAsync`'s per-table aggregate query now also considers `Max(CancelledAt)`.
+  Migration `AddOperationalTaskCancelledAt` (nullable `timestamp with time zone` column) was
+  generated and applied via `dotnet ef database update`.
+- **Step 7.2 — Frontend.** `frontend/src/features/operational-tasks/types.ts`'s
+  `OperationalTaskStatus` union gained `"Cancelled"` and `OperationalTask` gained
+  `cancelledAt?: string | null`. `operationalTasksApi.ts` gained `cancelOperationalTask(id)` (a
+  `POST` returning the updated `OperationalTask`, unlike the existing `completeOperationalTask`/
+  `reassignTask` which return `void` — the new call needed the response shape for consistency with
+  the mutation hook signature, not because callers currently read it), and a new
+  `useCancelTask` React Query mutation hook
+  (`frontend/src/features/operational-tasks/hooks/useCancelTask.ts`) invalidates
+  `["incidents"]`, `["field-units"]`, `["operational-tasks"]`, `["operational-statistics"]`, and
+  `["field-unit-location-histories"]` on success — the same five keys a task-state change already
+  needs to keep live per the SignalR invalidation pattern documented in the Architecture section
+  above. `FieldUnitPanel.tsx` renders a "Cancel Task" button (`app-button--outlined`) alongside
+  "Complete Task" whenever `!readOnly && fieldUnit.status === "Dispatched" && activeTask`, disabled
+  while pending and reporting an error inline on failure; `onCancelled` threads through
+  `FieldUnitColumn` up to `App.tsx`, wired to `clearSelection` like every other task-mutation
+  callback on that panel. `buildCompletedHistoryRows`
+  (`frontend/src/features/operational-tasks/lib/buildTaskRow.ts`) now also maps `Cancelled` tasks
+  (keyed off `cancelledAt` as the row's timestamp) alongside `Completed` tasks and manual incident
+  resolutions, and every row gained an explicit `"Completed"`/`"Cancelled"` status cell so the three
+  row kinds are distinguishable in one table. `CompletedTasksSection.tsx` was renamed in its heading
+  and `HistoryTable` columns from "Completed Tasks" to "Task History" (`["Unit", "Incident",
+  "Status", "Date/Time"]`) to reflect that it now lists both terminal outcomes, not completions
+  alone.
+
+**Verification:** `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors); `npm run lint`
+(oxlint) and `npm run build` (`tsc -b && vite build`) clean in `frontend/` (0 type errors; only the
+same pre-existing, unrelated `react(refs)`/`react(set-state-in-effect)` warnings and MapLibre
+vendor chunk-size notice from before this phase). No test/debug code left in the tree.
+
+**Outcome:** Operators can now abort a mistakenly assigned or no-longer-needed task directly from
+`FieldUnitPanel`, with the field unit released and the incident reopened automatically when
+appropriate; `OperationsReplayService` reconstructs the `Cancelled` state accurately at any replay
+timestamp, and the unified "Task History" table shows cancelled tasks alongside completed ones
+instead of silently dropping them.
+
+---
+
+## 59. Phase 5.34 — In-Flight Field Unit Dynamic Position Resolution in Recommendation Engine
+
+**Motivation:** When a field unit is assigned to a task, `OperationalTaskService` writes the
+incident's coordinates straight onto `FieldUnit.Latitude/Longitude` so the frontend has a
+destination to animate the marker toward (§26). But `FieldUnitRecommendationService` (§57) read
+those same columns as "the unit's current location" when scoring recommendations for a *different*
+incident — so a unit that was still minutes away, en route to its first assignment, was scored as
+if it had already arrived. In a city running several concurrent dispatches this made
+recommendations for a second, unrelated incident systematically wrong: a travelling unit could rank
+above a genuinely closer idle one purely because its stored coordinates lied about where it was.
+
+**Solution:**
+
+- **Step 8.1.** Added `GeoCalculator.GetInFlightPosition(originLat, originLng, destLat, destLng,
+  assignedAt, estimatedEtaSeconds, now)` to `SmartCityOps.Application.Common`
+  (`Src/SmartCityOps.Application/Common/GeoCalculator.cs`) — the same linear origin→destination
+  interpolation-by-elapsed-fraction the frontend already performs in
+  `geoInterpolation.ts`/`useFieldUnitMarkers.ts` (§8, §26), ported to the backend so the
+  recommendation engine can compute it server-side. `estimatedEtaSeconds <= 0` or
+  `progress >= 1.0` (elapsed time already covers the ETA) both short-circuit to the destination
+  coordinates; otherwise it clamps `(now - assignedAt) / estimatedEtaSeconds` to `[0, 1]` and lerps
+  both axes independently. This is a plain static helper — no new interface, no DI registration.
+  `FieldUnitRecommendationService`
+  (`Src/SmartCityOps.Infrastructure/FieldUnitRecommendations/FieldUnitRecommendationService.cs`)
+  now loads every currently `Assigned` `OperationalTask` alongside the candidate field units and
+  indexes them by `FieldUnitId` into a dictionary. For each field unit, if it has a matching active
+  task with `OriginLatitude`/`OriginLongitude`/`EstimatedEtaSeconds` all populated (tasks created
+  before §51 introduced those columns won't), `GetRecommendationsAsync` computes that unit's
+  effective real-time coordinate via `GetInFlightPosition` against a single `now` timestamp shared
+  across all units in the request (so every candidate is evaluated at the same instant); units with
+  no active task, or an active task missing that origin/ETA data, fall back to the stored
+  `fieldUnit.Latitude/Longitude` unchanged. These effective coordinates — not the raw stored
+  columns — are what get passed into the `origins` list for the batched
+  `_routingService.GetDrivingTableAsync` call (§57) and into the Haversine/`IEtaEstimator` fallback
+  path per unit, so both the OSRM and the offline code path score against the unit's true
+  in-flight position.
+
+**Verification:** `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors). No frontend files
+were touched by this phase.
+
+**Outcome:** Recommendations now reflect where a dispatched unit actually is along its route at the
+moment of scoring, not where it will eventually end up — closing the last gap between the
+recommendation engine's coordinate model and the animated-travel model the map/timeline have used
+since §26/§51.
+
+---
+

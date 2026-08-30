@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SmartCityOps.Application.Common;
+using SmartCityOps.Application.Common.Routing;
 using SmartCityOps.Application.FieldUnitRecommendations;
+using SmartCityOps.Domain.Enums;
 using SmartCityOps.Infrastructure.Persistence;
 
 namespace SmartCityOps.Infrastructure.FieldUnitRecommendations;
@@ -9,15 +11,18 @@ public class FieldUnitRecommendationService : IFieldUnitRecommendationService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IEtaEstimator _etaEstimator;
+    private readonly IRoutingService _routingService;
     private readonly IEnumerable<IFieldUnitScoringRule> _scoringRules;
 
     public FieldUnitRecommendationService(
         ApplicationDbContext dbContext,
         IEtaEstimator etaEstimator,
+        IRoutingService routingService,
         IEnumerable<IFieldUnitScoringRule> scoringRules)
     {
         _dbContext = dbContext;
         _etaEstimator = etaEstimator;
+        _routingService = routingService;
         _scoringRules = scoringRules;
     }
 
@@ -32,15 +37,71 @@ public class FieldUnitRecommendationService : IFieldUnitRecommendationService
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
+        var activeTasks = await _dbContext.OperationalTasks
+            .AsNoTracking()
+            .Where(t => t.Status == OperationalTaskStatus.Assigned)
+            .ToListAsync(cancellationToken);
+        var activeTaskByUnitId = activeTasks
+            .GroupBy(t => t.FieldUnitId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var now = DateTimeOffset.UtcNow;
+        var effectivePositions = fieldUnits
+            .Select(fieldUnit =>
+            {
+                if (activeTaskByUnitId.TryGetValue(fieldUnit.Id, out var activeTask) &&
+                    activeTask.OriginLatitude.HasValue &&
+                    activeTask.OriginLongitude.HasValue &&
+                    activeTask.EstimatedEtaSeconds.HasValue)
+                {
+                    return GeoCalculator.GetInFlightPosition(
+                        activeTask.OriginLatitude.Value,
+                        activeTask.OriginLongitude.Value,
+                        fieldUnit.Latitude,
+                        fieldUnit.Longitude,
+                        activeTask.AssignedAt,
+                        activeTask.EstimatedEtaSeconds.Value,
+                        now);
+                }
+
+                return (fieldUnit.Latitude, fieldUnit.Longitude);
+            })
+            .ToList();
+
+        var origins = effectivePositions.Select(p => (p.Item1, p.Item2)).ToList();
+        var destination = (incident.Latitude, incident.Longitude);
+        var matrixResult = origins.Count > 0
+            ? await _routingService.GetDrivingTableAsync(origins, destination, cancellationToken)
+            : null;
+
         var totalWeight = _scoringRules.Sum(rule => rule.Weight);
 
         return fieldUnits
-            .Select(fieldUnit =>
+            .Select((fieldUnit, i) =>
             {
-                var distanceKm = GeoCalculator.CalculateDistanceKm(
-                    incident.Latitude, incident.Longitude, fieldUnit.Latitude, fieldUnit.Longitude);
-                var eta = _etaEstimator.EstimateEta(
-                    fieldUnit.Latitude, fieldUnit.Longitude, incident.Latitude, incident.Longitude);
+                var (effectiveLat, effectiveLng) = effectivePositions[i];
+
+                var durationSec = matrixResult?.DurationsSeconds != null && i < matrixResult.DurationsSeconds.Count
+                    ? matrixResult.DurationsSeconds[i]
+                    : null;
+                var distanceMeters = matrixResult?.DistancesMeters != null && i < matrixResult.DistancesMeters.Count
+                    ? matrixResult.DistancesMeters[i]
+                    : null;
+
+                double distanceKm;
+                TimeSpan eta;
+                if (durationSec.HasValue && distanceMeters.HasValue)
+                {
+                    distanceKm = Math.Round(distanceMeters.Value / 1000.0, 2);
+                    eta = TimeSpan.FromSeconds(durationSec.Value);
+                }
+                else
+                {
+                    distanceKm = GeoCalculator.CalculateDistanceKm(
+                        incident.Latitude, incident.Longitude, effectiveLat, effectiveLng);
+                    eta = _etaEstimator.EstimateEta(
+                        effectiveLat, effectiveLng, incident.Latitude, incident.Longitude);
+                }
 
                 var context = new FieldUnitScoringContext(incident, fieldUnit, eta, distanceKm);
                 var ruleResults = _scoringRules

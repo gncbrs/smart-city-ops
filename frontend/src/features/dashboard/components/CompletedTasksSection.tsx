@@ -29,11 +29,11 @@ export function CompletedTasksSection({
 
   return (
     <div>
-      <h3>Completed Tasks ({completedHistoryRows.length})</h3>
+      <h3>Task History ({completedHistoryRows.length})</h3>
       <HistoryTable
-        columns={["Unit", "Incident", "Completed At"]}
+        columns={["Unit", "Incident", "Status", "Date/Time"]}
         rows={completedHistoryRows}
-        emptyMessage="No completed tasks yet."
+        emptyMessage="No completed or cancelled tasks yet."
       />
     </div>
   );
