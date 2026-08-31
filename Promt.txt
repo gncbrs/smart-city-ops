@@ -1,14 +1,27 @@
-Please update `docs/DEVELOPMENT_LOG.md` and `CLAUDE.md` to document the changes completed in Madde 1 and Madde 2 (Phase 5.36).
+Please update the seeded FieldUnits in `Src/SmartCityOps.Infrastructure/Persistence/Configurations/FieldUnitConfiguration.cs` with well-distributed, realistic coordinates across Ankara's central operational zones.
 
-Required Changes:
-1. Open `docs/DEVELOPMENT_LOG.md`:
-   - Append a new section under Part 12: `## 61. Phase 5.36 — FieldUnit Movement History Query Projection Safety & DomainConflictException Architecture`.
-   - Document:
-     * Step 1.1: `FieldUnitService.GetMovementHistoryAsync` refactored to materialize raw enum values from PostgreSQL first via `ToListAsync()`, performing `.ToString()` projection in-memory to prevent EF Core/Npgsql SQL translation failures.
-     * Step 2.1 & 2.2: Creation of `DomainConflictException` in `SmartCityOps.Domain.Exceptions`, refactoring `IncidentService.ResolveAsync` and `FieldUnitService.UpdateStatusAsync` to throw `DomainConflictException` instead of generic `InvalidOperationException` for business-rule conflicts, and updating `DomainExceptionHandler` to map `DomainConflictException` to 409 Conflict while removing the broad `InvalidOperationException` -> 409 mapping.
-   - Update the Table of Contents at the top of `docs/DEVELOPMENT_LOG.md` to include Section 61.
-2. Open `CLAUDE.md`:
-   - In "Architecture" -> `SmartCityOps.Api`, update the `DomainExceptionHandler` description to reflect `DomainConflictException` mapping and the removal of `InvalidOperationException`.
-   - In "Current status & known open issues", add a brief summary of Phase 5.36.
+Context & Target Distribution:
+Distribute the units across key Ankara districts (Çankaya, Kızılay, Yenimahalle, Keçiören, Mamak, Etimesgut, Altındağ) with sensible unit types (Police, Fire, Medical, TrafficControl, TechnicalSupport):
+- POL-01 (Kızılay / Çankaya Center): 39.9208, 32.8541
+- POL-02 (Tunalı / Gaziosmanpaşa): 39.9042, 32.8615
+- POL-03 (Batıkent / Yenimahalle): 39.9685, 32.7485
+- POL-04 (Keçiören Center): 39.9750, 32.8650
+- MED-01 (İbni Sina / Hacettepe Sıhhiye): 39.9315, 32.8610
+- MED-02 (Bilkent Şehir Hastanesi): 39.8970, 32.7635
+- MED-03 (Etlik Şehir Hastanesi): 39.9640, 32.8250
+- FIR-01 (Ulus / Altındağ Fire Station): 39.9430, 32.8540
+- FIR-02 (Ostim / İvedik Industrial): 39.9720, 32.7650
+- FIR-03 (Mamak / Kayaş Fire Station): 39.9280, 32.9150
+- TRF-01 (Eskişehir Yolu / Söğütözü): 39.9110, 32.8120
+- TRF-02 (İstanbul Yolu / Yenimahalle): 39.9530, 32.7950
+- TRF-03 (Samsun Yolu / Mamak): 39.9380, 32.8950
+- TEC-01 (Beştepe / Cumhurbaşkanlığı civarı): 39.9250, 32.8020
+- TEC-02 (Kızılay Metro / Altyapı): 39.9195, 32.8530
 
-Please provide the diff and verify with `dotnet build Src/SmartCityOps.sln`.
+Required Actions:
+1. Update `FieldUnitConfiguration.cs` with the coordinates and statuses above (all `Available`, or 1-2 `OutOfService` for realism).
+2. Generate an EF Core migration named `UpdateFieldUnitSeedLocations` and apply it to PostgreSQL (`dotnet ef database update`).
+3. If necessary, execute a SQL update or re-seed script so the live `FieldUnits` table reflects these exact coordinates.
+4. Verify with `dotnet build Src/SmartCityOps.sln`.
+
+Please provide the diff and verification.

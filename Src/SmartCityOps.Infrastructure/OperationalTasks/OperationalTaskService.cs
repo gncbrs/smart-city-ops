@@ -14,6 +14,11 @@ namespace SmartCityOps.Infrastructure.OperationalTasks;
 
 public class OperationalTaskService : IOperationalTaskService
 {
+    // A same-location dispatch (or a fallback route rounding to ~0s) would otherwise yield an
+    // EstimatedEtaSeconds of 0, which the frontend's travel-progress animation reads as "already
+    // arrived" and renders as an instant teleport instead of a brief animated hop.
+    private const int MinimumEtaSeconds = 5;
+
     private readonly ApplicationDbContext _dbContext;
     private readonly IDomainEventDispatcher _domainEventDispatcher;
     private readonly ITaskAssignmentRulePipeline _rulePipeline;
@@ -169,7 +174,7 @@ public class OperationalTaskService : IOperationalTaskService
             CompletedAt = null,
             OriginLatitude = originLatitude,
             OriginLongitude = originLongitude,
-            EstimatedEtaSeconds = routingResult.DurationSeconds,
+            EstimatedEtaSeconds = Math.Max(routingResult.DurationSeconds, MinimumEtaSeconds),
             RouteGeometry = routingResult.GeoJsonCoordinates
         };
 

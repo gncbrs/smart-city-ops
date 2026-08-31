@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartCityOps.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SmartCityOps.Infrastructure.Persistence;
 namespace SmartCityOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260831072717_NormalizeIncidentResolutionDurations")]
+    partial class NormalizeIncidentResolutionDurations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -60,8 +63,8 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("b9599661-cb85-422a-ae1e-3596a0be4976"),
-                            Latitude = 39.9208,
-                            Longitude = 32.854100000000003,
+                            Latitude = 39.924999999999997,
+                            Longitude = 32.835999999999999,
                             Status = "Available",
                             Type = "Police",
                             UnitCode = "POL-01"
@@ -69,8 +72,8 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("96f71bc3-185a-4148-b6e5-2a67daca36f5"),
-                            Latitude = 39.904200000000003,
-                            Longitude = 32.861499999999999,
+                            Latitude = 39.950000000000003,
+                            Longitude = 32.799999999999997,
                             Status = "Available",
                             Type = "Police",
                             UnitCode = "POL-02"
@@ -78,8 +81,8 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("fbeba342-a43c-40ed-9465-f50a4177ccf7"),
-                            Latitude = 39.968499999999999,
-                            Longitude = 32.7485,
+                            Latitude = 39.899999999999999,
+                            Longitude = 32.899999999999999,
                             Status = "Available",
                             Type = "Police",
                             UnitCode = "POL-03"
@@ -87,110 +90,110 @@ namespace SmartCityOps.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("2ac082fc-7044-4b45-8404-f018d6209477"),
-                            Latitude = 39.975000000000001,
-                            Longitude = 32.865000000000002,
-                            Status = "Available",
-                            Type = "Police",
-                            UnitCode = "POL-04"
-                        },
-                        new
-                        {
-                            Id = new Guid("6b68f2df-e043-48e2-a800-6f26bf4ed843"),
-                            Latitude = 39.9315,
-                            Longitude = 32.860999999999997,
+                            Latitude = 39.93,
+                            Longitude = 32.850000000000001,
                             Status = "Available",
                             Type = "Medical",
                             UnitCode = "MED-01"
                         },
                         new
                         {
-                            Id = new Guid("4e2e9af5-cf12-4270-bfc3-f641cf3d815f"),
-                            Latitude = 39.896999999999998,
-                            Longitude = 32.763500000000001,
+                            Id = new Guid("6b68f2df-e043-48e2-a800-6f26bf4ed843"),
+                            Latitude = 39.960000000000001,
+                            Longitude = 32.829999999999998,
                             Status = "Available",
                             Type = "Medical",
                             UnitCode = "MED-02"
                         },
                         new
                         {
-                            Id = new Guid("145eeb0d-ef83-41bd-994b-083e5a6c92d1"),
-                            Latitude = 39.963999999999999,
-                            Longitude = 32.825000000000003,
+                            Id = new Guid("4e2e9af5-cf12-4270-bfc3-f641cf3d815f"),
+                            Latitude = 39.880000000000003,
+                            Longitude = 32.789999999999999,
                             Status = "Available",
                             Type = "Medical",
                             UnitCode = "MED-03"
                         },
                         new
                         {
-                            Id = new Guid("833f2afc-9565-497d-8bb2-75403aab7127"),
-                            Latitude = 39.942999999999998,
-                            Longitude = 32.853999999999999,
+                            Id = new Guid("145eeb0d-ef83-41bd-994b-083e5a6c92d1"),
+                            Latitude = 39.914999999999999,
+                            Longitude = 32.82,
                             Status = "Available",
                             Type = "Fire",
                             UnitCode = "FIR-01"
                         },
                         new
                         {
-                            Id = new Guid("5a6fcd12-2798-432c-81a6-416c00d5c30f"),
-                            Latitude = 39.972000000000001,
-                            Longitude = 32.765000000000001,
+                            Id = new Guid("833f2afc-9565-497d-8bb2-75403aab7127"),
+                            Latitude = 39.920000000000002,
+                            Longitude = 32.880000000000003,
                             Status = "Available",
                             Type = "Fire",
                             UnitCode = "FIR-02"
                         },
                         new
                         {
-                            Id = new Guid("d5dd3221-bd61-417c-9350-8bd21b732f9b"),
-                            Latitude = 39.927999999999997,
-                            Longitude = 32.914999999999999,
+                            Id = new Guid("5a6fcd12-2798-432c-81a6-416c00d5c30f"),
+                            Latitude = 39.869999999999997,
+                            Longitude = 32.829999999999998,
                             Status = "OutOfService",
                             Type = "Fire",
                             UnitCode = "FIR-03"
                         },
                         new
                         {
+                            Id = new Guid("d5dd3221-bd61-417c-9350-8bd21b732f9b"),
+                            Latitude = 39.939999999999998,
+                            Longitude = 32.859999999999999,
+                            Status = "Available",
+                            Type = "UtilityCrew",
+                            UnitCode = "UTL-01"
+                        },
+                        new
+                        {
                             Id = new Guid("c05d230d-78b1-41ed-be18-c7936616b0ae"),
-                            Latitude = 39.911000000000001,
-                            Longitude = 32.811999999999998,
+                            Latitude = 39.969999999999999,
+                            Longitude = 32.869999999999997,
+                            Status = "OutOfService",
+                            Type = "UtilityCrew",
+                            UnitCode = "UTL-02"
+                        },
+                        new
+                        {
+                            Id = new Guid("12ad0bf6-b819-40e7-95d8-093ff4b9ac19"),
+                            Latitude = 39.909999999999997,
+                            Longitude = 32.789999999999999,
+                            Status = "Available",
+                            Type = "UtilityCrew",
+                            UnitCode = "UTL-03"
+                        },
+                        new
+                        {
+                            Id = new Guid("cc32593c-0ab6-4c24-aaea-f6bb9ab2de95"),
+                            Latitude = 39.905000000000001,
+                            Longitude = 32.810000000000002,
                             Status = "OutOfService",
                             Type = "TrafficControl",
                             UnitCode = "TRF-01"
                         },
                         new
                         {
-                            Id = new Guid("12ad0bf6-b819-40e7-95d8-093ff4b9ac19"),
-                            Latitude = 39.953000000000003,
-                            Longitude = 32.795000000000002,
+                            Id = new Guid("40adac57-adbc-42fb-b833-2ff44c976106"),
+                            Latitude = 39.93,
+                            Longitude = 32.789999999999999,
                             Status = "Available",
                             Type = "TrafficControl",
                             UnitCode = "TRF-02"
                         },
                         new
                         {
-                            Id = new Guid("cc32593c-0ab6-4c24-aaea-f6bb9ab2de95"),
-                            Latitude = 39.938000000000002,
-                            Longitude = 32.895000000000003,
+                            Id = new Guid("115b0f76-4adf-4c9e-9d43-432b18143449"),
+                            Latitude = 39.890000000000001,
+                            Longitude = 32.869999999999997,
                             Status = "Available",
                             Type = "TrafficControl",
                             UnitCode = "TRF-03"
-                        },
-                        new
-                        {
-                            Id = new Guid("40adac57-adbc-42fb-b833-2ff44c976106"),
-                            Latitude = 39.924999999999997,
-                            Longitude = 32.802,
-                            Status = "Available",
-                            Type = "UtilityCrew",
-                            UnitCode = "TEC-01"
-                        },
-                        new
-                        {
-                            Id = new Guid("115b0f76-4adf-4c9e-9d43-432b18143449"),
-                            Latitude = 39.919499999999999,
-                            Longitude = 32.853000000000002,
-                            Status = "Available",
-                            Type = "UtilityCrew",
-                            UnitCode = "TEC-02"
                         });
                 });
 

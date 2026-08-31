@@ -92,7 +92,13 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
   (3s timeout, culture-invariant coordinate formatting, Haversine straight-line fallback at 40 km/h
   if OSRM is unreachable/errors); task creation (`OperationalTaskService.AssignFieldUnitAsync`)
   calls it to fetch a real driving route and persists the GeoJSON polyline on
-  `OperationalTask.RouteGeometry` — see `docs/DEVELOPMENT_LOG.md` Part 12 §51.
+  `OperationalTask.RouteGeometry` — see `docs/DEVELOPMENT_LOG.md` Part 12 §51. On Windows,
+  `RunCurlAsync` additionally passes curl's Schannel-only `--ssl-no-revoke` flag (gated behind
+  `OperatingSystem.IsWindows()`) to avoid `CRYPT_E_NO_REVOCATION_CHECK` handshake failures on
+  corporate networks where the CRL/OCSP endpoint is unreachable; `OperationalTaskService` also
+  floors `EstimatedEtaSeconds` at a `MinimumEtaSeconds = 5` constant so a same-location or
+  near-zero-duration dispatch still animates instead of teleporting — see `docs/DEVELOPMENT_LOG.md`
+  Part 12 §62.
   `OsrmRoutingService.GetDrivingTableAsync` additionally queries OSRM's `/table/v1/driving` batch
   endpoint (same curl/timeout/fallback behavior as above); `FieldUnitRecommendationService`
   (`FieldUnitRecommendations/`) calls it once per incident with all candidate field units as
@@ -114,7 +120,10 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
   `DomainConflictException` (`SmartCityOps.Domain.Exceptions`, thrown by services for genuine
   business-rule conflicts, e.g. `IncidentService.ResolveAsync` on an already-resolved incident or
   `FieldUnitService.UpdateStatusAsync`'s `Dispatched`-related guards) reaches 409; any other
-  `InvalidOperationException` now falls through to the standard 500 pipeline.
+  `InvalidOperationException` now falls through to the standard 500 pipeline. Since Phase 5.38,
+  `IncidentService.ResolveAsync` also rejects resolution with `DomainConflictException` (→409) when
+  the incident still has any `OperationalTask` with `OperationalTaskStatus.Assigned` — enforcing the
+  same `IsReadyToResolve` invariant (§55) server-side instead of force-completing those tasks.
 
 **Incident Generator** (`Src/incident-generator`) — a separate worker service/executable with
 **no project reference** to the Api/Application/Domain projects, by design: it only talks to the
@@ -200,7 +209,12 @@ literal.
 Map: MapLibre GL JS against the OpenFreeMap `liberty` style, encapsulated in
 `features/operations-map` (`useMapInstance` owns the map lifecycle; `useIncidentMarkers` /
 `useFieldUnitMarkers` / `useOperationalZoneLayers` layer data onto it; `applyMapFilters` handles
-the filter-panel logic).
+the filter-panel logic). Since Phase 5.39, `useIncidentMarkers` stabilizes its `onSelectIncident`
+callback via a ref (matching `useFieldUnitMarkers`'s existing pattern) so an unmemoized parent
+callback no longer tears down/recreates every incident marker, and `useOperationalZoneLayers`
+splits source/layer creation (`[map]`, once) from data updates (`[map, zones]`, via
+`source.setData(featureCollection)`) instead of removing and re-adding the GeoJSON source/layers
+on every zones refetch — see `docs/DEVELOPMENT_LOG.md` Part 12 §64.
 
 State is React Query (server state) + component/hook-local state; no client-side state library is
 used (`zustand` and `react-router-dom` were removed from `package.json` as unused dependencies, see
@@ -640,8 +654,63 @@ case (removed), so an unrelated runtime/BCL `InvalidOperationException` now corr
 to the standard 500 pipeline instead of being reported to clients as a misleading 409. `dotnet build
 SmartCityOps.sln` clean (0 warnings, 0 errors); no frontend files touched.
 
+Phase 5.37 (`docs/DEVELOPMENT_LOG.md`, Part 12 §62) fixed OSRM routing on a corporate Windows
+development machine, where every request was silently falling back to straight-line interpolation
+(visible as a dashed straight route and an instant field-unit teleport). Root cause: Schannel-linked
+`curl` failed the TLS handshake against OSRM with `CRYPT_E_NO_REVOCATION_CHECK` because the
+corporate network can't reach the CRL/OCSP endpoint — fixed by conditionally passing curl's
+`--ssl-no-revoke` flag on Windows only (`RunCurlAsync`, see "Backend" above). Independently,
+`EstimatedEtaSeconds` had no floor and could be `0` (e.g. a fallback route with coincident
+origin/destination), which the frontend's travel-progress animation reads as "already arrived" —
+fixed with a `MinimumEtaSeconds = 5` floor in `OperationalTaskService`. A third, process-only issue
+surfaced while verifying both fixes live: this repo's `dotnet build` (solution-level) and `dotnet
+run --project SmartCityOps.Api` write to two different output directories
+(`bin\x64\Debug\net8.0` vs `bin\Debug\net8.0`), so restarting via `dotnet run --no-build` after only
+running `dotnet build` served a stale DLL — resolved by restarting with a plain `dotnet run`
+instead. Verified live: a fresh task assignment returned a real 35-point OSRM polyline and a
+duration-matched `estimatedEtaSeconds`, with zero fallback warnings logged. `dotnet build
+SmartCityOps.sln`/`npm run build` both clean; the frontend's `routeGeometry` parsing needed no
+changes — it was already correct.
+
+Phase 5.38 (`docs/DEVELOPMENT_LOG.md`, Part 12 §63) closed a backend/frontend enforcement gap on the
+`IsReadyToResolve` invariant (§55/§60): `IncidentService.ResolveAsync` previously force-completed any
+`Assigned` `OperationalTask` still open on an incident (setting it `Completed` and its field unit
+back to `Available`) instead of rejecting the resolve request, so a caller bypassing the frontend
+could silently override in-progress dispatches. `ResolveAsync` now throws `DomainConflictException`
+(→409, see "Backend" above) whenever any `Assigned` task remains for the incident, and the
+force-completing loop was removed — resolution is strictly all-or-nothing. `dotnet build
+SmartCityOps.sln` clean (0 warnings, 0 errors); no migration/frontend change, since
+`ActiveTasksPanel.tsx`'s existing `IsReadyToResolve` gating already hid this path from the UI.
+
+Phase 5.39 (`docs/DEVELOPMENT_LOG.md`, Part 12 §64) closed the marker/layer re-render churn finding
+from `docs/SYSTEM_HEALTH_AUDIT.md` flagged below: `useIncidentMarkers.ts` was rebuilding every
+incident marker on the map whenever a parent passed a fresh, unmemoized `onSelectIncident`
+instance, since that callback sat directly in the effect's dependency array — fixed by capturing it
+in a ref and trimming the dependency array to `[map, incidents, selectedIncidentId]`, the same
+pattern `useFieldUnitMarkers.ts` already used. Separately, `useOperationalZoneLayers.ts` was
+tearing down and recreating the GeoJSON source and both map layers (`removeLayer`/`removeSource`/
+`addSource`/`addLayer`) on every `zones` update, including no-op SignalR-driven refetches — fixed by
+splitting the hook into a `[map]`-only effect that creates the source/layers once and a
+`[map, zones]` effect that pushes updates via `source.setData(featureCollection)`, MapLibre's
+native in-place update, instead of removing/re-adding anything. `npm run build`/`npm run lint`
+(frontend) and `dotnet build SmartCityOps.sln` (backend, unaffected but re-verified) all clean;
+frontend-only change, no migration.
+
+Phase 5.40 (`docs/DEVELOPMENT_LOG.md`, Part 12 §65) fixed unrealistic `AverageResolutionMinutes`
+figures on the operational statistics dashboard (§52): a number of legacy/manually-tested resolved
+incidents had `ResolvedAt` weeks or months after `ReportedAt`, skewing the average into the tens of
+thousands of minutes. `Incidents` has no static `HasData(...)` seed (unlike `RestrictedZoneConfiguration.cs`,
+§41) — every row comes from manual testing or the `incident-generator` worker — so the fix is a
+data-only migration, `NormalizeIncidentResolutionDurations`, whose `Up` runs a raw SQL `UPDATE`
+setting `ResolvedAt = ReportedAt + (15 + random() * 30 minutes)` for any resolved incident whose
+duration exceeded 2 hours (plausible existing durations are left untouched); `Down` is a documented
+no-op, since the original timestamps aren't recoverable. Verified live: `GET
+/api/operations/statistics`'s `averageResolutionMinutes` dropped from a multi-thousand-minute figure
+to `30.4` post-migration. `dotnet build Src/SmartCityOps.sln` clean (0 warnings, 0 errors); no
+application/frontend code changed, since `OperationalStatisticsService`'s calculation itself was
+already correct — only the underlying data was wrong.
+
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project (the only
 remaining open item — see "Known open items" above) and the remaining lower-priority findings in
-`docs/SYSTEM_HEALTH_AUDIT.md` (marker/layer re-render churn in `useIncidentMarkers.ts`/
-`useOperationalZoneLayers.ts`, missing single-resource `GET /{id}` endpoints, and a handful of
+`docs/SYSTEM_HEALTH_AUDIT.md` (missing single-resource `GET /{id}` endpoints and a handful of
 unmigrated color literals).

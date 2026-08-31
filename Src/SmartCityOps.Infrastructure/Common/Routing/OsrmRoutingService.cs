@@ -119,6 +119,14 @@ public class OsrmRoutingService : IRoutingService
         };
         startInfo.ArgumentList.Add("-s");
         startInfo.ArgumentList.Add("--fail");
+        if (OperatingSystem.IsWindows())
+        {
+            // Schannel-only flag: on corporate Windows machines the CRL/OCSP endpoint is often
+            // unreachable, which fails the TLS handshake with CRYPT_E_NO_REVOCATION_CHECK even
+            // though the certificate itself is valid. Not passed on macOS/Linux, where curl uses
+            // LibreSSL/OpenSSL and doesn't support this flag.
+            startInfo.ArgumentList.Add("--ssl-no-revoke");
+        }
         startInfo.ArgumentList.Add("-m");
         startInfo.ArgumentList.Add(TimeoutSeconds.ToString(CultureInfo.InvariantCulture));
         startInfo.ArgumentList.Add(requestUrl);

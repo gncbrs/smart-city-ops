@@ -222,6 +222,10 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [31. App.tsx Orchestration Simplification (Step 1/2) — Extract Derived Selectors](#31-apptsx-orchestration-basitleştirme-adım-12--türetilmiş-selectorların-çıkarılması)
   - [32. App.tsx Orchestration Simplification (Step 2/2) — Extract useReplayAwareData Hook](#32-apptsx-orchestration-basitleştirme-adım-22--usereplayawaredata-hookunun-çıkarılması)
   - [61. Phase 5.36 — FieldUnit Movement History Query Projection Safety & DomainConflictException Architecture](#61-phase-536--fieldunit-movement-history-query-projection-safety--domainconflictexception-architecture)
+  - [62. Phase 5.37 — Corporate Windows Schannel SSL Revocation Bypass & OSRM Live Verification](#62-phase-537--corporate-windows-schannel-ssl-revocation-bypass--osrm-live-verification)
+  - [63. Phase 5.38 — Server-Side IsReadyToResolve Enforcement in IncidentService](#63-phase-538--server-side-isreadytoresolve-enforcement-in-incidentservice)
+  - [64. Phase 5.39 — MapLibre Render & Resource Lifecycle Optimization in Incident Markers and Zone Layers](#64-phase-539--maplibre-render--resource-lifecycle-optimization-in-incident-markers-and-zone-layers)
+  - [65. Phase 5.40 — Normalize Legacy Incident Resolution Durations (Madde 5)](#65-phase-540--normalize-legacy-incident-resolution-durations-madde-5)
 
 
 
@@ -6421,6 +6425,205 @@ stack. Remaining open items from `docs/SYSTEM_HEALTH_AUDIT.md` (marker/layer re-
 `useIncidentMarkers.ts`/`useOperationalZoneLayers.ts`, missing single-resource `GET /{id}`
 endpoints, remaining color-literal stragglers, and the still-absent backend test project) are
 unaffected by this phase.
+
+---
+
+## 62. Phase 5.37 — Corporate Windows Schannel SSL Revocation Bypass & OSRM Live Verification
+
+**Motivation:** The project moved from a macOS development machine (where `OsrmRoutingService`'s
+curl-based OSRM calls, see §51, work as designed) to a corporate Windows laptop, where every OSRM
+request silently fell back to straight-line Euclidean interpolation — visible on the map as a
+dashed straight route line and an instant field-unit teleport to the destination instead of an
+animated drive along roads.
+
+**Problem 1 — Schannel SSL revocation-check failure.** On this Windows machine, `curl` (both the
+Git-for-Windows-bundled `mingw64\bin\curl.exe` and the OS-bundled `C:\Windows\System32\curl.exe`,
+both linked against Schannel) failed the TLS handshake against `router.project-osrm.org` with
+`CRYPT_E_NO_REVOCATION_CHECK (0x80092012)`, surfacing as curl exit code 35, because the corporate
+network can't reach the certificate's CRL/OCSP endpoint. `RunCurlAsync` caught this as a non-zero
+exit code and `GetDrivingRouteAsync`/`GetDrivingTableAsync` both silently fell back
+(straight-line route / `null` → Haversine), exactly as designed for a genuinely unreachable OSRM —
+but the underlying cause here wasn't reachability, it was the revocation check.
+
+**Solution 1.** `RunCurlAsync`
+(`Src/SmartCityOps.Infrastructure/Common/Routing/OsrmRoutingService.cs`) now adds curl's
+Schannel-specific revocation-bypass flag conditionally:
+```csharp
+if (OperatingSystem.IsWindows())
+{
+    startInfo.ArgumentList.Add("--ssl-no-revoke");
+}
+```
+Gated to Windows rather than passed unconditionally, since curl on macOS/Linux in this project
+links against LibreSSL/OpenSSL (see §51's original diagnosis comment at the top of the file), which
+doesn't support this flag and could error rather than silently ignore it. Verified directly: the
+exact `route/v1/driving` URL the code builds returned curl exit 35 without the flag and HTTP 200
+with it, on both curl binaries present on this machine.
+
+**Problem 2 — zero/near-zero `EstimatedEtaSeconds` teleport risk.** Independent of the SSL issue,
+`AssignFieldUnitAsync` assigned `EstimatedEtaSeconds = routingResult.DurationSeconds` with no
+floor. A very short route, or a fallback route where origin and destination coincide (observed
+live during this diagnosis — `BuildFallbackResult`'s `distanceKm` was `0`, producing
+`durationSeconds = 0`), makes the frontend's `getTravelProgress` (`geoInterpolation.ts`) read as
+`elapsedMs / (0 * 1000)` → `Infinity`/immediately `>= 1`, i.e. "already arrived" — a teleport even
+when OSRM/the fallback math is otherwise working correctly.
+
+**Solution 2.** `OperationalTaskService`
+(`Src/SmartCityOps.Infrastructure/OperationalTasks/OperationalTaskService.cs`) gained:
+```csharp
+private const int MinimumEtaSeconds = 5;
+...
+EstimatedEtaSeconds = Math.Max(routingResult.DurationSeconds, MinimumEtaSeconds),
+```
+guaranteeing every dispatch animates for at least 5 seconds regardless of route length or which
+path (OSRM or fallback) produced the duration.
+
+**Problem 3 — stale build served despite a "successful" rebuild.** While verifying Solutions 1–2
+live, the running API kept exhibiting the pre-fix behavior (curl exit 35, `EstimatedEtaSeconds: 0`)
+even after `dotnet build` reported 0 errors and the process was restarted. Root cause: this repo
+produces two distinct build outputs — `dotnet build` (solution-level, invoked from `Src/`) writes
+to `bin\x64\Debug\net8.0` per project (the `x64`-platform mapping added in §47), while
+`dotnet run --project SmartCityOps.Api` builds/runs from a separate `bin\Debug\net8.0` output.
+Restarting the API with `dotnet run --no-build` after only running the solution-level `dotnet
+build` left the `bin\Debug\net8.0` copy of `SmartCityOps.Infrastructure.dll` stale — confirmed by
+comparing file timestamps between the two output directories.
+
+**Solution 3.** No code change; process-only fix — restart the API with a plain `dotnet run`
+(letting it perform its own rebuild into `bin\Debug\net8.0`) rather than `dotnet build` followed by
+`dotnet run --no-build`. Noted here so future sessions on this machine don't re-diagnose the same
+false lead.
+
+**Verification:** A live task assignment (`POST /api/operational-tasks`) after all three fixes
+returned a real 35-point OSRM polyline in `routeGeometry` and `estimatedEtaSeconds: 151` (matching
+OSRM's actual driving duration for that route), with zero warnings logged by
+`OsrmRoutingService`. `dotnet build Src/SmartCityOps.sln` and `npm run build` (frontend) both clean.
+The frontend's `routeGeometry` parsing (`geoInterpolation.ts`'s `parseRouteGeometry`,
+`useDispatchedRouteLayers.ts`) needed no changes — property casing (`routeGeometry`, matching the
+API's camelCase JSON) and the `[[lng, lat], ...]` point format were already handled correctly; the
+straight-line rendering was entirely a backend-side fallback artifact, not a frontend parsing bug.
+
+**Outcome:** Field-unit dispatch on this Windows machine now uses real OSRM road-network routing
+end-to-end, matching the macOS behavior documented in §51. The 5-second `EstimatedEtaSeconds` floor
+is a general robustness fix that also protects against future same-location or near-zero-distance
+dispatches on any platform, not just the Windows/Schannel case.
+
+---
+
+## 63. Phase 5.38 — Server-Side IsReadyToResolve Enforcement in IncidentService
+
+**Problem:** `IncidentDto.IsReadyToResolve` (§55) guarded the "Resolve" affordance in the frontend
+UI, but `IncidentService.ResolveAsync`
+(`Src/SmartCityOps.Infrastructure/Incidents/IncidentService.cs`) never enforced the same invariant
+server-side. It fetched every `Assigned` `OperationalTask` for the incident and force-completed
+them — setting `task.Status = Completed`/`task.CompletedAt` and the corresponding field unit back to
+`Available` — instead of rejecting the request. Any caller bypassing the frontend (a direct API
+call, a future integration) could resolve an incident out from under field units still actively
+dispatched to it, silently overriding their in-progress task state.
+
+**Solution:** `ResolveAsync` now checks
+`await _dbContext.OperationalTasks.AnyAsync(t => t.IncidentId == id && t.Status ==
+OperationalTaskStatus.Assigned, cancellationToken)` before resolving. If any active `Assigned`
+tasks exist, it throws `DomainConflictException` (`SmartCityOps.Domain.Exceptions`, the same
+purpose-built exception introduced in §61) with a message directing the operator to complete or
+cancel those tasks first — mapped by `DomainExceptionHandler` to `409 Conflict`, matching the
+`IsReadyToResolve` semantics already used elsewhere (§55, §60). The force-completing `foreach`
+loop, and the now-unused `openTasks`/`fieldUnitIds`/`fieldUnitsById` lookups that fed it, were
+removed entirely — resolution is strictly all-or-nothing: it either proceeds with no active tasks
+touched, or it doesn't proceed at all.
+
+**Verification:** `dotnet build SmartCityOps.sln` clean (0 warnings, 0 errors). No
+migration/frontend change — `ActiveTasksPanel.tsx`'s existing `IsReadyToResolve` gating (§55)
+already reflects this exact rule, so the "Resolve" action was already hidden/disabled from the UI
+in this case; this phase closes the matching server-side gap so the invariant now holds
+independent of which client calls the API.
+
+---
+
+## 64. Phase 5.39 — MapLibre Render & Resource Lifecycle Optimization in Incident Markers and Zone Layers
+
+**Problem 1:** `useIncidentMarkers.ts`
+(`frontend/src/features/operations-map/hooks/useIncidentMarkers.ts`) included `onSelectIncident`
+directly in its `useEffect` dependency array. Whenever a parent re-render passed a new,
+unmemoized callback instance (the common case — `App.tsx`/`OperationsMap.tsx` don't wrap it in
+`useCallback`), the effect tore down and recreated every incident DOM marker on the map, even
+though nothing about the incidents themselves had changed.
+
+**Solution 1:** Mirrored the ref-stabilization pattern already used by
+`useFieldUnitMarkers.ts` (§39): `onSelectIncident` is now captured in an `onSelectIncidentRef`,
+updated on every render (`onSelectIncidentRef.current = onSelectIncident`), and read from inside
+the marker click handler (`onSelectIncidentRef.current?.(incident)`) instead of being closed over
+directly. The `useEffect` dependency array was trimmed to `[map, incidents, selectedIncidentId]`,
+so marker DOM nodes are now only rebuilt when the incident data or selection actually changes.
+
+**Problem 2:** `useOperationalZoneLayers.ts`
+(`frontend/src/features/operational-zones/hooks/useOperationalZoneLayers.ts`) had a single
+`[map, zones]` effect whose cleanup called `removeLayer`/`removeLayer`/`removeSource`, and whose
+body called `addSource`/`addLayer`/`addLayer` again — so every `zones` update (including the
+periodic SignalR-driven `OperationsUpdated` invalidation, even when zone boundaries hadn't
+actually changed) tore down and rebuilt the GeoJSON source and both map layers from scratch.
+
+**Solution 2:** Split the hook into two effects, following the same mount/data-sync separation
+`useFieldUnitMarkers.ts` already uses for its marker map. A `[map]`-only effect creates the
+`operational-zones` GeoJSON source and its fill/label layers exactly once (seeded from a
+`zonesRef.current` ref so the very first paint already has correct data instead of an empty
+FeatureCollection), and only tears them down when the map instance itself unmounts. A separate
+`[map, zones]` effect now performs the update via
+`(map.getSource(ZONE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(featureCollection)` —
+MapLibre's native in-place data update — instead of any `remove*`/`add*` calls, whenever `zones`
+changes.
+
+**Verification:** `npm run build` (`tsc -b && vite build`) clean in `frontend/`; `npm run lint`
+(oxlint) shows only pre-existing warning classes (`react(refs)`, `react(set-state-in-effect)`)
+already present elsewhere in the codebase, including the identical ref-during-render pattern
+`useFieldUnitMarkers.ts` already uses — no new warning categories introduced.
+`dotnet build Src/SmartCityOps.sln` clean (0 warnings, 0 errors); no backend/migration files
+touched, since this phase is frontend-only.
+
+---
+
+## 65. Phase 5.40 — Normalize Legacy Incident Resolution Durations (Madde 5)
+
+**Problem:** `OperationalStatisticsService.GetStatisticsAsync`'s `AverageResolutionMinutes`
+computes `(ResolvedAt - ReportedAt).TotalMinutes` averaged across every `Resolved` incident (§52).
+A number of legacy/simulated incidents in the local database had `ResolvedAt` timestamps weeks or
+months after `ReportedAt` — an artifact of ad-hoc manual testing/seed timing rather than a real
+operational duration — which skewed the dashboard's average into the tens of thousands of minutes,
+making the metric meaningless as an operational signal.
+
+**Investigation:** `Src/SmartCityOps.Infrastructure/Persistence/Configurations/IncidentConfiguration.cs`
+has no `HasData(...)` seed block — unlike `RestrictedZoneConfiguration.cs` (§41) or
+`FieldUnitConfiguration.cs`, incidents are never statically seeded; every row in `Incidents` comes
+from either manual testing via Swagger/the frontend or the `incident-generator` worker's periodic
+POSTs (see "Incident Generator" in `CLAUDE.md`). So the fix only needed a one-time data migration
+against the existing table — there was no hardcoded seed timestamp to correct in code.
+
+**Solution:** Added a data-only EF Core migration, `NormalizeIncidentResolutionDurations`
+(`Src/SmartCityOps.Infrastructure/Persistence/Migrations/20260831072717_NormalizeIncidentResolutionDurations.cs`).
+Its `Up` method runs one raw SQL `UPDATE`:
+
+```sql
+UPDATE "Incidents"
+SET "ResolvedAt" = "ReportedAt" + (15 + random() * 30) * INTERVAL '1 minute'
+WHERE "Status" = 'Resolved'
+  AND "ResolvedAt" IS NOT NULL
+  AND "ResolvedAt" > "ReportedAt" + INTERVAL '2 hours';
+```
+
+Any resolved incident whose recorded resolution took longer than 2 hours (the unrealistic legacy
+rows) gets a fresh `ResolvedAt` drawn uniformly from `ReportedAt + 15..45 minutes` — a randomized
+value within that range rather than a single fixed offset, so the recalculated average still varies
+realistically across incidents instead of collapsing to one constant. Genuinely plausible existing
+durations (≤ 2 hours) are left untouched. `Down` is a documented no-op, since the original
+unrealistic timestamps aren't recoverable and there's no value in reintroducing them.
+
+**Verification:** `dotnet build Src/SmartCityOps.sln` clean (0 warnings, 0 errors) before applying.
+Applied locally via
+`dotnet ef database update --project SmartCityOps.Infrastructure --startup-project SmartCityOps.Api`
+— confirmed applied via the generated SQL logged against the real `Incidents` table. Started the
+API and called `GET /api/operations/statistics` directly: `averageResolutionMinutes` dropped from
+the previous multi-thousand-minute figure to `30.4`, consistent with the 15–45 minute normalization
+range. No frontend/application-layer code changed — `OperationalStatisticsService`'s calculation
+itself was already correct; only the underlying data was wrong.
 
 ---
 

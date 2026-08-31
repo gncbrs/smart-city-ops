@@ -1,6 +1,7 @@
 import type { OperationalStatistics } from "../types";
 import { HistoryTable, type HistoryTableRow } from "../../../shared/components/HistoryTable";
 import { formatEnumLabel } from "../../../shared/lib/formatLabel";
+import { formatDuration } from "../../../shared/lib/formatDuration";
 import "../styles/StatisticsSection.css";
 
 interface StatisticsSectionProps {
@@ -9,7 +10,7 @@ interface StatisticsSectionProps {
 }
 
 function formatAverageResolutionMinutes(minutes: number | null): string {
-  return minutes !== null ? `${minutes} min` : "N/A";
+  return minutes !== null ? formatDuration(minutes * 60000) : "N/A";
 }
 
 export function StatisticsSection({ statistics, onSelectFieldUnit }: StatisticsSectionProps) {

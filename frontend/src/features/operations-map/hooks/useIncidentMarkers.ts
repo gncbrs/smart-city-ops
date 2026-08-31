@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Marker, type Map as MapLibreMap } from "maplibre-gl";
 import type { Incident } from "../../incidents/types";
 import { APP_COLORS } from "../../../shared/constants/colors";
@@ -27,6 +27,9 @@ export function useIncidentMarkers({
   selectedIncidentId,
   onSelectIncident,
 }: UseIncidentMarkersParams) {
+  const onSelectIncidentRef = useRef(onSelectIncident);
+  onSelectIncidentRef.current = onSelectIncident;
+
   useEffect(() => {
     if (!map) return;
 
@@ -48,7 +51,7 @@ export function useIncidentMarkers({
 
       marker.getElement().addEventListener("click", (event) => {
         event.stopPropagation();
-        onSelectIncident(incident);
+        onSelectIncidentRef.current?.(incident);
       });
 
       return marker;
@@ -57,5 +60,5 @@ export function useIncidentMarkers({
     return () => {
       markers.forEach((marker) => marker.remove());
     };
-  }, [map, incidents, selectedIncidentId, onSelectIncident]);
+  }, [map, incidents, selectedIncidentId]);
 }
