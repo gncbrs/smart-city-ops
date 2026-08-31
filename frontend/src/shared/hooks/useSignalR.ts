@@ -19,6 +19,7 @@ export function useSignalRConnection() {
       queryClient.invalidateQueries({ queryKey: ["operational-statistics"] });
       queryClient.invalidateQueries({ queryKey: ["incident-timeline"] });
       queryClient.invalidateQueries({ queryKey: ["field-unit-movement-history"] });
+      void queryClient.invalidateQueries({ queryKey: ["replay-time-range"] });
     };
 
     // 1. Register the listener

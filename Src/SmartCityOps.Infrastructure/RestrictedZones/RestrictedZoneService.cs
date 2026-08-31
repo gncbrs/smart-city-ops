@@ -36,6 +36,24 @@ public class RestrictedZoneService : IRestrictedZoneService
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<RestrictedZoneDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.RestrictedZones
+            .AsNoTracking()
+            .Where(z => z.Id == id)
+            .Select(z => new RestrictedZoneDto(
+                z.Id,
+                z.Name,
+                z.Description,
+                z.Latitude,
+                z.Longitude,
+                z.RadiusMeters,
+                z.ZoneType.ToString(),
+                z.CreatedAt,
+                z.IsActive))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<RestrictedZoneDto> CreateAsync(CreateRestrictedZoneDto dto, CancellationToken cancellationToken)
     {
         var zone = new RestrictedZone

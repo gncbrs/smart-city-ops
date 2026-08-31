@@ -21,6 +21,13 @@ public class OperationalTasksController : ControllerBase
         return Ok(tasks);
     }
 
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<OperationalTaskDto>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var task = await _operationalTaskService.GetByIdAsync(id, cancellationToken);
+        return task is null ? NotFound() : Ok(task);
+    }
+
     [HttpPost]
     public async Task<ActionResult<OperationalTaskDto>> Create(CreateOperationalTaskDto dto, CancellationToken cancellationToken)
     {

@@ -123,7 +123,12 @@ No frontend test runner is configured either — `npm run lint` and `npm run bui
   `InvalidOperationException` now falls through to the standard 500 pipeline. Since Phase 5.38,
   `IncidentService.ResolveAsync` also rejects resolution with `DomainConflictException` (→409) when
   the incident still has any `OperationalTask` with `OperationalTaskStatus.Assigned` — enforcing the
-  same `IsReadyToResolve` invariant (§55) server-side instead of force-completing those tasks.
+  same `IsReadyToResolve` invariant (§55) server-side instead of force-completing those tasks. Since
+  Phase 5.44, `IncidentsController`, `FieldUnitsController`, `OperationalTasksController`, and
+  `RestrictedZonesController` each also expose a single-resource `GET /{id:guid}` endpoint
+  (`IIncidentService`/`IFieldUnitService`/`IOperationalTaskService`/`IRestrictedZoneService` all
+  gained a matching `GetByIdAsync`), returning `200 OK` with the DTO or `404 NotFound()` when the
+  service returns `null` — see `docs/DEVELOPMENT_LOG.md` Part 12 §69.
 
 **Incident Generator** (`Src/incident-generator`) — a separate worker service/executable with
 **no project reference** to the Api/Application/Domain projects, by design: it only talks to the
@@ -138,11 +143,13 @@ SignalR directly. The single subscriber, `SignalROperationsNotificationHandler`
 `_hubContext.Clients.All.SendAsync("OperationsUpdated", ...)` on `OperationsHub` (mapped at
 `/hubs/operations`) after `SaveChangesAsync`. There is only this one coarse-grained event — no
 per-entity payload. The frontend's `useSignalRConnection` hook
-(`frontend/src/shared/hooks/useSignalR.ts`) listens for it and invalidates six React Query keys
+(`frontend/src/shared/hooks/useSignalR.ts`) listens for it and invalidates ten React Query keys
 (`incidents`, `field-units`, `operational-tasks`, `field-unit-location-histories`,
-`field-unit-recommendations`, `restricted-zones`) rather than consuming pushed data. When adding a
-new mutating endpoint or a new query key that should stay live, follow both halves of this
-pattern.
+`field-unit-recommendations`, `restricted-zones`, `operational-statistics`, `incident-timeline`,
+`field-unit-movement-history`, and — since Phase 5.42 — `replay-time-range`, so the Historical
+Replay scrubber's upper bound stays current when new events arrive in the background) rather than
+consuming pushed data. When adding a new mutating endpoint or a new query key that should stay
+live, follow both halves of this pattern.
 
 **Ankara zone data has a single source of truth.** `Src/SmartCityOps.Domain/Common/AnkaraOperationalZones.cs`
 holds an `OperationalZoneDefinition` record (`Name`, `Latitude`, `Longitude`, `Spread`, `Weight`)
@@ -710,7 +717,32 @@ to `30.4` post-migration. `dotnet build Src/SmartCityOps.sln` clean (0 warnings,
 application/frontend code changed, since `OperationalStatisticsService`'s calculation itself was
 already correct — only the underlying data was wrong.
 
-Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project (the only
-remaining open item — see "Known open items" above) and the remaining lower-priority findings in
-`docs/SYSTEM_HEALTH_AUDIT.md` (missing single-resource `GET /{id}` endpoints and a handful of
-unmigrated color literals).
+Phase 5.42 (`docs/DEVELOPMENT_LOG.md`, Part 12 §67) fixed a stale-replay-range gap (Madde 6):
+`useSignalR.ts`'s `OperationsUpdated` handler was missing `["replay-time-range"]` from its
+invalidation list, so the Historical Replay scrubber's upper bound didn't extend when new
+incidents/events arrived in the background. Added `void queryClient.invalidateQueries({ queryKey:
+["replay-time-range"] });` alongside the existing invalidations — see "Real-time updates (SignalR)"
+above. `npm run build` clean; no backend/migration change.
+
+Phase 5.43 (`docs/DEVELOPMENT_LOG.md`, Part 12 §68) closed out the last unmigrated color literals
+flagged by `docs/SYSTEM_HEALTH_AUDIT.md` (Madde 7): `FilterCheckboxGroup.css`'s hardcoded
+`#f8fafc` text color became `var(--color-text-primary)`, and raw `rgba(0, 0, 0, ...)` box-shadow/
+backdrop literals in `ReplayControlBar.css`, `CoordinatePickerBanner.css`, `MenuOverlay.css`,
+`MenuButton.css`, and `OperationsCenterLayout.css` were consolidated onto the existing
+`var(--color-scrim)` token (no dedicated shadow token existed, so this reuses the closest existing
+one rather than adding a new custom property). `npm run build` clean; CSS-only change, no
+backend/migration change.
+
+Phase 5.44 (`docs/DEVELOPMENT_LOG.md`, Part 12 §69) closed the last lower-priority
+`docs/SYSTEM_HEALTH_AUDIT.md` finding (Madde 8): `IIncidentService`, `IFieldUnitService`,
+`IOperationalTaskService`, and `IRestrictedZoneService` each gained a `GetByIdAsync(Guid id, ...)`
+method, implemented in their Infrastructure services as an `AsNoTracking()` lookup returning the DTO
+or `null` (`IncidentService.GetByIdAsync` mirrors `GetAllAsync`'s `IsReadyToResolve`/`PriorityScore`
+computation for the single incident); `IncidentsController`/`FieldUnitsController`/
+`OperationalTasksController`/`RestrictedZonesController` each gained a matching
+`[HttpGet("{id:guid}")]` returning `200 OK` or `404 NotFound()`. `SmartCityOps.Api.http` gained
+chained "Get by id" requests for all four resources plus a not-found sanity check. `dotnet build
+Src/SmartCityOps.sln` clean (0 warnings, 0 errors); no migration/frontend change.
+
+Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project remains
+the only open item (see "Known open items" above).

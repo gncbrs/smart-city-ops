@@ -5,14 +5,30 @@
 GET {{SmartCityOps.Api_HostAddress}}/incidents
 Accept: application/json
 
+### Get incident by id (run "Get all incidents" above first; uses its first result's id)
+GET {{SmartCityOps.Api_HostAddress}}/incidents/{{getIncidents.response.body.$[0].id}}
+Accept: application/json
+
 ### Get all field units
 # @name getFieldUnits
 GET {{SmartCityOps.Api_HostAddress}}/field-units
 Accept: application/json
 
+### Get field unit by id (run "Get all field units" above first; uses its first result's id)
+GET {{SmartCityOps.Api_HostAddress}}/field-units/{{getFieldUnits.response.body.$[0].id}}
+Accept: application/json
+
 ### Get all operational tasks
 # @name getOperationalTasks
 GET {{SmartCityOps.Api_HostAddress}}/operational-tasks
+Accept: application/json
+
+### Get operational task by id (run "Get all operational tasks" above first; uses its first result's id)
+GET {{SmartCityOps.Api_HostAddress}}/operational-tasks/{{getOperationalTasks.response.body.$[0].id}}
+Accept: application/json
+
+### Get incident by id — not found (random Guid, expect 404)
+GET {{SmartCityOps.Api_HostAddress}}/incidents/00000000-0000-0000-0000-000000000000
 Accept: application/json
 
 ### Get all operational zones
@@ -63,7 +79,12 @@ Content-Type: application/json
 }
 
 ### Get all restricted zones
+# @name getRestrictedZones
 GET {{SmartCityOps.Api_HostAddress}}/restricted-zones
+Accept: application/json
+
+### Get restricted zone by id (run "Get all restricted zones" above first; uses its first result's id)
+GET {{SmartCityOps.Api_HostAddress}}/restricted-zones/{{getRestrictedZones.response.body.$[0].id}}
 Accept: application/json
 
 ### Create a restricted zone

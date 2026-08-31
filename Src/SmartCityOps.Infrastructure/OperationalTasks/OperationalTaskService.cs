@@ -56,6 +56,27 @@ public class OperationalTaskService : IOperationalTaskService
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<OperationalTaskDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.OperationalTasks
+            .AsNoTracking()
+            .Where(t => t.Id == id)
+            .Select(t => new OperationalTaskDto(
+                t.Id,
+                t.IncidentId,
+                t.FieldUnitId,
+                t.Status.ToString(),
+                t.AssignedAt,
+                t.CompletedAt,
+                t.ReassignedAt,
+                t.CancelledAt,
+                t.OriginLatitude,
+                t.OriginLongitude,
+                t.EstimatedEtaSeconds,
+                t.RouteGeometry))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<OperationalTaskDto> CreateAsync(CreateOperationalTaskDto dto, CancellationToken cancellationToken)
     {
         var incident = await _dbContext.Incidents

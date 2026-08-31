@@ -21,6 +21,13 @@ public class FieldUnitsController : ControllerBase
         return Ok(fieldUnits);
     }
 
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<FieldUnitDto>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var fieldUnit = await fieldUnitService.GetByIdAsync(id, cancellationToken);
+        return fieldUnit is null ? NotFound() : Ok(fieldUnit);
+    }
+
     [HttpGet("{id:guid}/movement-history")]
     public async Task<ActionResult<IReadOnlyList<FieldUnitMovementRecordDto>>> GetMovementHistory(Guid id, CancellationToken cancellationToken)
     {

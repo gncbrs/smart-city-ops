@@ -21,6 +21,13 @@ public class RestrictedZonesController : ControllerBase
         return Ok(zones);
     }
 
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<RestrictedZoneDto>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var zone = await _restrictedZoneService.GetByIdAsync(id, cancellationToken);
+        return zone is null ? NotFound() : Ok(zone);
+    }
+
     [HttpPost]
     public async Task<ActionResult<RestrictedZoneDto>> Create(CreateRestrictedZoneDto dto, CancellationToken cancellationToken)
     {

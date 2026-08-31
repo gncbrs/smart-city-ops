@@ -226,6 +226,9 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [63. Phase 5.38 — Server-Side IsReadyToResolve Enforcement in IncidentService](#63-phase-538--server-side-isreadytoresolve-enforcement-in-incidentservice)
   - [64. Phase 5.39 — MapLibre Render & Resource Lifecycle Optimization in Incident Markers and Zone Layers](#64-phase-539--maplibre-render--resource-lifecycle-optimization-in-incident-markers-and-zone-layers)
   - [65. Phase 5.40 — Normalize Legacy Incident Resolution Durations (Madde 5)](#65-phase-540--normalize-legacy-incident-resolution-durations-madde-5)
+  - [67. Phase 5.42 — Replay Time Range SignalR Invalidation Integration (Madde 6)](#67-phase-542--replay-time-range-signalr-invalidation-integration-madde-6)
+  - [68. Phase 5.43 — CSS Design Token & Box-Shadow Cleanup (Madde 7)](#68-phase-543--css-design-token--box-shadow-cleanup-madde-7)
+  - [69. Phase 5.44 — Single-Resource GET /{id} REST Endpoints Support (Madde 8)](#69-phase-544--single-resource-get-id-rest-endpoints-support-madde-8)
 
 
 
@@ -6624,6 +6627,87 @@ API and called `GET /api/operations/statistics` directly: `averageResolutionMinu
 the previous multi-thousand-minute figure to `30.4`, consistent with the 15–45 minute normalization
 range. No frontend/application-layer code changed — `OperationalStatisticsService`'s calculation
 itself was already correct; only the underlying data was wrong.
+
+---
+
+## 67. Phase 5.42 — Replay Time Range SignalR Invalidation Integration (Madde 6)
+
+**Problem:** `frontend/src/shared/hooks/useSignalR.ts`'s `handleOperationsUpdated` callback
+invalidated `incidents`, `field-units`, `operational-tasks`, `field-unit-location-histories`,
+`field-unit-recommendations`, `restricted-zones`, `operational-statistics`, `incident-timeline`,
+and `field-unit-movement-history` on every `OperationsUpdated` SignalR event, but not
+`["replay-time-range"]` — the query key backing `useReplayTimeRange`
+(`frontend/src/features/operations-replay/hooks/useReplayTimeRange.ts`), consumed by
+`useReplayController.ts`. As a result, if a new incident/event arrived in the background while an
+operator was viewing the Historical Replay timeline, the replay range's upper bound stayed stale
+instead of extending to cover the new event.
+
+**Solution:** Added `void queryClient.invalidateQueries({ queryKey: ["replay-time-range"] });` to
+the `OperationsUpdated` handler in `useSignalR.ts`, alongside the existing invalidation calls —
+following the same pattern described in "Real-time updates (SignalR)" in `CLAUDE.md`.
+
+**Verification:** `npm run build` in `frontend/` completed clean (`tsc -b && vite build`, 0
+TypeScript/Vite compilation errors); the pre-existing `maplibre-vendor` chunk-size warning is
+unrelated and unchanged. No backend/migration change.
+
+---
+
+## 68. Phase 5.43 — CSS Design Token & Box-Shadow Cleanup (Madde 7)
+
+**Problem:** The Phase 5.25 color token standardization (§50) migrated ~45 hardcoded color
+literals across 21 stylesheets and 5 MapLibre layer hooks onto the centralized `:root` token set
+in `frontend/src/index.css`, but a handful of literals were missed: a hardcoded `#f8fafc` text
+color in `frontend/src/features/operations-map/styles/FilterCheckboxGroup.css`, and raw
+`rgba(0, 0, 0, ...)` `box-shadow`/backdrop `background` values scattered across
+`frontend/src/features/operations-replay/styles/ReplayControlBar.css`,
+`frontend/src/features/restricted-zones/styles/CoordinatePickerBanner.css`,
+`frontend/src/features/menu/styles/MenuOverlay.css`,
+`frontend/src/features/menu/styles/MenuButton.css`, and
+`frontend/src/layouts/styles/OperationsCenterLayout.css`. These bypassed the design token system,
+leaving shadow/backdrop opacity values (0.1, 0.3, 0.5) that couldn't be adjusted from one place.
+
+**Solution:** `FilterCheckboxGroup.css`'s `color: #f8fafc` was replaced with
+`color: var(--color-text-primary)` — an exact value match, since `--color-text-primary` is already
+defined as `#f8fafc` in `index.css`. `index.css` has no dedicated box-shadow elevation token, so
+(following the same "use an existing token" scope discipline as Phase 5.25) every remaining raw
+`rgba(0, 0, 0, ...)` `box-shadow` and backdrop `background` literal — in `ReplayControlBar.css`,
+`CoordinatePickerBanner.css`, `MenuOverlay.css`, `MenuButton.css`, and
+`OperationsCenterLayout.css` (panel-toggle shadow, mobile side-panel/bottom-bar shadows, and the
+mobile backdrop `background`) — was consolidated onto the existing `var(--color-scrim)` token
+(`rgba(15, 23, 42, 0.85)` in `index.css`) instead of introducing a new shadow-specific custom
+property. This is a deliberate, minor visual normalization (all of these elements now share one
+scrim opacity/tint instead of four slightly different ad-hoc values), consistent with the
+project's existing single-source-of-truth token approach. No new CSS custom properties were added.
+
+**Verification:** `npm run build` in `frontend/` completed clean (`tsc -b && vite build`, 0
+TypeScript/Vite compilation errors); the pre-existing `maplibre-vendor` chunk-size warning is
+unrelated and unchanged. A follow-up grep for `rgba(0, 0, 0,` and `#f8fafc` across
+`frontend/src/` turned up no remaining literal usages outside `index.css`'s own token
+definitions. No backend/migration change, since this phase is CSS-only.
+
+---
+
+## 69. Phase 5.44 — Single-Resource GET /{id} REST Endpoints Support (Madde 8)
+
+**Problem:** Controllers only exposed bulk/collection endpoints (e.g. `GET /api/incidents`,
+`GET /api/field-units`). Single-resource retrieval (`GET /{id}`) was missing across all core
+entities, limiting external integrations and REST maturity.
+
+**Solution:** Added `GetByIdAsync` to the application service interfaces (`IIncidentService`,
+`IFieldUnitService`, `IOperationalTaskService`, `IRestrictedZoneService`) and implemented them in
+the corresponding infrastructure services, each returning the DTO or `null` when the entity doesn't
+exist. `IncidentService.GetByIdAsync` mirrors `GetAllAsync`'s `IsReadyToResolve`/`PriorityScore`
+computation for a single incident; the other three are `AsNoTracking()` + `Select(...)` projections
+matching their `GetAllAsync` mapping. Added `[HttpGet("{id:guid}")]` endpoints across all 4
+controllers (`IncidentsController`, `FieldUnitsController`, `OperationalTasksController`,
+`RestrictedZonesController`), each returning `200 OK` with the DTO when found or `404 NotFound()`
+when the service returns `null`. `SmartCityOps.Api.http` gained chained "Get by id" requests for
+incidents, field units, operational tasks, and restricted zones (reusing the existing `@name`-tagged
+collection responses), plus a not-found sanity check against a random Guid for incidents.
+
+**Verification:** `dotnet build Src/SmartCityOps.sln` verified clean (0 warnings, 0 errors) after
+each of the three steps (Application interfaces, Infrastructure implementations, Api controllers).
+No migration/frontend change — this phase is backend-only, additive REST surface.
 
 ---
 

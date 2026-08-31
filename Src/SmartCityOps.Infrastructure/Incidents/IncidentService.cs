@@ -43,6 +43,26 @@ public class IncidentService : IIncidentService
             .ToList();
     }
 
+    public async Task<IncidentDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var incident = await _dbContext.Incidents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
+
+        if (incident is null)
+        {
+            return null;
+        }
+
+        var hasActiveAssignedTasks = await _dbContext.OperationalTasks
+            .AsNoTracking()
+            .AnyAsync(t => t.IncidentId == id && t.Status == OperationalTaskStatus.Assigned, cancellationToken);
+
+        var isReadyToResolve = incident.Status != IncidentStatus.Resolved && !hasActiveAssignedTasks;
+
+        return ToDto(incident, DateTimeOffset.UtcNow, isReadyToResolve);
+    }
+
     public async Task<IncidentDto> CreateAsync(CreateIncidentDto dto, CancellationToken cancellationToken)
     {
         var incident = new Incident

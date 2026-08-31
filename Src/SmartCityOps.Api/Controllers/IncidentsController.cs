@@ -26,6 +26,13 @@ public class IncidentsController : ControllerBase
         return Ok(incidents);
     }
 
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<IncidentDto>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var incident = await _incidentService.GetByIdAsync(id, cancellationToken);
+        return incident is null ? NotFound() : Ok(incident);
+    }
+
     [HttpPost]
     public async Task<ActionResult<IncidentDto>> Create(CreateIncidentDto dto, CancellationToken cancellationToken)
     {

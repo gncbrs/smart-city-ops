@@ -34,6 +34,21 @@ public class FieldUnitService : IFieldUnitService
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<FieldUnitDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.FieldUnits
+            .AsNoTracking()
+            .Where(f => f.Id == id)
+            .Select(f => new FieldUnitDto(
+                f.Id,
+                f.UnitCode,
+                f.Type.ToString(),
+                f.Status.ToString(),
+                f.Latitude,
+                f.Longitude))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<FieldUnitMovementRecordDto>> GetMovementHistoryAsync(Guid fieldUnitId, CancellationToken cancellationToken = default)
     {
         var exists = await _dbContext.FieldUnits
