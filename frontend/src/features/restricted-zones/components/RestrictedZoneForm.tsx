@@ -100,7 +100,7 @@ export function RestrictedZoneForm({
             className="app-button app-button--outlined"
             onClick={onStartPickCoordinates}
           >
-            📍 Pick on Map
+            Pick on Map
           </button>
         )}
         <input

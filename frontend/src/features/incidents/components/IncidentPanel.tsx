@@ -54,11 +54,11 @@ export function IncidentPanel({
       <p>Description: {incident.description}</p>
 
       <div className="incident-panel__actions">
-        <button type="button" onClick={onViewTimeline} className="app-button">
+        <button type="button" onClick={onViewTimeline} className="app-button app-button--secondary">
           View Timeline
         </button>
         {!readOnly && incident.status !== "Resolved" && (
-          <button onClick={handleResolve} disabled={isPending} className="app-button">
+          <button onClick={handleResolve} disabled={isPending} className="app-button app-button--success">
             {isPending ? "Resolving..." : "Resolve Incident"}
           </button>
         )}

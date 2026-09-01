@@ -31,6 +31,7 @@
   --color-priority-medium-chip: #d97706;
   --color-priority-low: #10b981;
   --color-priority-low-bg: rgba(16, 185, 129, 0.15);
+  --color-priority-low-hover: #059669;
 
   /* Map Layer Semantics */
   --color-zone-operational-fill: #7c3aed;

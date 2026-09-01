@@ -18,3 +18,41 @@
   text-align: left;
   font-size: 1rem;
 }
+
+.app-button--danger {
+  background: var(--color-priority-high);
+  color: var(--color-text-primary);
+}
+
+.app-button--danger:hover {
+  background: var(--color-danger-hover);
+}
+
+.app-button--success {
+  background: var(--color-priority-low);
+  color: var(--color-text-primary);
+}
+
+.app-button--success:hover {
+  background: var(--color-priority-low-hover);
+}
+
+.app-button--warning {
+  background: var(--color-priority-medium);
+  color: var(--color-text-primary);
+}
+
+.app-button--warning:hover {
+  background: var(--color-priority-medium-chip);
+}
+
+.app-button--secondary {
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-wash-border);
+  color: var(--color-text-primary);
+}
+
+.app-button--secondary:hover {
+  background: var(--color-surface-card-selected);
+  border-color: var(--color-border-hover);
+}

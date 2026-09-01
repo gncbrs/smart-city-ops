@@ -1,15 +1,492 @@
-Please implement Step 8.4 of Madde 8: Update documentation in `docs/DEVELOPMENT_LOG.md` and `CLAUDE.md`.
+# Claude Code: Professional README.md Generation Prompt
 
-Required Changes:
-1. Open `docs/DEVELOPMENT_LOG.md`:
-   - Append a new section under Part 12: `## 69. Phase 5.44 — Single-Resource GET /{id} REST Endpoints Support (Madde 8)`.
-   - Document:
-     * Problem: Controllers only exposed bulk/collection endpoints (e.g. `GET /api/incidents`, `GET /api/field-units`). Single-resource retrieval (`GET /{id}`) was missing across all core entities, limiting external integrations and REST maturity.
-     * Solution: Added `GetByIdAsync` to application service interfaces (`IIncidentService`, `IFieldUnitService`, `IOperationalTaskService`, `IRestrictedZoneService`) and implemented them in infrastructure services returning DTO or `null`. Added `[HttpGet("{id:guid}")]` endpoints across all 4 controllers returning `200 OK` or `404 NotFound()`. Updated `SmartCityOps.Api.http` test definitions.
-     * Verification: `dotnet build SmartCityOps.sln` verified clean (0 warnings, 0 errors).
-   - Update the Table of Contents at the top of `docs/DEVELOPMENT_LOG.md` to include Section 69.
-2. Open `CLAUDE.md`:
-   - In "Architecture" -> Backend controller endpoint descriptions, note the presence of `GET /{id}` on Incidents, FieldUnits, Tasks, and RestrictedZones.
-   - In "Current status", add a brief summary of Phase 5.44 and remove the "missing single-resource GET /{id} endpoints" entry from the open issues list.
+## Context & Objectives
 
-Please apply the documentation updates and verify with `dotnet build Src/SmartCityOps.sln`.
+You are working on the **Smart City Operations Center** project, a sophisticated web-based operations dashboard built with **React + TypeScript** (frontend), **ASP.NET Core 8** (backend), and **PostgreSQL** (database). The project has been developed through three incremental levels (Basic → Operational Awareness → Advanced Operations), each with deep technical implementation details. Your task is to generate a **professional, production-ready README.md** that will serve as the primary documentation for evaluators, maintainers, and stakeholders.
+
+The existing README.md at `/Src` is adequate but incomplete. It covers basic structure and running locally, but lacks depth on architecture decisions, deployment strategy, project maturity indicators, and the full feature scope across all three levels. Your output should be a **comprehensive, well-structured replacement** that communicates professionalism, completeness, and careful engineering.
+
+---
+
+## Input Files to Reference
+
+You have access to:
+1. **CLAUDE.md** — internal Claude Code guidance (lists all commands, architecture layers, service interfaces, concurrency guards, known issues)
+2. **DEVELOPMENT_LOG.md** — 12-part chronological technical journal (use sparingly; cite key phases like 5.35, 5.39, 5.40 for major bug fixes / performance improvements)
+3. **SYSTEM_HEALTH_AUDIT.md** — full codebase audit report (Aug 30, 2026); use to justify "system health" claims and list current correctness status
+4. **SYSTEM_PRE_AUTH_AUDIT_REPORT.md** — pre-auth audit (reference as needed for security/compliance notes if present)
+5. **Existing README.md** — baseline content to preserve and expand upon
+
+---
+
+## Output Structure (Required)
+
+Your final README.md must follow this exact structure. Do not deviate. Each section is numbered for reference:
+
+### **1. Hero / Project Title & One-Liner**
+- **Requirement:** Title should be clear and memorable.
+- **Format:** A single concise sentence that explains what this project is.
+- **Example tone:** "A real-time web operations dashboard for coordinating field units and incidents in a simulated smart city."
+
+### **2. Status / Maturity Indicator**
+- **Requirement:** Explicitly state the development stage and completeness level.
+- **Content to include:**
+  - ✅ Explicitly mark Level 1, 2, 3 completion status (reference the README's claim that all three are complete).
+  - Include a brief summary of the latest phase/fix (reference DEVELOPMENT_LOG Part 12 §70 as the current state: button color hierarchy).
+  - Link to `docs/DEVELOPMENT_LOG.md` with a note that it contains the full technical decision history.
+  - Include a **System Health Badge**: "System Health: 7.5/10 (verified Aug 30, 2026)" and a sentence explaining what that means. Reference the SYSTEM_HEALTH_AUDIT.md findings (3 critical bugs fixed in Phase 5.35, remaining gaps are low-priority/cosmetic).
+
+### **3. Key Features (Three-Level Breakdown)**
+- **Requirement:** Organize features by Level (1, 2, 3), not by component type.
+- **Structure per level:**
+  ```
+  #### Level 1: Basic Operations Center
+  - Live incident monitoring on a map
+  - Field unit dispatch and tracking
+  - Real-time incident status updates
+  
+  #### Level 2: Operational Awareness
+  - Active/completed task views
+  - High-priority incident highlighting
+  - Operational statistics and dashboards
+  - Task history and incident timeline
+  
+  #### Level 3: Advanced Operations
+  - Composable task-assignment rule pipeline
+  - Field-unit recommendation engine with ETA
+  - Restricted zone definition and enforcement
+  - Operations replay (snapshot/event-history) with timeline scrubber
+  - Field-unit travel animation (origin → destination)
+  ```
+- **Tone:** Each bullet should be a user-facing capability, not a technical detail. If the reader doesn't know what "composable task-assignment rule pipeline" means, rephrase it more simply (e.g., "Customizable rules for automatic task assignment to field units").
+
+### **4. Technical Architecture**
+- **Requirement:** Communicate the layered design without overwhelming non-technical readers.
+- **Structure (suggest this exact format):**
+  ```
+  #### Backend — Clean Architecture, 4-Layer Design
+  - **Domain**: Plain entities and enums (zero framework dependencies)
+  - **Application**: DTOs and service interfaces (feature-driven organization)
+  - **Infrastructure**: EF Core/PostgreSQL, service implementations, SignalR hub
+  - **API**: RESTful controllers, Swagger docs, centralized exception handling
+  
+  Dependency direction: API → Infrastructure → Application → Domain (inward only, no violations detected in codebase audit).
+  
+  #### Frontend — Component-Driven React + TypeScript
+  - **Features folder**: One folder per domain concept (incidents, field-units, operational-tasks, etc.)
+  - **Shared utilities**: Reusable components, hooks, MapLibre integrations, TanStack React Query
+  - **Fixed layout**: Map + sidebar + three-column task/incident/field-unit panel (no scrolling)
+  
+  #### Database
+  - PostgreSQL 16 with EF Core code-first migrations
+  - Partial unique indexes for task-assignment concurrency guard (verified correct)
+  - Domain-event propagation via SignalR for real-time updates
+  ```
+- **Tone:** Assume the reader has architectural knowledge but not intimate project familiarity.
+
+### **5. Technology Stack (Tabular)**
+- **Requirement:** Use a simple markdown table.
+- **Content:**
+  ```
+  | Concern | Choice | Rationale |
+  |---|---|---|
+  | Backend Framework | ASP.NET Core 8 | Modern, type-safe, excellent async/concurrency |
+  | Frontend UI | React 18 + TypeScript | Component-driven, strong type safety |
+  | Map Rendering | MapLibre GL JS | Open-source, performant vector tile rendering |
+  | Server State | TanStack React Query | Powerful caching, synchronization, background refetch |
+  | Database | PostgreSQL 16 | Robust, spatial data support (future), open-source |
+  | ORM | Entity Framework Core | Type-safe LINQ queries, migrations, lazy-load prevention |
+  | Real-time | SignalR | WebSocket-based server push, built-in .NET integration |
+  | HTTP Client | axios (frontend) + TypedHttpClient (backend) | Interceptors, timeout handling, type safety |
+  | Styling | BEM + CSS Variables | Maintainable, zero-runtime CSS-in-JS overhead |
+  | Build Tools | Vite (frontend), dotnet CLI (backend) | Fast development loop, zero-config (mostly) |
+  ```
+
+### **6. Project Structure (Tree Format)**
+- **Requirement:** Show the folder hierarchy at a glance, with brief explanations.
+- **Format (use code block with comments):**
+  ```
+  SmartCityOps/
+  ├── Src/
+  │   ├── SmartCityOps.Domain/           # Entities, enums (zero framework deps)
+  │   ├── SmartCityOps.Application/      # DTOs, service interfaces (per-feature folders)
+  │   ├── SmartCityOps.Infrastructure/   # EF Core, migrations, service impls
+  │   ├── SmartCityOps.Api/              # Controllers, Swagger, DI wiring
+  │   └── incident-generator/            # External incident simulator (HTTP-only communication)
+  ├── frontend/
+  │   ├── src/
+  │   │   ├── app/                       # Top-level App.tsx, providers
+  │   │   ├── layouts/                   # Operations center fixed layout
+  │   │   ├── features/                  # One folder per domain concept
+  │   │   └── shared/                    # Reusable components, hooks, utilities
+  │   └── public/
+  ├── docs/
+  │   ├── DEVELOPMENT_LOG.md             # Full chronological technical journal (Part 1–12)
+  │   ├── CLAUDE.md                      # Claude Code guidance
+  │   └── SYSTEM_HEALTH_AUDIT.md         # Codebase audit report
+  └── docker-compose.yml                 # Local PostgreSQL 16
+  ```
+
+### **7. Getting Started / Quick Start**
+- **Requirement:** Step-by-step instructions that a new developer can follow without guessing.
+- **Structure:**
+  ```
+  #### Prerequisites
+  - .NET 8 SDK (or higher)
+  - Node.js 18+ (for frontend)
+  - Docker (for local PostgreSQL) — or any Postgres 16 instance
+  - Git
+  
+  #### Installation & Running Locally
+  1. **Clone the repository**
+     git clone <repo-url>
+     cd SmartCityOps
+  
+  2. **Start the database**
+     docker compose up -d
+     # Creates Postgres 16 on localhost:5432 with db/user/password = "smartcityops"
+  
+  3. **Apply migrations**
+     cd Src
+     dotnet ef database update \
+       --project SmartCityOps.Infrastructure \
+       --startup-project SmartCityOps.Api
+  
+  4. **Start the backend API**
+     dotnet run --project SmartCityOps.Api
+     # Listens on http://localhost:5080
+     # Swagger UI available at http://localhost:5080/swagger
+  
+  5. **Start the incident generator (optional but recommended)**
+     In a new terminal:
+     dotnet run --project incident-generator
+     # Posts a simulated incident every ~15 seconds to the API
+     # Configuration in incident-generator/appsettings.json
+  
+  6. **Start the frontend**
+     cd ../frontend
+     npm install
+     npm run dev
+     # Runs at http://localhost:5173 (already configured to talk to the API)
+  
+  #### Verification
+  - Open http://localhost:5173 in a browser
+  - The map should appear with operational zones
+  - Run the incident generator to see live incidents appear on the map
+  ```
+- **Tone:** Assume zero prior knowledge of this project; be explicit about which terminal/directory each command runs in.
+
+### **8. Development Commands (Reference Table)**
+- **Requirement:** Quick lookup table for common tasks.
+- **Format:**
+  ```
+  #### Backend (from `Src/`)
+  | Task | Command |
+  |---|---|
+  | Build everything | `dotnet build` |
+  | Run API | `dotnet run --project SmartCityOps.Api` |
+  | Run incident generator | `dotnet run --project incident-generator` |
+  | Apply migrations | `dotnet ef database update --project SmartCityOps.Infrastructure --startup-project SmartCityOps.Api` |
+  | Create new migration | `dotnet ef migrations add <Name> --project SmartCityOps.Infrastructure --startup-project SmartCityOps.Api` |
+  
+  #### Frontend (from `frontend/`)
+  | Task | Command |
+  |---|---|
+  | Install dependencies | `npm install` |
+  | Dev server (hot reload) | `npm run dev` |
+  | Build for production | `npm run build` |
+  | Lint check | `npm run lint` |
+  | Preview production build | `npm run preview` |
+  ```
+
+### **9. Architecture & Design Decisions**
+- **Requirement:** Explain *why* things were built this way, not just *what* was built.
+- **Suggested subsections:**
+  ```
+  #### Clean Architecture Layering
+  The backend strictly enforces dependency inversion: Domain layer has zero framework references, allowing entities and business logic to be tested independently of EF Core or HTTP concerns. This is verified in the latest codebase audit (no EF/Infrastructure refs found in Domain or Application projects).
+  
+  #### Concurrency Safety
+  Field-unit task assignment uses a database-level partial unique index (one active task per unit) combined with a pessimistic lock-and-retry loop. This closes the classic "both requests read Available, both dispatch" race condition at the transaction level, with the database guaranteeing atomicity.
+  
+  #### Real-time Synchronization
+  SignalR broadcasts operational updates (new incidents, task completions, field-unit status changes) to all connected clients. The frontend's TanStack React Query integration automatically invalidates and refetches affected queries on each server notification, keeping the UI in sync without polling.
+  
+  #### Fixed, Non-Scrolling Layout
+  The operations dashboard intentionally uses a fixed (viewport-filling) layout with three pinned panels at the bottom. This mirrors physical NOC (Network Operations Center) design, where operators never scroll — every mission-critical piece is always visible.
+  
+  #### Priority Scoring
+  Incident priority is computed server-side once and exposed on every `IncidentDto`, combining base severity (Incident.Priority enum) with an age bonus (up to +30 for incidents older than ~30 minutes). This is a single source of truth, preventing frontend/backend divergence.
+  
+  #### Ankara Zone Data
+  Operational zone definitions (12 districts) are centralized in `SmartCityOps.Domain/Geography/AnkaraOperationalZones.cs`. Both the API endpoints and the incident generator reference this same static list, ensuring consistency across the platform.
+  ```
+- **Tone:** Each subsection should answer "what" and "why" together, addressing a non-obvious design choice.
+
+### **10. API Overview (Endpoints)**
+- **Requirement:** List main endpoint categories without full details.
+- **Format (suggested):**
+  ```
+  #### Main Endpoints
+  - `GET /api/incidents` — List all incidents (active + resolved)
+  - `POST /api/incidents` — Create incident (typically via incident generator)
+  - `PATCH /api/incidents/{id}/resolve` — Mark incident as resolved
+  
+  - `GET /api/field-units` — List all field units and their status
+  - `PATCH /api/field-units/{id}/status` — Update field unit status (Available ↔ OutOfService)
+  
+  - `GET /api/operational-tasks` — List all tasks
+  - `POST /api/operational-tasks` — Create and assign a task to a field unit
+  - `PATCH /api/operational-tasks/{id}/reassign` — Reassign task to another unit
+  - `POST /api/operational-tasks/{id}/complete` — Mark task as complete
+  
+  - `GET /api/operations/statistics` — Dashboard statistics (incident count, avg resolution time, field-unit workload)
+  - `GET /api/incidents/{id}/timeline` — Incident event history
+  - `GET /api/field-units/{id}/movement-history` — Field unit movement trail
+  
+  - `GET /api/operational-zones` — All zones (GeoJSON)
+  - `GET /api/restricted-zones` — All restricted zones
+  - `POST /api/restricted-zones` — Define a restricted zone
+  
+  - `GET /api/operations-replay/snapshots` — Historical state snapshots
+  - `GET /api/operations-replay/time-range` — Available replay time span
+  
+  Full Swagger docs available at `http://localhost:5080/swagger` in Development.
+  ```
+
+### **11. Real-time Features (SignalR)**
+- **Requirement:** Explain what updates flow through SignalR and how they're reflected in the UI.
+- **Content:**
+  ```
+  #### Real-time Synchronization via SignalR
+  The backend's `OperationsHub` broadcasts notifications on domain events. The frontend's `useSignalR.ts` hook listens for `OperationsUpdated` and automatically invalidates the affected React Query cache keys:
+  
+  - **New incident** → invalidate `incidents`, `operational-zones`, `operations-statistics`, `replay-time-range`
+  - **Task assignment/completion/cancellation** → invalidate `incidents`, `operational-tasks`, `field-units`, `field-unit-location-histories`, `operational-statistics`
+  - **Restricted zone created** → invalidate `restricted-zones`
+  - **Field unit status change** → invalidate `field-units`, `operational-statistics`
+  
+  This keeps all UI panels (map, incident list, task list, statistics) in sync without manual refresh and without polling overhead.
+  ```
+
+### **12. Testing & Quality**
+- **Requirement:** Be honest about what testing exists and what doesn't.
+- **Content (factual):**
+  ```
+  #### Code Quality Verification
+  - **Frontend**: `npm run lint` (oxlint) and `npm run build` (includes TypeScript strict mode) are run on every build.
+  - **Backend**: `dotnet build` compiles with zero warnings; no dedicated test project exists (all verification has been manual via Swagger, `SmartCityOps.Api.http`, and the running frontend).
+  
+  #### Codebase Audit (Aug 30, 2026)
+  A full read-only audit of `frontend/src` and `Src/` verified:
+  - ✅ Clean Architecture layering is correctly enforced (no EF/Infrastructure leakage)
+  - ✅ Database-level concurrency guard for task assignment is correct
+  - ✅ All SSOT (single-source-of-truth) claims verified in code
+  - ⚠️ 3 correctness bugs found and fixed in Phase 5.35 (IsReadyToResolve divergence, ArgumentException mapping, incident-generator exception handling)
+  - ⚠️ Performance improvements in Phase 5.39–5.40 (marker/layer churn elimination, replay time-range invalidation, statistics data normalization)
+  
+  System health rating: **7.5 / 10** (strong architecture, minor cosmetic gaps). Full audit report in `docs/SYSTEM_HEALTH_AUDIT.md`.
+  ```
+
+### **13. Deployment**
+- **Requirement:** Explain production deployment strategy (even if not yet deployed).
+- **Suggested content (choose one that fits your situation):**
+  ```
+  #### Production Deployment Strategy
+  
+  This project is designed to be containerized and deployed to cloud infrastructure (Docker, Kubernetes, or App Service). The recommended path:
+  
+  1. **Backend (Docker)**
+     - Build multi-stage Dockerfile: SDK layer for build, aspnet layer for runtime
+     - Extract NuGet dependencies into a separate layer for efficient caching
+     - Publish from `SmartCityOps.Api` project
+     - Environment config via Docker/Kubernetes secrets
+  
+  2. **Frontend (Docker)**
+     - Build multi-stage: Node layer for `npm run build`, nginx layer for serving static assets
+     - Production build emits to `dist/` folder
+  
+  3. **Database (PostgreSQL Managed Service)**
+     - Use managed PostgreSQL (Azure Database for PostgreSQL, AWS RDS, or similar)
+     - Run EF Core migrations as a pre-deployment step or startup hook
+     - Backup strategy: daily snapshots (managed service feature)
+  
+  4. **Container Orchestration (Recommended: Kubernetes or Docker Compose)**
+     - `docker-compose.yml` in repo for local development
+     - Helm charts or Docker Compose for staging/production (not included in repo; example files available on request)
+  
+  #### Environment Configuration
+  Backend reads from `appsettings.{Environment}.json` and environment variables (priority: env var > file). Key variables:
+  - `ConnectionStrings__DefaultConnection` — PostgreSQL connection string
+  - `AllowedOrigins` — CORS whitelist for frontend domain
+  - `OsrmApiUrl` — OSRM routing service (defaults to public API; can be self-hosted)
+  
+  Frontend environment vars are baked into the build (Vite). Key Vite env variables:
+  - `VITE_API_BASE_URL` — Backend API URL (default: `http://localhost:5080` for dev)
+  ```
+
+### **14. Known Limitations & Future Work**
+- **Requirement:** Be transparent about what's not done and what's a conscious trade-off.
+- **Suggested content:**
+  ```
+  #### Known Limitations
+  - **No test suite** — Correctness has relied on manual verification (Swagger UI, HTTP client testing via `.http` files, running the frontend). A backend test project is a recommended addition before production use.
+  - **OSRM routing** — Uses the public OSRM API (rate-limited, not guaranteed SLA). For production, self-host an OSRM instance or integrate a commercial routing service.
+  - **Incident generator** — Simulates external incidents with fixed frequency. In production, this would be replaced with a real event feed (e.g., Kafka consumer, HTTP webhook receiver).
+  - **Restricted zones** — Currently simple rectangular polygon definitions. Future versions could support complex geometries, dynamic loading from external data sources.
+  - **Scale limits** — Backend has not been load-tested. At very high incident/field-unit counts (>10k concurrent units, >100 incidents/sec), database connection pooling and query optimization would likely be needed.
+  
+  #### Planned Enhancements (beyond Level 3)
+  - Full test suite (unit + integration)
+  - Advanced filtering and full-text search on incidents
+  - Bulk operations (e.g., reassign multiple tasks in one action)
+  - Audit log UI (currently only logged server-side)
+  - Mobile-responsive frontend or native mobile app
+  - Self-hosted OSRM instance for production routing
+  ```
+
+### **15. Documentation Index**
+- **Requirement:** Point the reader to all available documentation.
+- **Content:**
+  ```
+  #### Documentation Files
+  - **`docs/DEVELOPMENT_LOG.md`** — Full chronological technical journal (Parts 1–12), covering every architectural decision, rejected alternative, and bug found. Start here for the complete project history.
+  - **`docs/CLAUDE.md`** — Internal Claude Code guidance (commands, architecture overview, known issues). Used by Claude for context on this project.
+  - **`docs/SYSTEM_HEALTH_AUDIT.md`** — Full codebase audit report (Aug 30, 2026). Verifies Clean Architecture claims, documents 3 corrected critical bugs, and lists 7 recommended action items.
+  - **`SYSTEM_PRE_AUTH_AUDIT_REPORT.md`** — Pre-authentication audit findings (reference as needed).
+  - **This README** — You are here.
+  
+  #### Running Tests / Verification
+  - Swagger UI: `http://localhost:5080/swagger` (Development mode only)
+  - HTTP client file: `Src/SmartCityOps.Api.http` (VS Code REST Client extension)
+  - Frontend linting: `npm run lint` from `frontend/`
+  - TypeScript check: `npm run build` (includes `tsc -b`)
+  ```
+
+### **16. Contributing & Maintenance**
+- **Requirement:** Guidelines for future work (if applicable).
+- **Suggested content:**
+  ```
+  #### Adding a New Feature
+  1. **Identify the layer**: Does this touch domain logic (Domain/Application), persistence (Infrastructure), or just HTTP (Api)?
+  2. **Create feature folders**: Add a new feature folder to `Src/SmartCityOps.Application/{FeatureName}` with a service interface (`I{FeatureName}Service`).
+  3. **Implement in Infrastructure**: Add `Src/SmartCityOps.Infrastructure/{FeatureName}/{FeatureName}Service.cs` implementing the interface.
+  4. **Wire in DI**: Add the service registration to `SmartCityOps.Infrastructure/DependencyInjection.cs`.
+  5. **Add controller**: Create `Src/SmartCityOps.Api/Controllers/{FeatureName}Controller.cs` with HTTP endpoints.
+  6. **Frontend**: Create `frontend/src/features/{featureName}` with hooks, components, and styles.
+  7. **Update documentation**: Add a summary to `docs/DEVELOPMENT_LOG.md`.
+  
+  #### Making Changes
+  - Always run `dotnet build` and `npm run build` before committing.
+  - Ensure migrations are applied before running the API: `dotnet ef database update ...`.
+  - Frontend changes should pass `npm run lint` with zero warnings.
+  
+  #### Reporting Issues
+  - If you find a bug, check `docs/DEVELOPMENT_LOG.md` Part 12 to see if it was already found and fixed.
+  - If you have a design question, refer to the "Architecture & Design Decisions" section of this README.
+  ```
+
+### **17. License & Attribution**
+- **Requirement:** Copyright, license, and credit information.
+- **Suggested content:**
+  ```
+  #### License
+  [Choose one: MIT, Apache 2.0, Proprietary, etc.]
+  
+  #### Credits
+  - Developed as part of [your course/program/organization]
+  - Map data © OpenStreetMap contributors
+  - Routing services powered by OSRM (Open Source Routing Machine)
+  - UI built with React, MapLibre GL JS, and TanStack React Query
+  ```
+
+---
+
+## Writing Guidelines (Critical)
+
+1. **Tone: Professional & Accessible**
+   - Assume the reader is a technical decision-maker (architect, tech lead) or a new developer, not an expert in this specific codebase.
+   - Avoid jargon without explanation. If you use "partial unique index," explain what it does (protects against race conditions).
+   - Use short paragraphs (2–4 sentences max) for readability.
+
+2. **Accuracy & Verification**
+   - Every claim about the codebase must be verifiable against CLAUDE.md, DEVELOPMENT_LOG.md, or SYSTEM_HEALTH_AUDIT.md.
+   - If citing a fix, reference the specific phase (e.g., "Phase 5.35" or "Part 12 §60").
+   - Do not speculate about performance or scalability unless explicitly tested.
+
+3. **Structure & Navigation**
+   - Use a table of contents at the very top (auto-generated from headers).
+   - Keep headers short (max 10 words) and descriptive.
+   - Use bullet points for lists; numbered steps for procedures.
+   - Use code blocks for commands (`dotnet run`, `npm install`, etc.), configuration, and code snippets.
+
+4. **Visuals & Formatting**
+   - Emojis: Use sparingly (one per section max, if any). Focus on clarity over decoration.
+   - Tables: Use for structured data (tech stack, commands, endpoints).
+   - Code blocks: Use triple backticks with language hints (```bash, ```csharp, ```json).
+   - Badges: Add a "System Health: 7.5/10" badge/note near the top if desired.
+
+5. **Length & Depth**
+   - Target length: **1500–2500 words** (readable in 5–10 minutes).
+   - Depth: Assume readers want to understand *why* decisions were made, not just *what* they are. Sections 4, 9, and 13 are critical for this.
+   - Avoid over-explaining basic concepts (e.g., "React is a JavaScript library that builds UIs") unless the README is being read by a non-technical audience.
+
+---
+
+## Specific Tone Examples (Adopt This Voice)
+
+**Good (clear, confident, specific):**
+> "The backend uses EF Core with a partial unique index on `OperationalTask.FieldUnitId` filtered to active status. This closes the classic race condition where two simultaneous requests both read 'field unit is available' and both try to dispatch it. The database enforces atomicity, so the second request fails immediately with a conflict, and the API returns 409."
+
+**Avoid (vague, over-technical, uncertain):**
+> "The backend has, like, some concurrency stuff, and it uses indexes or something. It's pretty solid."
+
+**Avoid (over-explaining basics):**
+> "The frontend uses React, which is a UI library written in JavaScript. React is used by many companies like Netflix and Airbnb. It was created by Facebook..."
+
+---
+
+## Checklist Before Finalizing
+
+- [ ] Table of contents is present and accurate.
+- [ ] All 17 sections are present and in order.
+- [ ] Every claim about the codebase is verifiable (cite CLAUDE.md, DEVELOPMENT_LOG.md, SYSTEM_HEALTH_AUDIT.md).
+- [ ] Code examples (commands, snippets) are tested or verified correct.
+- [ ] No hardcoded paths; use relative paths (`frontend/`, `Src/`, `docs/`).
+- [ ] Quick-start section (Getting Started) is complete and unambiguous.
+- [ ] Architecture section explains *why*, not just *what*.
+- [ ] Tone is consistent throughout (professional, accessible, not overly casual or formal).
+- [ ] Length is 1500–2500 words (not a 10,000-word essay).
+- [ ] No typos, grammatical errors, or incomplete sentences.
+- [ ] Links to internal docs (DEVELOPMENT_LOG, CLAUDE.md, SYSTEM_HEALTH_AUDIT.md) are correct.
+
+---
+
+## Final Output
+
+Save the final README.md to the project root as `README_NEW.md` (to preserve the original if needed), or directly as `README.md` if you're confident in the output.
+
+Then output:
+1. A summary of changes from the old README (3–5 bullet points).
+2. A confidence level (out of 10) that this README accurately represents the project.
+
+---
+
+## Additional Notes
+
+- **If you encounter ambiguity**, use the CLAUDE.md and DEVELOPMENT_LOG.md as the source of truth. They are kept up-to-date by the developer.
+- **If you find a gap** (e.g., unclear how OSRM is configured in production), note it as a known gap in the "Known Limitations" section rather than guessing.
+- **Do not invent features** that aren't in CLAUDE.md or the code. If it's not documented or verifiable, don't claim it exists.
+- **Assume the reader will follow the Quick Start section**. Test your instructions mentally: can someone with zero context follow each step without questions?
+
+---
+
+## Context for You (Agent)
+
+- You are Claude, a capable code-aware AI assistant.
+- You have access to a complete project codebase (conceptually; you're reading documentation about it).
+- You are writing for an audience of technical evaluators (e.g., professors, hiring managers, stakeholders).
+- Your goal is to produce a README that makes the project look *as professional as it actually is* — this is a well-engineered project, and the documentation should reflect that.
+- You have 1 hour to complete this task. Focus on thoroughness within the 17-section structure rather than perfect polish; good enough is good enough.
+
+Good luck! 🚀

@@ -69,26 +69,26 @@ export function FieldUnitPanel({
       <p>Status: {formatEnumLabel(fieldUnit.status)}</p>
 
       <div className="field-unit-panel__actions">
-        <button type="button" onClick={onViewMovementHistory} className="app-button">
+        <button type="button" onClick={onViewMovementHistory} className="app-button app-button--secondary">
           View Movement History
         </button>
         {!readOnly && fieldUnit.status === "Dispatched" && activeTask && (
-          <button onClick={handleComplete} disabled={isPending} className="app-button">
+          <button onClick={handleComplete} disabled={isPending} className="app-button app-button--success">
             {isPending ? "Completing..." : "Complete Task"}
           </button>
         )}
         {!readOnly && fieldUnit.status === "Dispatched" && activeTask && (
-          <button onClick={handleCancel} disabled={isCancelPending} className="app-button app-button--outlined">
+          <button onClick={handleCancel} disabled={isCancelPending} className="app-button app-button--danger">
             {isCancelPending ? "Cancelling..." : "Cancel Task"}
           </button>
         )}
         {!readOnly && fieldUnit.status === "Available" && (
-          <button onClick={() => handleSetStatus("OutOfService")} disabled={isStatusUpdating} className="app-button">
+          <button onClick={() => handleSetStatus("OutOfService")} disabled={isStatusUpdating} className="app-button app-button--warning">
             {isStatusUpdating ? "Updating..." : "Set Out of Service"}
           </button>
         )}
         {!readOnly && fieldUnit.status === "OutOfService" && (
-          <button onClick={() => handleSetStatus("Available")} disabled={isStatusUpdating} className="app-button">
+          <button onClick={() => handleSetStatus("Available")} disabled={isStatusUpdating} className="app-button app-button--success">
             {isStatusUpdating ? "Updating..." : "Set Available"}
           </button>
         )}

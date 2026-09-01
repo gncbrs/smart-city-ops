@@ -744,5 +744,17 @@ computation for the single incident); `IncidentsController`/`FieldUnitsControlle
 chained "Get by id" requests for all four resources plus a not-found sanity check. `dotnet build
 Src/SmartCityOps.sln` clean (0 warnings, 0 errors); no migration/frontend change.
 
+Phase 5.45 (`docs/DEVELOPMENT_LOG.md`, Part 12 §70) rolled out a semantic button color hierarchy to
+resolve the visual ambiguity between operational action buttons that all previously shared the same
+primary-blue `.app-button` styling. `frontend/src/shared/styles/buttons.css` gained four token-driven
+BEM variants — `.app-button--danger`, `--success`, `--warning`, `--secondary` — sourced entirely
+from `frontend/src/index.css`'s `:root` tokens (one new token, `--color-priority-low-hover`, was
+added; no hardcoded hex/rgb in either file). `FieldUnitPanel.tsx` and `IncidentPanel.tsx` were
+updated to apply the appropriate variant per action (e.g. Cancel Task → `--danger`, Resolve
+Incident/Complete Task → `--success`, Set Out of Service → `--warning`, View Timeline/Movement
+History → `--secondary`); `ReassignTaskButton.tsx`/`AssignTaskButton.tsx` were confirmed to already
+correctly use the base primary-blue `.app-button`. `npm run lint`/`npm run build` clean throughout;
+no backend/migration change.
+
 Other candidates noted in `docs/DEVELOPMENT_LOG.md` Part 12: adding a backend test project remains
 the only open item (see "Known open items" above).

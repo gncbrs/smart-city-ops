@@ -229,6 +229,7 @@ files; only a "Part N" divider heading and this Table of Contents were added on 
   - [67. Phase 5.42 — Replay Time Range SignalR Invalidation Integration (Madde 6)](#67-phase-542--replay-time-range-signalr-invalidation-integration-madde-6)
   - [68. Phase 5.43 — CSS Design Token & Box-Shadow Cleanup (Madde 7)](#68-phase-543--css-design-token--box-shadow-cleanup-madde-7)
   - [69. Phase 5.44 — Single-Resource GET /{id} REST Endpoints Support (Madde 8)](#69-phase-544--single-resource-get-id-rest-endpoints-support-madde-8)
+  - [70. Phase 5.45 — Semantic Button Hierarchy & Action Tokens Rollout](#70-phase-545--semantic-button-hierarchy--action-tokens-rollout)
 
 
 
@@ -6708,6 +6709,50 @@ collection responses), plus a not-found sanity check against a random Guid for i
 **Verification:** `dotnet build Src/SmartCityOps.sln` verified clean (0 warnings, 0 errors) after
 each of the three steps (Application interfaces, Infrastructure implementations, Api controllers).
 No migration/frontend change — this phase is backend-only, additive REST surface.
+
+---
+
+## 70. Phase 5.45 — Semantic Button Hierarchy & Action Tokens Rollout
+
+**Problem:** Every operational action button (Complete Task, Cancel Task, Set Out of Service,
+Resolve Incident, View Timeline/Movement History, Reassign/Assign Task) rendered with the same
+base `.app-button` primary-blue styling, or an ad-hoc `.app-button--outlined` variant for Cancel
+Task. This gave the operator no visual distinction between a destructive action (cancel a task), an
+affirmative/completing action (resolve an incident, complete a task), a cautionary action (take a
+unit out of service), and a neutral/informational action (view a timeline or movement history) —
+all of which sit side-by-side in `FieldUnitPanel`/`IncidentPanel`.
+
+**Solution:** Rolled out in three steps, each independently lint/build-verified. Step 1 added four
+BEM variant classes to `frontend/src/shared/styles/buttons.css` — `.app-button--danger`,
+`.app-button--success`, `.app-button--warning`, `.app-button--secondary` — layered on top of the
+existing `.app-button` base (padding/border-radius/font/cursor/transitions unchanged). Every color
+value is sourced from `frontend/src/index.css`'s `:root` token set, with no hardcoded hex/rgb in
+either file: danger uses `--color-priority-high`/`--color-danger-hover` (both pre-existing), success
+uses `--color-priority-low` plus a newly added `--color-priority-low-hover: #059669` token (no
+existing darker-emerald token was available), warning uses `--color-priority-medium`/
+`--color-priority-medium-chip` (both pre-existing, the latter already matching the requested
+`#d97706` hover), and secondary uses `--color-surface-panel`/`--color-wash-border` with a
+`--color-surface-card-selected`/`--color-border-hover` hover state (chosen over the visually
+identical `--color-surface-panel`/`--color-surface-card` pair, which share the same hex value and
+would have produced no visible hover feedback).
+
+Step 2 applied the variants to the Field Unit slice: in `FieldUnitPanel.tsx`, View Movement History
+→ `--secondary`, Complete Task and Set Available → `--success`, Cancel Task → `--danger` (replacing
+its previous `--outlined` styling), and Set Out of Service → `--warning`. `ReassignTaskButton.tsx`
+was inspected and confirmed to already use the base `.app-button` (primary blue) correctly, with no
+conflicting overrides in `ReassignTaskButton.css`.
+
+Step 3 applied the variants to the Incident slice: in `IncidentPanel.tsx`, View Timeline →
+`--secondary` and Resolve Incident → `--success`. `AssignTaskButton.tsx` was inspected and confirmed
+to already use the base `.app-button` (primary blue) correctly, with `AssignTaskButton.css` limited
+to a `margin-top` utility and no conflicting color overrides.
+
+**Verification:** `npm run lint` and `npm run build` (`tsc -b && vite build`) were run inside
+`frontend/` after each of the three steps and passed cleanly each time — zero new lint errors or
+TypeScript/Vite compilation errors (the pre-existing `react(refs)`/`react(set-state-in-effect)`
+warnings and the `maplibre-vendor` chunk-size warning are unrelated and unchanged). No inline styles
+were introduced anywhere in the rollout; no backend/migration change, since this phase is
+frontend-only.
 
 ---
 
